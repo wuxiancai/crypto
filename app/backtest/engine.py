@@ -15,6 +15,9 @@ class BacktestConfig:
     taker_fee_rate: Decimal | None = None
     default_stop_distance_pct: Decimal = Decimal("0.02")
     default_take_profit_risk_reward: Decimal = Decimal("2")
+    quantity_step: Decimal | None = None
+    min_qty: Decimal | None = None
+    min_notional: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,7 @@ class BacktestMetrics:
     gross_pnl: Decimal
     fees: Decimal
     net_pnl: Decimal
+    rejected_entries: int
     by_strategy: dict[str, StrategyMetrics]
 
 
@@ -90,6 +94,7 @@ def run_backtest(klines: list[Kline], signal_fn: SignalFn, config: BacktestConfi
     equity = config.initial_equity
     trades: list[BacktestTrade] = []
     position: _Position | None = None
+    rejected_entries = 0
 
     for kline in sorted(klines, key=lambda row: row.open_time):
         if position is not None:
@@ -103,16 +108,18 @@ def run_backtest(klines: list[Kline], signal_fn: SignalFn, config: BacktestConfi
         signal = signal_fn(kline, position is not None)
         if position is None and signal.action in {"LONG_ENTRY", "SHORT_ENTRY", "REVERSAL_LONG_ENTRY", "REVERSAL_SHORT_ENTRY"}:
             position = _open_position(kline, signal, equity, config)
+            if position is None:
+                rejected_entries += 1
 
     return BacktestResult(
         initial_equity=config.initial_equity,
         final_equity=equity,
         trades=trades,
-        metrics=_build_metrics(trades),
+        metrics=_build_metrics(trades, rejected_entries),
     )
 
 
-def _open_position(kline: Kline, signal: SignalLike, equity: Decimal, config: BacktestConfig) -> _Position:
+def _open_position(kline: Kline, signal: SignalLike, equity: Decimal, config: BacktestConfig) -> _Position | None:
     side = _side_from_action(signal.action)
     raw_entry_price = getattr(signal, "entry_price", None) or kline.close
     stop_loss = getattr(signal, "stop_loss", None) or _default_stop_loss(raw_entry_price, side, config)
@@ -125,7 +132,9 @@ def _open_position(kline: Kline, signal: SignalLike, equity: Decimal, config: Ba
 
     risk_pct = getattr(signal, "risk_pct", None) or config.risk_per_trade_pct
     risk_amount = equity * risk_pct
-    quantity = risk_amount / stop_distance
+    quantity = _apply_quantity_step(risk_amount / stop_distance, config)
+    if _violates_exchange_filters(quantity, entry_price, config):
+        return None
     entry_fee = entry_price * quantity * _taker_fee_rate(config)
     return _Position(
         symbol=kline.symbol,
@@ -233,7 +242,21 @@ def _exit_fee_rate(exit_reason: str, config: BacktestConfig) -> Decimal:
     return _taker_fee_rate(config)
 
 
-def _build_metrics(trades: list[BacktestTrade]) -> BacktestMetrics:
+def _apply_quantity_step(quantity: Decimal, config: BacktestConfig) -> Decimal:
+    if config.quantity_step is None:
+        return quantity
+    return (quantity // config.quantity_step) * config.quantity_step
+
+
+def _violates_exchange_filters(quantity: Decimal, price: Decimal, config: BacktestConfig) -> bool:
+    if config.min_qty is not None and quantity < config.min_qty:
+        return True
+    if config.min_notional is not None and quantity * price < config.min_notional:
+        return True
+    return False
+
+
+def _build_metrics(trades: list[BacktestTrade], rejected_entries: int = 0) -> BacktestMetrics:
     by_strategy: dict[str, StrategyMetrics] = {}
     for strategy_type in sorted({trade.strategy_type for trade in trades}):
         strategy_trades = [trade for trade in trades if trade.strategy_type == strategy_type]
@@ -246,6 +269,7 @@ def _build_metrics(trades: list[BacktestTrade]) -> BacktestMetrics:
         gross_pnl=overall.gross_pnl,
         fees=overall.fees,
         net_pnl=overall.net_pnl,
+        rejected_entries=rejected_entries,
         by_strategy=by_strategy,
     )
 
