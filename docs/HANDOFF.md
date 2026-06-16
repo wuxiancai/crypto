@@ -11,7 +11,7 @@
   - `docs/TASKS.md`
   - `docs/HANDOFF.md`
 - 当前项目已有 git 仓库，并已按功能节点持续提交。
-- V0.2 策略信号已完成第一版，下一阶段进入 V0.3 回测系统。
+- 已进入 V0.3 回测系统阶段，当前完成最小事件驱动回测引擎。
 
 ## 本轮修复
 
@@ -51,10 +51,11 @@
 - 趋势转换输出通用事件 `REVERSAL_LONG_ENTRY` / `REVERSAL_SHORT_ENTRY`，并通过 `signal_level` 区分 `EARLY` / `CONFIRMED`。
 - 趋势转换评分已封顶 100，且已实现距离 EMA50 过远时的禁止追涨追跌过滤。
 - 实现 V0.2 信号统一编排入口：数据同步阻断优先，其次退出信号，其次风控阻断，新开仓按主趋势优先、趋势转换次之。
+- 实现 V0.3 最小事件驱动回测引擎：按 K 线顺序推进、单仓位、风险预算开仓、止盈/止损退出、统一费率手续费与基础滑点。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：21 passed。
+- `.venv/bin/python -m pytest -q`：23 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -65,8 +66,8 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 进入 V0.3：实现事件驱动回测引擎，复用 V0.2 策略信号与信号编排入口。
-4. 回测系统必须模拟手续费、滑点、资金费率、交易所精度和强平风险，不能只做理想成交。
+3. 继续 V0.3：接入 V0.2 策略信号与信号编排入口，避免测试策略函数长期停留在 stub。
+4. 回测系统继续补 maker/taker 费率、极端滑点、限价未成交、资金费率、交易所精度和强平风险。
 
 ## 最近提交
 
@@ -76,6 +77,8 @@
 - `0e27c77 feat: add reversal probe signal engine`
 - `da1b335 test: add signal routing priority cases`
 - `42ba830 feat: add signal routing priority`
+- `bbda45e test: add event backtest engine cases`
+- `cfcf3f9 feat: add event driven backtest engine`
 
 ## 风险提醒
 
