@@ -1,0 +1,14 @@
+{
+  "close_values": ["10", "11", "12", "13", "14"],
+  "high_values": ["10", "11", "12", "13", "14"],
+  "low_values": ["8", "9", "10", "11", "12"],
+  "expected": {
+    "ema_3_last": "13.0625",
+    "atr_3_last": "2",
+    "bb_5_middle_last": "12",
+    "di_plus_3_last": "50",
+    "di_minus_3_last": "0",
+    "adx_3_last": "100"
+  }
+}
+
