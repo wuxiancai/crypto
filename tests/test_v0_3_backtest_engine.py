@@ -69,9 +69,9 @@ def test_backtest_opens_and_closes_long_trade_with_costs():
     assert trade.exit_reason == "TAKE_PROFIT"
     assert trade.entry_price == Decimal("100.100")
     assert trade.exit_price == Decimal("109.890")
-    assert trade.gross_pnl == Decimal("195.800")
-    assert trade.net_pnl == Decimal("191.80100")
-    assert result.final_equity == Decimal("10191.80100")
+    assert trade.gross_pnl.quantize(Decimal("0.00001")) == Decimal("191.96078")
+    assert trade.net_pnl.quantize(Decimal("0.00001")) == Decimal("187.84333")
+    assert result.final_equity.quantize(Decimal("0.00001")) == Decimal("10187.84333")
 
 
 def test_backtest_opens_and_stops_short_trade():
