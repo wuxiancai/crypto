@@ -47,10 +47,13 @@
 - 实现 V0.2 主趋势回踩/反弹入场信号：`TREND_PULLBACK`。
 - 主趋势做多要求：UPTREND、允许做多、价格在 EMA50/ATR 回踩区域、15m 看涨确认、RR 达标。
 - 主趋势做空要求：DOWNTREND、允许做空、价格在 EMA50/ATR 反弹区域、15m 看跌确认、RR 达标。
+- 实现 V0.2 趋势转换试仓信号：`REVERSAL_PROBE`。
+- 趋势转换输出通用事件 `REVERSAL_LONG_ENTRY` / `REVERSAL_SHORT_ENTRY`，并通过 `signal_level` 区分 `EARLY` / `CONFIRMED`。
+- 趋势转换评分已封顶 100，且已实现距离 EMA50 过远时的禁止追涨追跌过滤。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：14 passed。
+- `.venv/bin/python -m pytest -q`：17 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -61,12 +64,15 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 继续 V0.2：趋势转换早期/确认试仓、趋势转换评分封顶、禁止追涨追跌过滤、信号生成顺序。
+3. 继续 V0.2：实现信号生成顺序：同步/风控/退出优先，新开仓靠后。
+4. 开始 V0.3 回测系统前，补充策略信号统一编排入口，确保主趋势和趋势转换不会同时开仓。
 
 ## 最近提交
 
 - `192eaaf test: add pullback strategy entry cases`
 - `cce1b0c feat: add trend pullback entry signals`
+- `3d18f52 test: add reversal strategy signal cases`
+- `0e27c77 feat: add reversal probe signal engine`
 
 ## 风险提醒
 
