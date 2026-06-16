@@ -24,7 +24,8 @@
 - 当前已实现 EMA、ATR、ADX、DI_PLUS、DI_MINUS、Bollinger Bands。
 - 当前已添加 `tests/fixtures/indicator_golden.json` 固定样本校验。
 - Binance 主网 futures endpoint 在当前网络返回 HTTP 451；已用 `BINANCE_BASE_URL=https://testnet.binancefuture.com` 完成 dry-run 验证。
-- 真实 PostgreSQL 入库尚未执行；K 线 repository 已用 SQLite 内存库测试 upsert 行为。
+- 本地 PostgreSQL 已启动并完成 migration；已用 Binance futures 测试网写入 BTCUSDT、ETHUSDT 各 5 根 15m K 线。
+- 主网真实 K 线写入仍待可访问 Binance 主网 futures endpoint 的环境验证。
 
 ## V0.2 策略信号
 
