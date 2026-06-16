@@ -29,7 +29,7 @@
 
 ## V0.2 策略信号
 
-- [ ] 实现趋势识别状态：UPTREND、DOWNTREND、RANGE、TRANSITION、UNKNOWN。
+- [x] 实现趋势识别状态：UPTREND、DOWNTREND、RANGE、TRANSITION、UNKNOWN。
 - [ ] 实现主趋势回踩做多。
 - [ ] 实现主趋势反弹做空。
 - [ ] 实现趋势转换早期试仓信号。

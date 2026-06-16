@@ -43,10 +43,11 @@
 - 创建 `scripts/sync_klines.py` dry-run / write 入口。
 - 创建本地 PostgreSQL Docker Compose：`crypto_quant_postgres`，默认宿主端口 `55432`。
 - 修复 K 线 `open_time` / `close_time` 为 BIGINT，避免币安毫秒时间戳溢出。
+- 实现 V0.2 趋势识别状态机：UPTREND、DOWNTREND、RANGE、TRANSITION，并支持 TRANSITION 继续评估趋势转换。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：9 passed。
+- `.venv/bin/python -m pytest -q`：11 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -57,7 +58,7 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 开始 V0.2 趋势识别状态机。
+3. 继续 V0.2：主趋势回踩做多、反弹做空、趋势转换早期/确认试仓。
 
 ## 风险提醒
 
