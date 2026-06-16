@@ -102,7 +102,7 @@ def test_blocks_pullback_signal_when_risk_reward_is_too_low():
             recent_swing_low=Decimal("100"),
             recent_swing_high=Decimal("108"),
         ),
-        min_risk_reward=Decimal("2"),
+        min_risk_reward=Decimal("3"),
     )
 
     assert signal.action == "WAIT"
