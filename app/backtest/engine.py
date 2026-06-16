@@ -28,6 +28,8 @@ class BacktestConfig:
     min_notional: Decimal | None = None
     funding_rates: list[FundingRate] | None = None
     price_tick: Decimal | None = None
+    leverage: Decimal | None = None
+    maintenance_margin_pct: Decimal = Decimal("0")
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,7 @@ class BacktestMetrics:
     rejected_entries: int
     unfilled_entries: int
     partial_fills: int
+    liquidations: int
     by_strategy: dict[str, StrategyMetrics]
 
 
@@ -217,6 +220,13 @@ def _default_take_profit(entry_price: Decimal, stop_loss: Decimal, side: str, co
 
 
 def _maybe_close_position(position: _Position, kline: Kline, config: BacktestConfig) -> BacktestTrade | None:
+    liquidation_price = _liquidation_price(position, config)
+    if liquidation_price is not None:
+        if position.side == "LONG" and kline.low <= liquidation_price:
+            return _close_position(position, kline, liquidation_price, "LIQUIDATION", config)
+        if position.side == "SHORT" and kline.high >= liquidation_price:
+            return _close_position(position, kline, liquidation_price, "LIQUIDATION", config)
+
     if position.side == "LONG":
         if kline.low <= position.stop_loss:
             raw_exit_price = min(kline.open, position.stop_loss)
@@ -324,6 +334,14 @@ def _funding_fee(position: _Position, exit_time: int, config: BacktestConfig) ->
     return funding_fee
 
 
+def _liquidation_price(position: _Position, config: BacktestConfig) -> Decimal | None:
+    if config.leverage is None or config.leverage <= 0:
+        return None
+    if position.side == "LONG":
+        return position.entry_price * (Decimal("1") - Decimal("1") / config.leverage + config.maintenance_margin_pct)
+    return position.entry_price * (Decimal("1") + Decimal("1") / config.leverage - config.maintenance_margin_pct)
+
+
 def _apply_quantity_step(quantity: Decimal, config: BacktestConfig) -> Decimal:
     if config.quantity_step is None:
         return quantity
@@ -371,6 +389,7 @@ def _build_metrics(
         rejected_entries=rejected_entries,
         unfilled_entries=unfilled_entries,
         partial_fills=partial_fills,
+        liquidations=sum(1 for trade in trades if trade.exit_reason == "LIQUIDATION"),
         by_strategy=by_strategy,
     )
 
