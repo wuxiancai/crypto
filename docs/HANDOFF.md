@@ -1,6 +1,6 @@
 # Handoff
 
-更新时间：2026-06-16
+更新时间：2026-06-17
 
 ## 当前状态
 
@@ -10,8 +10,8 @@
   - `docs/DECISIONS.md`
   - `docs/TASKS.md`
   - `docs/HANDOFF.md`
-- 当前还没有发现 git 仓库，无法提交 commit。
-- 已进入 V0.1 数据与指标开发。
+- 当前项目已有 git 仓库，并已按功能节点持续提交。
+- 已进入 V0.2 策略信号开发。
 
 ## 本轮修复
 
@@ -44,10 +44,13 @@
 - 创建本地 PostgreSQL Docker Compose：`crypto_quant_postgres`，默认宿主端口 `55432`。
 - 修复 K 线 `open_time` / `close_time` 为 BIGINT，避免币安毫秒时间戳溢出。
 - 实现 V0.2 趋势识别状态机：UPTREND、DOWNTREND、RANGE、TRANSITION，并支持 TRANSITION 继续评估趋势转换。
+- 实现 V0.2 主趋势回踩/反弹入场信号：`TREND_PULLBACK`。
+- 主趋势做多要求：UPTREND、允许做多、价格在 EMA50/ATR 回踩区域、15m 看涨确认、RR 达标。
+- 主趋势做空要求：DOWNTREND、允许做空、价格在 EMA50/ATR 反弹区域、15m 看跌确认、RR 达标。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：11 passed。
+- `.venv/bin/python -m pytest -q`：14 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -58,7 +61,12 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 继续 V0.2：主趋势回踩做多、反弹做空、趋势转换早期/确认试仓。
+3. 继续 V0.2：趋势转换早期/确认试仓、趋势转换评分封顶、禁止追涨追跌过滤、信号生成顺序。
+
+## 最近提交
+
+- `192eaaf test: add pullback strategy entry cases`
+- `cce1b0c feat: add trend pullback entry signals`
 
 ## 风险提醒
 
