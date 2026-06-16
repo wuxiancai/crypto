@@ -493,3 +493,71 @@ def test_backtest_applies_funding_fee_while_position_is_open():
     assert result.trades[0].funding_fee == Decimal("0.2000")
     assert result.trades[0].net_pnl == Decimal("199.8000")
     assert result.metrics.funding_fees == Decimal("0.2000")
+
+
+def test_backtest_uses_stop_slippage_and_gap_price_for_extreme_stop():
+    from app.backtest.engine import BacktestConfig, run_backtest
+    from app.data.quality import Kline
+    from app.strategy.pullback_strategy import TradeSignal
+
+    klines = [
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("93"),
+            high=Decimal("94"),
+            low=Decimal("90"),
+            close=Decimal("91"),
+            volume=Decimal("10"),
+        ),
+    ]
+
+    def signal_fn(kline: Kline, has_position: bool) -> TradeSignal:
+        if kline.open_time == 0 and not has_position:
+            return TradeSignal(
+                action="LONG_ENTRY",
+                strategy_type="TREND_PULLBACK",
+                entry_price=Decimal("100"),
+                stop_loss=Decimal("95"),
+                take_profit=Decimal("110"),
+                risk_reward=Decimal("2"),
+                reason=["gap stop"],
+            )
+        return TradeSignal(
+            action="WAIT",
+            strategy_type="TREND_PULLBACK",
+            entry_price=None,
+            stop_loss=None,
+            take_profit=None,
+            risk_reward=None,
+            reason=[],
+        )
+
+    result = run_backtest(
+        klines=klines,
+        signal_fn=signal_fn,
+        config=BacktestConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            stop_slippage_pct=Decimal("0.01"),
+        ),
+    )
+
+    assert result.trades[0].exit_reason == "STOP_LOSS"
+    assert result.trades[0].exit_price == Decimal("92.07")
+    assert result.trades[0].net_pnl == Decimal("-158.60")
