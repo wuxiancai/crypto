@@ -17,11 +17,12 @@
 - [x] 实现 K 线完整性验证。
 - [x] 实现多周期已收盘数据对齐函数。
 - [x] 实现 EMA、ATR、ADX、DI_PLUS、DI_MINUS、Bollinger Bands。
-- [ ] 用第三方库或固定样本校验指标误差。
+- [x] 用第三方库或固定样本校验指标误差。
 
 说明：
 
 - 当前已实现 EMA、ATR、ADX、DI_PLUS、DI_MINUS、Bollinger Bands。
+- 当前已添加 `tests/fixtures/indicator_golden.json` 固定样本校验。
 - Binance 主网 futures endpoint 在当前网络返回 HTTP 451；已用 `BINANCE_BASE_URL=https://testnet.binancefuture.com` 完成 dry-run 验证。
 - 真实 PostgreSQL 入库尚未执行；K 线 repository 已用 SQLite 内存库测试 upsert 行为。
 
