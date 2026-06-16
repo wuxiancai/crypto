@@ -1,4 +1,5 @@
 from decimal import Decimal
+from dataclasses import dataclass
 
 
 def test_backtest_opens_and_closes_long_trade_with_costs():
@@ -561,3 +562,124 @@ def test_backtest_uses_stop_slippage_and_gap_price_for_extreme_stop():
     assert result.trades[0].exit_reason == "STOP_LOSS"
     assert result.trades[0].exit_price == Decimal("92.07")
     assert result.trades[0].net_pnl == Decimal("-158.60")
+
+
+@dataclass(frozen=True)
+class LimitSignal:
+    action: str
+    strategy_type: str
+    entry_price: Decimal
+    stop_loss: Decimal
+    take_profit: Decimal
+    order_type: str
+    fill_ratio: Decimal
+
+
+def test_backtest_does_not_fill_limit_order_when_price_not_touched():
+    from app.backtest.engine import BacktestConfig, run_backtest
+    from app.data.quality import Kline
+
+    klines = [
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        )
+    ]
+
+    def signal_fn(kline: Kline, has_position: bool) -> LimitSignal:
+        return LimitSignal(
+            action="LONG_ENTRY",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("98"),
+            stop_loss=Decimal("95"),
+            take_profit=Decimal("104"),
+            order_type="LIMIT",
+            fill_ratio=Decimal("1"),
+        )
+
+    result = run_backtest(
+        klines=klines,
+        signal_fn=signal_fn,
+        config=BacktestConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+        ),
+    )
+
+    assert result.trades == []
+    assert result.metrics.unfilled_entries == 1
+
+
+def test_backtest_applies_limit_partial_fill_ratio():
+    from app.backtest.engine import BacktestConfig, run_backtest
+    from app.data.quality import Kline
+
+    klines = [
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("97"),
+            close=Decimal("99"),
+            volume=Decimal("10"),
+        ),
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("99"),
+            high=Decimal("105"),
+            low=Decimal("98"),
+            close=Decimal("104"),
+            volume=Decimal("10"),
+        ),
+    ]
+
+    def signal_fn(kline: Kline, has_position: bool) -> LimitSignal:
+        if kline.open_time == 0 and not has_position:
+            return LimitSignal(
+                action="LONG_ENTRY",
+                strategy_type="TREND_PULLBACK",
+                entry_price=Decimal("98"),
+                stop_loss=Decimal("95"),
+                take_profit=Decimal("104"),
+                order_type="LIMIT",
+                fill_ratio=Decimal("0.5"),
+            )
+        return LimitSignal(
+            action="WAIT",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("0"),
+            stop_loss=Decimal("0"),
+            take_profit=Decimal("0"),
+            order_type="LIMIT",
+            fill_ratio=Decimal("0"),
+        )
+
+    result = run_backtest(
+        klines=klines,
+        signal_fn=signal_fn,
+        config=BacktestConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+        ),
+    )
+
+    assert result.trades[0].quantity == Decimal("16.66666666666666666666666666")
+    assert result.trades[0].net_pnl == Decimal("100.0000000000000000000000000")
+    assert result.metrics.partial_fills == 1
