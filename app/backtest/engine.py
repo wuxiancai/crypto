@@ -27,6 +27,7 @@ class BacktestConfig:
     min_qty: Decimal | None = None
     min_notional: Decimal | None = None
     funding_rates: list[FundingRate] | None = None
+    price_tick: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -152,7 +153,7 @@ def _open_position(kline: Kline, signal: SignalLike, equity: Decimal, config: Ba
     stop_loss = getattr(signal, "stop_loss", None) or _default_stop_loss(raw_entry_price, side, config)
     take_profit = getattr(signal, "take_profit", None) or _default_take_profit(raw_entry_price, stop_loss, side, config)
 
-    entry_price = _apply_entry_slippage(raw_entry_price, side, config.slippage_pct)
+    entry_price = _round_price_for_side(_apply_entry_slippage(raw_entry_price, side, config.slippage_pct), side, config)
     stop_distance = abs(entry_price - stop_loss)
     if stop_distance <= 0:
         raise ValueError("stop distance must be positive")
@@ -239,7 +240,11 @@ def _close_position(
     exit_reason: str,
     config: BacktestConfig,
 ) -> BacktestTrade:
-    exit_price = _apply_exit_slippage(raw_exit_price, position.side, _exit_slippage_pct(exit_reason, config))
+    exit_price = _round_price_for_side(
+        _apply_exit_slippage(raw_exit_price, position.side, _exit_slippage_pct(exit_reason, config)),
+        "SHORT" if position.side == "LONG" else "LONG",
+        config,
+    )
     if position.side == "LONG":
         gross_pnl = (exit_price - position.entry_price) * position.quantity
     else:
@@ -275,6 +280,14 @@ def _apply_exit_slippage(price: Decimal, side: str, slippage_pct: Decimal) -> De
     if side == "LONG":
         return price * (Decimal("1") - slippage_pct)
     return price * (Decimal("1") + slippage_pct)
+
+
+def _round_price_for_side(price: Decimal, side: str, config: BacktestConfig) -> Decimal:
+    if config.price_tick is None:
+        return price
+    if side == "LONG":
+        return _ceil_to_step(price, config.price_tick)
+    return _floor_to_step(price, config.price_tick)
 
 
 def _exit_slippage_pct(exit_reason: str, config: BacktestConfig) -> Decimal:
@@ -315,6 +328,17 @@ def _apply_quantity_step(quantity: Decimal, config: BacktestConfig) -> Decimal:
     if config.quantity_step is None:
         return quantity
     return (quantity // config.quantity_step) * config.quantity_step
+
+
+def _floor_to_step(value: Decimal, step: Decimal) -> Decimal:
+    return (value // step) * step
+
+
+def _ceil_to_step(value: Decimal, step: Decimal) -> Decimal:
+    floored = _floor_to_step(value, step)
+    if floored == value:
+        return value
+    return floored + step
 
 
 def _violates_exchange_filters(quantity: Decimal, price: Decimal, config: BacktestConfig) -> bool:
