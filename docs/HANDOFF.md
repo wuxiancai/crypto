@@ -13,7 +13,7 @@
 - 当前项目已有 git 仓库，并已按功能节点持续提交。
 - V0.3 回测系统已补充真实策略信号复用、maker/taker 手续费和按策略统计。
 - V0.4 Paper Trading 已完成最小撮合与账户闭环。
-- 本轮继续补充 V0.3 交易所过滤、资金费率模拟，以及 V0.4 Paper CLI 状态输出。
+- 本轮继续补充 V0.3 极端止损滑点、限价未成交/部分成交，以及 V0.4 Paper 基础报警。
 
 ## 本轮修复
 
@@ -59,13 +59,16 @@
 - V0.3 回测已输出整体指标与按 `strategy_type` 拆分指标。
 - V0.3 回测已支持 `quantity_step`、`min_qty`、`min_notional` 交易所过滤，并记录 rejected_entries。
 - V0.3 回测已支持资金费率模拟，funding_fee 会进入 trade 与 metrics。
+- V0.3 回测已支持止损专用滑点，且跳空越过止损时按更差的开盘价作为极端成交基准。
+- V0.3 回测已支持限价未触达不成交、限价部分成交比例和 partial_fills 统计。
 - V0.4 已实现 Paper Trading 最小内核：信号入场、单仓位撮合、止盈/止损退出、权益更新、fills 记录、rejected_signals 计数。
 - V0.4 Paper 已支持主趋势和趋势转换信号，趋势转换同样使用自身 `risk_pct`。
 - V0.4 已实现 Paper CLI 状态格式化输出。
+- V0.4 已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：32 passed。
+- `.venv/bin/python -m pytest -q`：36 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -76,8 +79,8 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 继续 V0.3：补极端滑点、限价未成交、部分成交、价格 tick 方向细化和强平风险。
-4. 继续 V0.4：实现实时行情订阅和基础报警。
+3. 继续 V0.3：补价格 tick 方向细化和强平风险。
+4. 继续 V0.4：实现实时行情订阅。
 
 ## 最近提交
 
@@ -103,6 +106,12 @@
 - `7a6f029 feat: add funding fees to backtests`
 - `2746c9a test: add paper status formatting case`
 - `d6f25da feat: add paper status formatter`
+- `e10189f test: add extreme stop slippage case`
+- `f62c9d2 feat: add extreme stop slippage to backtests`
+- `ec1da50 test: add limit fill backtest cases`
+- `5eb6149 feat: add limit fill simulation to backtests`
+- `569cd7a test: add paper alert cases`
+- `6ed1eb0 feat: add paper alert rules`
 
 ## 风险提醒
 
