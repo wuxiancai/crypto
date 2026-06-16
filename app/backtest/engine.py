@@ -18,6 +18,7 @@ class BacktestConfig:
     risk_per_trade_pct: Decimal
     fee_rate: Decimal
     slippage_pct: Decimal
+    stop_slippage_pct: Decimal | None = None
     maker_fee_rate: Decimal | None = None
     taker_fee_rate: Decimal | None = None
     default_stop_distance_pct: Decimal = Decimal("0.02")
@@ -184,13 +185,15 @@ def _default_take_profit(entry_price: Decimal, stop_loss: Decimal, side: str, co
 def _maybe_close_position(position: _Position, kline: Kline, config: BacktestConfig) -> BacktestTrade | None:
     if position.side == "LONG":
         if kline.low <= position.stop_loss:
-            return _close_position(position, kline, position.stop_loss, "STOP_LOSS", config)
+            raw_exit_price = min(kline.open, position.stop_loss)
+            return _close_position(position, kline, raw_exit_price, "STOP_LOSS", config)
         if kline.high >= position.take_profit:
             return _close_position(position, kline, position.take_profit, "TAKE_PROFIT", config)
         return None
 
     if kline.high >= position.stop_loss:
-        return _close_position(position, kline, position.stop_loss, "STOP_LOSS", config)
+        raw_exit_price = max(kline.open, position.stop_loss)
+        return _close_position(position, kline, raw_exit_price, "STOP_LOSS", config)
     if kline.low <= position.take_profit:
         return _close_position(position, kline, position.take_profit, "TAKE_PROFIT", config)
     return None
@@ -203,7 +206,7 @@ def _close_position(
     exit_reason: str,
     config: BacktestConfig,
 ) -> BacktestTrade:
-    exit_price = _apply_exit_slippage(raw_exit_price, position.side, config.slippage_pct)
+    exit_price = _apply_exit_slippage(raw_exit_price, position.side, _exit_slippage_pct(exit_reason, config))
     if position.side == "LONG":
         gross_pnl = (exit_price - position.entry_price) * position.quantity
     else:
@@ -239,6 +242,12 @@ def _apply_exit_slippage(price: Decimal, side: str, slippage_pct: Decimal) -> De
     if side == "LONG":
         return price * (Decimal("1") - slippage_pct)
     return price * (Decimal("1") + slippage_pct)
+
+
+def _exit_slippage_pct(exit_reason: str, config: BacktestConfig) -> Decimal:
+    if exit_reason == "STOP_LOSS" and config.stop_slippage_pct is not None:
+        return config.stop_slippage_pct
+    return config.slippage_pct
 
 
 def _maker_fee_rate(config: BacktestConfig) -> Decimal:
