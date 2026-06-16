@@ -103,3 +103,53 @@ def test_paper_trading_blocks_second_position_until_first_closes():
     assert engine.on_signal(kline=kline, signal=signal) is not None
     assert engine.on_signal(kline=kline, signal=signal) is None
     assert engine.snapshot().rejected_signals == 1
+
+
+def test_paper_trading_accepts_reversal_signal_with_signal_risk_cap():
+    from app.data.quality import Kline
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.reversal_strategy import ReversalSignal
+
+    engine = PaperTradingEngine(
+        config=PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            default_stop_distance_pct=Decimal("0.02"),
+            default_take_profit_risk_reward=Decimal("2"),
+        )
+    )
+    kline = Kline(
+        symbol="BTCUSDT",
+        interval="15m",
+        open_time=0,
+        close_time=899_999,
+        open=Decimal("100"),
+        high=Decimal("101"),
+        low=Decimal("99"),
+        close=Decimal("100"),
+        volume=Decimal("10"),
+    )
+
+    position = engine.on_signal(
+        kline=kline,
+        signal=ReversalSignal(
+            action="REVERSAL_LONG_ENTRY",
+            strategy_type="REVERSAL_PROBE",
+            signal_level="EARLY",
+            score=Decimal("80"),
+            risk_pct=Decimal("0.002"),
+            max_standard_position_pct=Decimal("0.2"),
+            reason=["paper reversal"],
+        ),
+    )
+
+    assert position is not None
+    assert position.side == "LONG"
+    assert position.strategy_type == "REVERSAL_PROBE"
+    assert position.entry_price == Decimal("100")
+    assert position.stop_loss == Decimal("98.00")
+    assert position.take_profit == Decimal("104.00")
+    assert position.quantity == Decimal("10")
