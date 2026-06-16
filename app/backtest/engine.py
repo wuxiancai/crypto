@@ -11,6 +11,8 @@ class BacktestConfig:
     risk_per_trade_pct: Decimal
     fee_rate: Decimal
     slippage_pct: Decimal
+    maker_fee_rate: Decimal | None = None
+    taker_fee_rate: Decimal | None = None
     default_stop_distance_pct: Decimal = Decimal("0.02")
     default_take_profit_risk_reward: Decimal = Decimal("2")
 
@@ -124,7 +126,7 @@ def _open_position(kline: Kline, signal: SignalLike, equity: Decimal, config: Ba
     risk_pct = getattr(signal, "risk_pct", None) or config.risk_per_trade_pct
     risk_amount = equity * risk_pct
     quantity = risk_amount / stop_distance
-    entry_fee = entry_price * quantity * config.fee_rate
+    entry_fee = entry_price * quantity * _taker_fee_rate(config)
     return _Position(
         symbol=kline.symbol,
         side=side,
@@ -186,7 +188,7 @@ def _close_position(
         gross_pnl = (exit_price - position.entry_price) * position.quantity
     else:
         gross_pnl = (position.entry_price - exit_price) * position.quantity
-    exit_fee = exit_price * position.quantity * config.fee_rate
+    exit_fee = exit_price * position.quantity * _exit_fee_rate(exit_reason, config)
     fees = position.entry_fee + exit_fee
     net_pnl = gross_pnl - fees
     return BacktestTrade(
@@ -215,6 +217,20 @@ def _apply_exit_slippage(price: Decimal, side: str, slippage_pct: Decimal) -> De
     if side == "LONG":
         return price * (Decimal("1") - slippage_pct)
     return price * (Decimal("1") + slippage_pct)
+
+
+def _maker_fee_rate(config: BacktestConfig) -> Decimal:
+    return config.maker_fee_rate if config.maker_fee_rate is not None else config.fee_rate
+
+
+def _taker_fee_rate(config: BacktestConfig) -> Decimal:
+    return config.taker_fee_rate if config.taker_fee_rate is not None else config.fee_rate
+
+
+def _exit_fee_rate(exit_reason: str, config: BacktestConfig) -> Decimal:
+    if exit_reason == "TAKE_PROFIT":
+        return _maker_fee_rate(config)
+    return _taker_fee_rate(config)
 
 
 def _build_metrics(trades: list[BacktestTrade]) -> BacktestMetrics:
