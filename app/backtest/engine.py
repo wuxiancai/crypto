@@ -6,6 +6,13 @@ from app.data.quality import Kline
 
 
 @dataclass(frozen=True)
+class FundingRate:
+    symbol: str
+    funding_time: int
+    rate: Decimal
+
+
+@dataclass(frozen=True)
 class BacktestConfig:
     initial_equity: Decimal
     risk_per_trade_pct: Decimal
@@ -18,6 +25,7 @@ class BacktestConfig:
     quantity_step: Decimal | None = None
     min_qty: Decimal | None = None
     min_notional: Decimal | None = None
+    funding_rates: list[FundingRate] | None = None
 
 
 @dataclass(frozen=True)
@@ -32,6 +40,7 @@ class BacktestTrade:
     quantity: Decimal
     gross_pnl: Decimal
     fees: Decimal
+    funding_fee: Decimal
     net_pnl: Decimal
     exit_reason: str
 
@@ -51,6 +60,7 @@ class StrategyMetrics:
     losses: int
     gross_pnl: Decimal
     fees: Decimal
+    funding_fees: Decimal
     net_pnl: Decimal
 
 
@@ -61,6 +71,7 @@ class BacktestMetrics:
     losses: int
     gross_pnl: Decimal
     fees: Decimal
+    funding_fees: Decimal
     net_pnl: Decimal
     rejected_entries: int
     by_strategy: dict[str, StrategyMetrics]
@@ -199,7 +210,8 @@ def _close_position(
         gross_pnl = (position.entry_price - exit_price) * position.quantity
     exit_fee = exit_price * position.quantity * _exit_fee_rate(exit_reason, config)
     fees = position.entry_fee + exit_fee
-    net_pnl = gross_pnl - fees
+    funding_fee = _funding_fee(position, kline.close_time, config)
+    net_pnl = gross_pnl - fees - funding_fee
     return BacktestTrade(
         symbol=position.symbol,
         side=position.side,
@@ -211,6 +223,7 @@ def _close_position(
         quantity=position.quantity,
         gross_pnl=gross_pnl,
         fees=fees,
+        funding_fee=funding_fee,
         net_pnl=net_pnl,
         exit_reason=exit_reason,
     )
@@ -242,6 +255,20 @@ def _exit_fee_rate(exit_reason: str, config: BacktestConfig) -> Decimal:
     return _taker_fee_rate(config)
 
 
+def _funding_fee(position: _Position, exit_time: int, config: BacktestConfig) -> Decimal:
+    if not config.funding_rates:
+        return Decimal("0")
+    funding_fee = Decimal("0")
+    notional = position.entry_price * position.quantity
+    for funding_rate in config.funding_rates:
+        if funding_rate.symbol != position.symbol:
+            continue
+        if position.entry_time < funding_rate.funding_time <= exit_time:
+            signed_fee = notional * funding_rate.rate
+            funding_fee += signed_fee if position.side == "LONG" else -signed_fee
+    return funding_fee
+
+
 def _apply_quantity_step(quantity: Decimal, config: BacktestConfig) -> Decimal:
     if config.quantity_step is None:
         return quantity
@@ -268,6 +295,7 @@ def _build_metrics(trades: list[BacktestTrade], rejected_entries: int = 0) -> Ba
         losses=overall.losses,
         gross_pnl=overall.gross_pnl,
         fees=overall.fees,
+        funding_fees=overall.funding_fees,
         net_pnl=overall.net_pnl,
         rejected_entries=rejected_entries,
         by_strategy=by_strategy,
@@ -281,5 +309,6 @@ def _strategy_metrics(trades: list[BacktestTrade]) -> StrategyMetrics:
         losses=sum(1 for trade in trades if trade.net_pnl < 0),
         gross_pnl=sum((trade.gross_pnl for trade in trades), Decimal("0")),
         fees=sum((trade.fees for trade in trades), Decimal("0")),
+        funding_fees=sum((trade.funding_fee for trade in trades), Decimal("0")),
         net_pnl=sum((trade.net_pnl for trade in trades), Decimal("0")),
     )
