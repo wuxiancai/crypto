@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, MetaData, Numeric, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, MetaData, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -41,8 +41,8 @@ class KlineRecord(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     symbol: Mapped[str] = mapped_column(String(32), nullable=False)
     interval: Mapped[str] = mapped_column(String(16), nullable=False)
-    open_time: Mapped[int] = mapped_column(nullable=False)
-    close_time: Mapped[int] = mapped_column(nullable=False)
+    open_time: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    close_time: Mapped[int] = mapped_column(BigInteger, nullable=False)
     open: Mapped[float] = mapped_column(Numeric, nullable=False)
     high: Mapped[float] = mapped_column(Numeric, nullable=False)
     low: Mapped[float] = mapped_column(Numeric, nullable=False)
@@ -63,7 +63,7 @@ class IndicatorSnapshot(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     symbol: Mapped[str] = mapped_column(String(32), nullable=False)
     interval: Mapped[str] = mapped_column(String(16), nullable=False)
-    open_time: Mapped[int] = mapped_column(nullable=False)
+    open_time: Mapped[int] = mapped_column(BigInteger, nullable=False)
     ema50: Mapped[float | None] = mapped_column(Numeric)
     ema200: Mapped[float | None] = mapped_column(Numeric)
     adx: Mapped[float | None] = mapped_column(Numeric)
@@ -87,4 +87,3 @@ class ConfigSnapshot(Base):
     version: Mapped[str] = mapped_column(String(64), nullable=False)
     content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-

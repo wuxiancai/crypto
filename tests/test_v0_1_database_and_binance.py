@@ -2,6 +2,8 @@ from decimal import Decimal
 
 
 def test_database_metadata_contains_v0_1_tables():
+    from sqlalchemy import BigInteger
+
     from app.database.models import Base
 
     table_names = set(Base.metadata.tables)
@@ -15,6 +17,9 @@ def test_database_metadata_contains_v0_1_tables():
 
     indicator_columns = set(Base.metadata.tables["indicator_snapshots"].columns.keys())
     assert {"di_plus", "di_minus"}.issubset(indicator_columns)
+    assert isinstance(Base.metadata.tables["klines"].columns["open_time"].type, BigInteger)
+    assert isinstance(Base.metadata.tables["klines"].columns["close_time"].type, BigInteger)
+    assert isinstance(Base.metadata.tables["indicator_snapshots"].columns["open_time"].type, BigInteger)
 
 
 def test_binance_kline_payload_parses_to_closed_decimal_kline():
@@ -43,4 +48,3 @@ def test_binance_kline_payload_parses_to_closed_decimal_kline():
     assert row.close == Decimal("105.00")
     assert row.volume == Decimal("12.500")
     assert row.is_closed is True
-
