@@ -85,3 +85,26 @@ def test_indicators_compute_expected_values_for_simple_series():
     closes_for_atr = [Decimal("10"), Decimal("11"), Decimal("12")]
     assert atr(highs, lows, closes_for_atr, period=3)[-1] == Decimal("2")
 
+
+def test_directional_movement_identifies_uptrend_and_downtrend_direction():
+    from app.indicators.core import directional_movement_index
+
+    up = directional_movement_index(
+        highs=[Decimal("10"), Decimal("11"), Decimal("12"), Decimal("13"), Decimal("14")],
+        lows=[Decimal("8"), Decimal("9"), Decimal("10"), Decimal("11"), Decimal("12")],
+        closes=[Decimal("9"), Decimal("10"), Decimal("11"), Decimal("12"), Decimal("13")],
+        period=3,
+    )
+    assert up[-1] is not None
+    assert up[-1].di_plus > up[-1].di_minus
+    assert up[-1].adx > 0
+
+    down = directional_movement_index(
+        highs=[Decimal("14"), Decimal("13"), Decimal("12"), Decimal("11"), Decimal("10")],
+        lows=[Decimal("12"), Decimal("11"), Decimal("10"), Decimal("9"), Decimal("8")],
+        closes=[Decimal("13"), Decimal("12"), Decimal("11"), Decimal("10"), Decimal("9")],
+        period=3,
+    )
+    assert down[-1] is not None
+    assert down[-1].di_minus > down[-1].di_plus
+    assert down[-1].adx > 0
