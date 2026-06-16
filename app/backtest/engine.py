@@ -11,6 +11,8 @@ class BacktestConfig:
     risk_per_trade_pct: Decimal
     fee_rate: Decimal
     slippage_pct: Decimal
+    default_stop_distance_pct: Decimal = Decimal("0.02")
+    default_take_profit_risk_reward: Decimal = Decimal("2")
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,28 @@ class BacktestResult:
     initial_equity: Decimal
     final_equity: Decimal
     trades: list[BacktestTrade]
+    metrics: "BacktestMetrics"
+
+
+@dataclass(frozen=True)
+class StrategyMetrics:
+    total_trades: int
+    wins: int
+    losses: int
+    gross_pnl: Decimal
+    fees: Decimal
+    net_pnl: Decimal
+
+
+@dataclass(frozen=True)
+class BacktestMetrics:
+    total_trades: int
+    wins: int
+    losses: int
+    gross_pnl: Decimal
+    fees: Decimal
+    net_pnl: Decimal
+    by_strategy: dict[str, StrategyMetrics]
 
 
 @dataclass(frozen=True)
@@ -52,9 +76,9 @@ class _Position:
 class SignalLike:
     action: str
     strategy_type: str
-    entry_price: Decimal | None
-    stop_loss: Decimal | None
-    take_profit: Decimal | None
+    entry_price: Decimal | None = None
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
 
 
 SignalFn = Callable[[Kline, bool], SignalLike]
@@ -75,23 +99,30 @@ def run_backtest(klines: list[Kline], signal_fn: SignalFn, config: BacktestConfi
                 continue
 
         signal = signal_fn(kline, position is not None)
-        if position is None and signal.action in {"LONG_ENTRY", "SHORT_ENTRY"}:
+        if position is None and signal.action in {"LONG_ENTRY", "SHORT_ENTRY", "REVERSAL_LONG_ENTRY", "REVERSAL_SHORT_ENTRY"}:
             position = _open_position(kline, signal, equity, config)
 
-    return BacktestResult(initial_equity=config.initial_equity, final_equity=equity, trades=trades)
+    return BacktestResult(
+        initial_equity=config.initial_equity,
+        final_equity=equity,
+        trades=trades,
+        metrics=_build_metrics(trades),
+    )
 
 
 def _open_position(kline: Kline, signal: SignalLike, equity: Decimal, config: BacktestConfig) -> _Position:
-    if signal.entry_price is None or signal.stop_loss is None or signal.take_profit is None:
-        raise ValueError("entry signal must include entry_price, stop_loss and take_profit")
+    side = _side_from_action(signal.action)
+    raw_entry_price = getattr(signal, "entry_price", None) or kline.close
+    stop_loss = getattr(signal, "stop_loss", None) or _default_stop_loss(raw_entry_price, side, config)
+    take_profit = getattr(signal, "take_profit", None) or _default_take_profit(raw_entry_price, stop_loss, side, config)
 
-    side = "LONG" if signal.action == "LONG_ENTRY" else "SHORT"
-    entry_price = _apply_entry_slippage(signal.entry_price, side, config.slippage_pct)
-    stop_distance = abs(entry_price - signal.stop_loss)
+    entry_price = _apply_entry_slippage(raw_entry_price, side, config.slippage_pct)
+    stop_distance = abs(entry_price - stop_loss)
     if stop_distance <= 0:
         raise ValueError("stop distance must be positive")
 
-    risk_amount = equity * config.risk_per_trade_pct
+    risk_pct = getattr(signal, "risk_pct", None) or config.risk_per_trade_pct
+    risk_amount = equity * risk_pct
     quantity = risk_amount / stop_distance
     entry_fee = entry_price * quantity * config.fee_rate
     return _Position(
@@ -100,11 +131,32 @@ def _open_position(kline: Kline, signal: SignalLike, equity: Decimal, config: Ba
         strategy_type=signal.strategy_type,
         entry_time=kline.open_time,
         entry_price=entry_price,
-        stop_loss=signal.stop_loss,
-        take_profit=signal.take_profit,
+        stop_loss=stop_loss,
+        take_profit=take_profit,
         quantity=quantity,
         entry_fee=entry_fee,
     )
+
+
+def _side_from_action(action: str) -> str:
+    if action in {"LONG_ENTRY", "REVERSAL_LONG_ENTRY"}:
+        return "LONG"
+    if action in {"SHORT_ENTRY", "REVERSAL_SHORT_ENTRY"}:
+        return "SHORT"
+    raise ValueError(f"unsupported entry action: {action}")
+
+
+def _default_stop_loss(entry_price: Decimal, side: str, config: BacktestConfig) -> Decimal:
+    if side == "LONG":
+        return entry_price * (Decimal("1") - config.default_stop_distance_pct)
+    return entry_price * (Decimal("1") + config.default_stop_distance_pct)
+
+
+def _default_take_profit(entry_price: Decimal, stop_loss: Decimal, side: str, config: BacktestConfig) -> Decimal:
+    risk = abs(entry_price - stop_loss)
+    if side == "LONG":
+        return entry_price + risk * config.default_take_profit_risk_reward
+    return entry_price - risk * config.default_take_profit_risk_reward
 
 
 def _maybe_close_position(position: _Position, kline: Kline, config: BacktestConfig) -> BacktestTrade | None:
@@ -163,3 +215,31 @@ def _apply_exit_slippage(price: Decimal, side: str, slippage_pct: Decimal) -> De
     if side == "LONG":
         return price * (Decimal("1") - slippage_pct)
     return price * (Decimal("1") + slippage_pct)
+
+
+def _build_metrics(trades: list[BacktestTrade]) -> BacktestMetrics:
+    by_strategy: dict[str, StrategyMetrics] = {}
+    for strategy_type in sorted({trade.strategy_type for trade in trades}):
+        strategy_trades = [trade for trade in trades if trade.strategy_type == strategy_type]
+        by_strategy[strategy_type] = _strategy_metrics(strategy_trades)
+    overall = _strategy_metrics(trades)
+    return BacktestMetrics(
+        total_trades=overall.total_trades,
+        wins=overall.wins,
+        losses=overall.losses,
+        gross_pnl=overall.gross_pnl,
+        fees=overall.fees,
+        net_pnl=overall.net_pnl,
+        by_strategy=by_strategy,
+    )
+
+
+def _strategy_metrics(trades: list[BacktestTrade]) -> StrategyMetrics:
+    return StrategyMetrics(
+        total_trades=len(trades),
+        wins=sum(1 for trade in trades if trade.net_pnl > 0),
+        losses=sum(1 for trade in trades if trade.net_pnl < 0),
+        gross_pnl=sum((trade.gross_pnl for trade in trades), Decimal("0")),
+        fees=sum((trade.fees for trade in trades), Decimal("0")),
+        net_pnl=sum((trade.net_pnl for trade in trades), Decimal("0")),
+    )

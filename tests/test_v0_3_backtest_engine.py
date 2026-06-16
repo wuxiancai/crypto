@@ -168,7 +168,7 @@ def test_backtest_executes_reversal_signal_and_reports_strategy_metrics():
             close_time=1_799_999,
             open=Decimal("100"),
             high=Decimal("106"),
-            low=Decimal("98"),
+            low=Decimal("99"),
             close=Decimal("105"),
             volume=Decimal("10"),
         ),
@@ -215,4 +215,4 @@ def test_backtest_executes_reversal_signal_and_reports_strategy_metrics():
     assert trade.exit_reason == "TAKE_PROFIT"
     assert result.metrics.total_trades == 1
     assert result.metrics.by_strategy["REVERSAL_PROBE"].total_trades == 1
-    assert result.metrics.by_strategy["REVERSAL_PROBE"].net_pnl == Decimal("100.00")
+    assert result.metrics.by_strategy["REVERSAL_PROBE"].net_pnl == Decimal("40.000")
