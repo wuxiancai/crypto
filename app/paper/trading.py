@@ -11,6 +11,8 @@ class PaperConfig:
     maker_fee_rate: Decimal
     taker_fee_rate: Decimal
     slippage_pct: Decimal
+    default_stop_distance_pct: Decimal = Decimal("0.02")
+    default_take_profit_risk_reward: Decimal = Decimal("2")
 
 
 @dataclass(frozen=True)
@@ -95,14 +97,21 @@ class PaperTradingEngine:
         )
 
     def _open_position(self, kline: Kline, signal: SignalLike) -> PaperPosition:
-        if signal.entry_price is None or signal.stop_loss is None or signal.take_profit is None:
-            raise ValueError("paper entry signal must include entry_price, stop_loss and take_profit")
         side = _side_from_action(signal.action)
-        entry_price = _apply_entry_slippage(signal.entry_price, side, self._config.slippage_pct)
-        stop_distance = abs(entry_price - signal.stop_loss)
+        raw_entry_price = getattr(signal, "entry_price", None) or kline.close
+        stop_loss = getattr(signal, "stop_loss", None) or _default_stop_loss(raw_entry_price, side, self._config)
+        take_profit = getattr(signal, "take_profit", None) or _default_take_profit(
+            raw_entry_price,
+            stop_loss,
+            side,
+            self._config,
+        )
+        entry_price = _apply_entry_slippage(raw_entry_price, side, self._config.slippage_pct)
+        stop_distance = abs(entry_price - stop_loss)
         if stop_distance <= 0:
             raise ValueError("stop distance must be positive")
-        quantity = self._equity * self._config.risk_per_trade_pct / stop_distance
+        risk_pct = getattr(signal, "risk_pct", None) or self._config.risk_per_trade_pct
+        quantity = self._equity * risk_pct / stop_distance
         entry_fee = entry_price * quantity * self._config.taker_fee_rate
         return PaperPosition(
             symbol=kline.symbol,
@@ -110,8 +119,8 @@ class PaperTradingEngine:
             strategy_type=signal.strategy_type,
             entry_time=kline.open_time,
             entry_price=entry_price,
-            stop_loss=signal.stop_loss,
-            take_profit=signal.take_profit,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
             quantity=quantity,
             entry_fee=entry_fee,
         )
@@ -178,3 +187,16 @@ def _apply_exit_slippage(price: Decimal, side: str, slippage_pct: Decimal) -> De
     if side == "LONG":
         return price * (Decimal("1") - slippage_pct)
     return price * (Decimal("1") + slippage_pct)
+
+
+def _default_stop_loss(entry_price: Decimal, side: str, config: PaperConfig) -> Decimal:
+    if side == "LONG":
+        return entry_price * (Decimal("1") - config.default_stop_distance_pct)
+    return entry_price * (Decimal("1") + config.default_stop_distance_pct)
+
+
+def _default_take_profit(entry_price: Decimal, stop_loss: Decimal, side: str, config: PaperConfig) -> Decimal:
+    risk = abs(entry_price - stop_loss)
+    if side == "LONG":
+        return entry_price + risk * config.default_take_profit_risk_reward
+    return entry_price - risk * config.default_take_profit_risk_reward
