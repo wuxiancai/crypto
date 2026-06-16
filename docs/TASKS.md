@@ -57,8 +57,8 @@
 - [x] 模拟 maker/taker 手续费。
 - [ ] 模拟市价滑点、止损滑点、极端滑点。
 - [ ] 模拟限价未成交和部分成交。
-- [ ] 模拟资金费率。
-- [ ] 模拟交易所最小数量、最小名义价值、价格精度、数量精度。
+- [x] 模拟资金费率。
+- [x] 模拟交易所最小数量、最小名义价值、价格精度、数量精度。
 - [ ] 模拟强平风险。
 - [x] 输出整体指标与按 strategy_type 拆分指标。
 - [ ] 归档 backtest_run、config_snapshot、backtest_trades。
@@ -69,7 +69,9 @@
 - 当前已支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE` 信号；趋势转换信号会使用自身 `risk_pct` 风险上限。
 - 当前已实现 maker/taker 手续费：入场按 taker，止损按 taker，止盈按 maker。
 - 当前已输出整体指标与按 `strategy_type` 拆分的交易次数、胜负、gross_pnl、fees、net_pnl。
-- 极端滑点、限价未成交、部分成交、资金费率、交易所精度和强平风险仍未完成。
+- 当前已实现资金费率模拟，资金费进入 trade 与整体指标。
+- 当前已实现交易所 `quantity_step`、`min_qty`、`min_notional` 过滤；价格精度仍待进一步细化为不同订单类型的 tick 方向。
+- 极端滑点、限价未成交、部分成交、强平风险仍未完成。
 
 ## V0.4 Paper Trading
 
@@ -78,14 +80,15 @@
 - [x] 实现 Paper 持仓与账户权益。
 - [x] 接入主趋势策略 Paper 验证。
 - [x] 接入趋势转换策略 Paper 验证。
-- [ ] 实现状态页或 CLI 状态输出。
+- [x] 实现状态页或 CLI 状态输出。
 - [ ] 实现基础报警。
 
 说明：
 
 - 当前已实现 Paper Trading 最小内核：接收策略信号、单仓位撮合、止盈/止损退出、权益更新、fills 记录和 rejected_signals 计数。
 - Paper 当前支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE`，趋势转换信号同样使用自身 `risk_pct`。
-- 实时行情订阅、状态页/CLI 输出、报警仍未完成。
+- 当前已实现稳定的 Paper CLI 状态格式化输出。
+- 实时行情订阅和报警仍未完成。
 
 ## V0.5 风控与订单计划
 
