@@ -75,6 +75,8 @@ class BacktestMetrics:
     funding_fees: Decimal
     net_pnl: Decimal
     rejected_entries: int
+    unfilled_entries: int
+    partial_fills: int
     by_strategy: dict[str, StrategyMetrics]
 
 
@@ -89,6 +91,7 @@ class _Position:
     take_profit: Decimal
     quantity: Decimal
     entry_fee: Decimal
+    is_partial_fill: bool = False
 
 
 class SignalLike:
@@ -107,6 +110,8 @@ def run_backtest(klines: list[Kline], signal_fn: SignalFn, config: BacktestConfi
     trades: list[BacktestTrade] = []
     position: _Position | None = None
     rejected_entries = 0
+    unfilled_entries = 0
+    partial_fills = 0
 
     for kline in sorted(klines, key=lambda row: row.open_time):
         if position is not None:
@@ -119,15 +124,25 @@ def run_backtest(klines: list[Kline], signal_fn: SignalFn, config: BacktestConfi
 
         signal = signal_fn(kline, position is not None)
         if position is None and signal.action in {"LONG_ENTRY", "SHORT_ENTRY", "REVERSAL_LONG_ENTRY", "REVERSAL_SHORT_ENTRY"}:
+            if _is_unfilled_limit(kline, signal):
+                unfilled_entries += 1
+                continue
             position = _open_position(kline, signal, equity, config)
             if position is None:
                 rejected_entries += 1
+            elif position.is_partial_fill:
+                partial_fills += 1
 
     return BacktestResult(
         initial_equity=config.initial_equity,
         final_equity=equity,
         trades=trades,
-        metrics=_build_metrics(trades, rejected_entries),
+        metrics=_build_metrics(
+            trades,
+            rejected_entries=rejected_entries,
+            unfilled_entries=unfilled_entries,
+            partial_fills=partial_fills,
+        ),
     )
 
 
@@ -145,6 +160,8 @@ def _open_position(kline: Kline, signal: SignalLike, equity: Decimal, config: Ba
     risk_pct = getattr(signal, "risk_pct", None) or config.risk_per_trade_pct
     risk_amount = equity * risk_pct
     quantity = _apply_quantity_step(risk_amount / stop_distance, config)
+    fill_ratio = _fill_ratio(signal)
+    quantity = quantity * fill_ratio
     if _violates_exchange_filters(quantity, entry_price, config):
         return None
     entry_fee = entry_price * quantity * _taker_fee_rate(config)
@@ -158,7 +175,23 @@ def _open_position(kline: Kline, signal: SignalLike, equity: Decimal, config: Ba
         take_profit=take_profit,
         quantity=quantity,
         entry_fee=entry_fee,
+        is_partial_fill=fill_ratio < Decimal("1"),
     )
+
+
+def _is_unfilled_limit(kline: Kline, signal: SignalLike) -> bool:
+    if getattr(signal, "order_type", "MARKET") != "LIMIT":
+        return False
+    side = _side_from_action(signal.action)
+    entry_price = getattr(signal, "entry_price", None) or kline.close
+    if side == "LONG":
+        return kline.low > entry_price
+    return kline.high < entry_price
+
+
+def _fill_ratio(signal: SignalLike) -> Decimal:
+    ratio = getattr(signal, "fill_ratio", Decimal("1"))
+    return min(max(ratio, Decimal("0")), Decimal("1"))
 
 
 def _side_from_action(action: str) -> str:
@@ -292,7 +325,12 @@ def _violates_exchange_filters(quantity: Decimal, price: Decimal, config: Backte
     return False
 
 
-def _build_metrics(trades: list[BacktestTrade], rejected_entries: int = 0) -> BacktestMetrics:
+def _build_metrics(
+    trades: list[BacktestTrade],
+    rejected_entries: int = 0,
+    unfilled_entries: int = 0,
+    partial_fills: int = 0,
+) -> BacktestMetrics:
     by_strategy: dict[str, StrategyMetrics] = {}
     for strategy_type in sorted({trade.strategy_type for trade in trades}):
         strategy_trades = [trade for trade in trades if trade.strategy_type == strategy_type]
@@ -307,6 +345,8 @@ def _build_metrics(trades: list[BacktestTrade], rejected_entries: int = 0) -> Ba
         funding_fees=overall.funding_fees,
         net_pnl=overall.net_pnl,
         rejected_entries=rejected_entries,
+        unfilled_entries=unfilled_entries,
+        partial_fills=partial_fills,
         by_strategy=by_strategy,
     )
 

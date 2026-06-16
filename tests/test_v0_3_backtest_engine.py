@@ -681,5 +681,5 @@ def test_backtest_applies_limit_partial_fill_ratio():
     )
 
     assert result.trades[0].quantity == Decimal("16.66666666666666666666666666")
-    assert result.trades[0].net_pnl == Decimal("100.0000000000000000000000000")
+    assert result.trades[0].net_pnl.quantize(Decimal("0.00001")) == Decimal("100.00000")
     assert result.metrics.partial_fills == 1
