@@ -683,3 +683,70 @@ def test_backtest_applies_limit_partial_fill_ratio():
     assert result.trades[0].quantity == Decimal("16.66666666666666666666666666")
     assert result.trades[0].net_pnl.quantize(Decimal("0.00001")) == Decimal("100.00000")
     assert result.metrics.partial_fills == 1
+
+
+def test_backtest_rounds_prices_by_tick_direction():
+    from app.backtest.engine import BacktestConfig, run_backtest
+    from app.data.quality import Kline
+    from app.strategy.pullback_strategy import TradeSignal
+
+    klines = [
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("100"),
+            high=Decimal("111"),
+            low=Decimal("99"),
+            close=Decimal("110"),
+            volume=Decimal("10"),
+        ),
+    ]
+
+    def signal_fn(kline: Kline, has_position: bool) -> TradeSignal:
+        if kline.open_time == 0 and not has_position:
+            return TradeSignal(
+                action="LONG_ENTRY",
+                strategy_type="TREND_PULLBACK",
+                entry_price=Decimal("100.03"),
+                stop_loss=Decimal("95"),
+                take_profit=Decimal("110.07"),
+                risk_reward=Decimal("2"),
+                reason=["tick rounding"],
+            )
+        return TradeSignal(
+            action="WAIT",
+            strategy_type="TREND_PULLBACK",
+            entry_price=None,
+            stop_loss=None,
+            take_profit=None,
+            risk_reward=None,
+            reason=[],
+        )
+
+    result = run_backtest(
+        klines=klines,
+        signal_fn=signal_fn,
+        config=BacktestConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            price_tick=Decimal("0.1"),
+        ),
+    )
+
+    assert result.trades[0].entry_price == Decimal("100.1")
+    assert result.trades[0].exit_price == Decimal("110.0")
