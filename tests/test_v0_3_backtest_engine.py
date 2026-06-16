@@ -750,3 +750,72 @@ def test_backtest_rounds_prices_by_tick_direction():
 
     assert result.trades[0].entry_price == Decimal("100.1")
     assert result.trades[0].exit_price == Decimal("110.0")
+
+
+def test_backtest_exits_at_liquidation_before_stop_loss():
+    from app.backtest.engine import BacktestConfig, run_backtest
+    from app.data.quality import Kline
+    from app.strategy.pullback_strategy import TradeSignal
+
+    klines = [
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("90"),
+            close=Decimal("91"),
+            volume=Decimal("10"),
+        ),
+    ]
+
+    def signal_fn(kline: Kline, has_position: bool) -> TradeSignal:
+        if kline.open_time == 0 and not has_position:
+            return TradeSignal(
+                action="LONG_ENTRY",
+                strategy_type="TREND_PULLBACK",
+                entry_price=Decimal("100"),
+                stop_loss=Decimal("80"),
+                take_profit=Decimal("120"),
+                risk_reward=Decimal("1"),
+                reason=["liquidation"],
+            )
+        return TradeSignal(
+            action="WAIT",
+            strategy_type="TREND_PULLBACK",
+            entry_price=None,
+            stop_loss=None,
+            take_profit=None,
+            risk_reward=None,
+            reason=[],
+        )
+
+    result = run_backtest(
+        klines=klines,
+        signal_fn=signal_fn,
+        config=BacktestConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            leverage=Decimal("10"),
+            maintenance_margin_pct=Decimal("0.005"),
+        ),
+    )
+
+    assert result.trades[0].exit_reason == "LIQUIDATION"
+    assert result.trades[0].exit_price == Decimal("90.500")
+    assert result.metrics.liquidations == 1
