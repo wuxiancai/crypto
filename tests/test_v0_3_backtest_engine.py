@@ -285,3 +285,141 @@ def test_backtest_uses_taker_fee_for_entry_and_maker_fee_for_take_profit():
     assert len(result.trades) == 1
     assert result.trades[0].fees == Decimal("1.4400")
     assert result.trades[0].net_pnl == Decimal("198.5600")
+
+
+def test_backtest_rounds_quantity_to_exchange_step_size():
+    from app.backtest.engine import BacktestConfig, run_backtest
+    from app.data.quality import Kline
+    from app.strategy.pullback_strategy import TradeSignal
+
+    klines = [
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("100"),
+            high=Decimal("111"),
+            low=Decimal("99"),
+            close=Decimal("110"),
+            volume=Decimal("10"),
+        ),
+    ]
+
+    def signal_fn(kline: Kline, has_position: bool) -> TradeSignal:
+        if kline.open_time == 0 and not has_position:
+            return TradeSignal(
+                action="LONG_ENTRY",
+                strategy_type="TREND_PULLBACK",
+                entry_price=Decimal("100"),
+                stop_loss=Decimal("95"),
+                take_profit=Decimal("110"),
+                risk_reward=Decimal("2"),
+                reason=["exchange filter"],
+            )
+        return TradeSignal(
+            action="WAIT",
+            strategy_type="TREND_PULLBACK",
+            entry_price=None,
+            stop_loss=None,
+            take_profit=None,
+            risk_reward=None,
+            reason=[],
+        )
+
+    result = run_backtest(
+        klines=klines,
+        signal_fn=signal_fn,
+        config=BacktestConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            quantity_step=Decimal("0.3"),
+            min_qty=Decimal("1"),
+            min_notional=Decimal("10"),
+        ),
+    )
+
+    assert result.trades[0].quantity == Decimal("19.8")
+    assert result.metrics.rejected_entries == 0
+
+
+def test_backtest_rejects_entry_below_min_notional():
+    from app.backtest.engine import BacktestConfig, run_backtest
+    from app.data.quality import Kline
+    from app.strategy.pullback_strategy import TradeSignal
+
+    klines = [
+        Kline(
+            symbol="ETHUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        Kline(
+            symbol="ETHUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("100"),
+            high=Decimal("111"),
+            low=Decimal("99"),
+            close=Decimal("110"),
+            volume=Decimal("10"),
+        ),
+    ]
+
+    def signal_fn(kline: Kline, has_position: bool) -> TradeSignal:
+        if kline.open_time == 0 and not has_position:
+            return TradeSignal(
+                action="LONG_ENTRY",
+                strategy_type="TREND_PULLBACK",
+                entry_price=Decimal("100"),
+                stop_loss=Decimal("95"),
+                take_profit=Decimal("110"),
+                risk_reward=Decimal("2"),
+                reason=["too small"],
+            )
+        return TradeSignal(
+            action="WAIT",
+            strategy_type="TREND_PULLBACK",
+            entry_price=None,
+            stop_loss=None,
+            take_profit=None,
+            risk_reward=None,
+            reason=[],
+        )
+
+    result = run_backtest(
+        klines=klines,
+        signal_fn=signal_fn,
+        config=BacktestConfig(
+            initial_equity=Decimal("100"),
+            risk_per_trade_pct=Decimal("0.01"),
+            fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            quantity_step=Decimal("0.001"),
+            min_qty=Decimal("0.001"),
+            min_notional=Decimal("50"),
+        ),
+    )
+
+    assert result.trades == []
+    assert result.metrics.rejected_entries == 1
