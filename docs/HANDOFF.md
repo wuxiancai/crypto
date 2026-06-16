@@ -1,6 +1,6 @@
 # Handoff
 
-更新时间：2026-06-17
+更新时间：2026-06-18
 
 ## 当前状态
 
@@ -11,7 +11,8 @@
   - `docs/TASKS.md`
   - `docs/HANDOFF.md`
 - 当前项目已有 git 仓库，并已按功能节点持续提交。
-- 已进入 V0.3 回测系统阶段，当前完成最小事件驱动回测引擎。
+- V0.3 回测系统已补充真实策略信号复用、maker/taker 手续费和按策略统计。
+- V0.4 Paper Trading 已完成最小撮合与账户闭环。
 
 ## 本轮修复
 
@@ -52,10 +53,15 @@
 - 趋势转换评分已封顶 100，且已实现距离 EMA50 过远时的禁止追涨追跌过滤。
 - 实现 V0.2 信号统一编排入口：数据同步阻断优先，其次退出信号，其次风控阻断，新开仓按主趋势优先、趋势转换次之。
 - 实现 V0.3 最小事件驱动回测引擎：按 K 线顺序推进、单仓位、风险预算开仓、止盈/止损退出、统一费率手续费与基础滑点。
+- V0.3 回测已支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE`，趋势转换信号使用自身 `risk_pct` 风险上限。
+- V0.3 回测已支持 maker/taker 手续费：入场 taker，止损 taker，止盈 maker。
+- V0.3 回测已输出整体指标与按 `strategy_type` 拆分指标。
+- V0.4 已实现 Paper Trading 最小内核：信号入场、单仓位撮合、止盈/止损退出、权益更新、fills 记录、rejected_signals 计数。
+- V0.4 Paper 已支持主趋势和趋势转换信号，趋势转换同样使用自身 `risk_pct`。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：23 passed。
+- `.venv/bin/python -m pytest -q`：28 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -66,8 +72,8 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 继续 V0.3：接入 V0.2 策略信号与信号编排入口，避免测试策略函数长期停留在 stub。
-4. 回测系统继续补 maker/taker 费率、极端滑点、限价未成交、资金费率、交易所精度和强平风险。
+3. 继续 V0.3：补极端滑点、限价未成交、部分成交、资金费率、交易所精度和强平风险。
+4. 继续 V0.4：实现实时行情订阅、状态页或 CLI 状态输出、基础报警。
 
 ## 最近提交
 
@@ -79,6 +85,14 @@
 - `42ba830 feat: add signal routing priority`
 - `bbda45e test: add event backtest engine cases`
 - `cfcf3f9 feat: add event driven backtest engine`
+- `0523bf5 test: add reversal backtest metrics case`
+- `5b7734c feat: reuse reversal signals in backtests`
+- `00e7aef test: add maker taker fee backtest case`
+- `4e31302 feat: add maker taker backtest fees`
+- `e3653c1 test: add paper trading lifecycle cases`
+- `0ad7e0c feat: add paper trading engine`
+- `07c3a6a test: add reversal paper trading case`
+- `0dd8bf1 feat: support reversal paper trading`
 
 ## 风险提醒
 

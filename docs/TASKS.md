@@ -1,10 +1,10 @@
 # Tasks
 
-更新时间：2026-06-17
+更新时间：2026-06-18
 
 ## 当前阶段
 
-当前已进入 V0.3 回测系统阶段。V0.2 策略信号阶段已完成第一版；主网真实 K 线入库仍受当前网络 Binance futures HTTP 451 限制，需要在可访问环境补验。
+当前 V0.3 回测系统继续补充撮合与统计能力，同时已进入 V0.4 Paper Trading 最小闭环开发。主网真实 K 线入库仍受当前网络 Binance futures HTTP 451 限制，需要在可访问环境补验。
 
 ## V0.1 数据与指标
 
@@ -53,30 +53,39 @@
 ## V0.3 回测系统
 
 - [x] 实现事件驱动回测引擎。
-- [ ] 复用实盘策略和风控规则。
-- [ ] 模拟 maker/taker 手续费。
+- [x] 复用实盘策略和风控规则。
+- [x] 模拟 maker/taker 手续费。
 - [ ] 模拟市价滑点、止损滑点、极端滑点。
 - [ ] 模拟限价未成交和部分成交。
 - [ ] 模拟资金费率。
 - [ ] 模拟交易所最小数量、最小名义价值、价格精度、数量精度。
 - [ ] 模拟强平风险。
-- [ ] 输出整体指标与按 strategy_type 拆分指标。
+- [x] 输出整体指标与按 strategy_type 拆分指标。
 - [ ] 归档 backtest_run、config_snapshot、backtest_trades。
 
 说明：
 
 - 当前已实现最小事件驱动回测内核：按 K 线 open_time 顺序推进、单仓位、按风险预算开仓、止盈/止损退出、输出 trade 与 final_equity。
-- 当前已实现基础统一费率手续费和基础入场/出场滑点；maker/taker 拆分、极端滑点、限价未成交、资金费率、交易所精度和强平风险仍未完成。
+- 当前已支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE` 信号；趋势转换信号会使用自身 `risk_pct` 风险上限。
+- 当前已实现 maker/taker 手续费：入场按 taker，止损按 taker，止盈按 maker。
+- 当前已输出整体指标与按 `strategy_type` 拆分的交易次数、胜负、gross_pnl、fees、net_pnl。
+- 极端滑点、限价未成交、部分成交、资金费率、交易所精度和强平风险仍未完成。
 
 ## V0.4 Paper Trading
 
 - [ ] 实现实时行情订阅。
-- [ ] 实现 Paper 撮合。
-- [ ] 实现 Paper 持仓与账户权益。
-- [ ] 接入主趋势策略 Paper 验证。
-- [ ] 接入趋势转换策略 Paper 验证。
+- [x] 实现 Paper 撮合。
+- [x] 实现 Paper 持仓与账户权益。
+- [x] 接入主趋势策略 Paper 验证。
+- [x] 接入趋势转换策略 Paper 验证。
 - [ ] 实现状态页或 CLI 状态输出。
 - [ ] 实现基础报警。
+
+说明：
+
+- 当前已实现 Paper Trading 最小内核：接收策略信号、单仓位撮合、止盈/止损退出、权益更新、fills 记录和 rejected_signals 计数。
+- Paper 当前支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE`，趋势转换信号同样使用自身 `risk_pct`。
+- 实时行情订阅、状态页/CLI 输出、报警仍未完成。
 
 ## V0.5 风控与订单计划
 
