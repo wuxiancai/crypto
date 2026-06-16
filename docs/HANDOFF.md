@@ -34,6 +34,7 @@
 - 实现 K 线模型与质量校验。
 - 实现多周期已收盘窗口对齐。
 - 实现 EMA、ATR、Bollinger Bands。
+- 实现 ADX、DI_PLUS、DI_MINUS。
 - 建立 SQLAlchemy metadata 与 Alembic migration。
 - 创建 V0.1 基础表：`symbols`、`klines`、`indicator_snapshots`、`config_snapshots`。
 - 实现 Binance K 线解析与拉取入口。
@@ -42,7 +43,7 @@
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：7 passed。
+- `.venv/bin/python -m pytest -q`：8 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - Binance 主网 futures endpoint 当前返回 HTTP 451，疑似当前网络/地区受限；尚未完成主网真实 K 线 dry-run。
@@ -52,8 +53,7 @@
 1. 配置可用 PostgreSQL `DATABASE_URL`。
 2. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 3. 执行 `scripts/sync_klines.py --write` 入库真实 K 线。
-4. 实现 ADX、DI_PLUS、DI_MINUS。
-5. 用第三方库或固定样本校验指标误差。
+4. 用第三方库或固定样本校验指标误差。
 
 ## 风险提醒
 
