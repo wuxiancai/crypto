@@ -93,11 +93,14 @@
 - 已实现 Paper Trading 状态持久化/恢复入口：PaperSnapshot 可无损序列化为 JSON payload，并支持保存到本地状态文件和从状态文件恢复；Decimal 金额以字符串保存，避免浮点误差。
 - 已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓、成交和拒单计数。
 - 已实现真实行情 Paper runner 与脚本入口：`scripts/run_paper_realtime.py` 会连接 Binance WebSocket 已收盘 K 线流，并使用持久化 Paper stream runner 保存状态。
-- 真实行情 Paper runner 已支持多周期订阅，默认订阅 15m / 1h / 4h；已新增 MultiTimeframeKlineCache，用于按 symbol 聚合多周期已收盘 K 线。当前默认策略函数仍为安全 `WAIT`，后续需要把多周期缓存转换为策略输入后才会产生自动模拟交易。
+- 真实行情 Paper runner 已支持多周期订阅，默认订阅 15m / 1h / 4h；已新增 MultiTimeframeKlineCache，用于按 symbol 聚合多周期已收盘 K 线。
+- 已新增实时策略适配器：把 4h / 1h / 15m 已收盘 K 线历史转换为 EMA、ATR、ADX、DI 与 swing 输入，并复用现有趋势识别和 `TREND_PULLBACK` 主趋势回踩策略。
+- 真实行情 Paper runner 默认路径已接入实时策略适配器：不传 `signal_fn` 时，会用多周期缓存生成 Paper 信号；有持仓时默认 WAIT，避免重复入场。
+- 趋势转换 `REVERSAL_PROBE` 的实时多周期适配仍待接入；现阶段回测/Paper 单元层策略核心已完成。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：101 passed。
+- `.venv/bin/python -m pytest -q`：104 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -108,7 +111,7 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 下一步继续真实行情 Paper Trading：把 MultiTimeframeKlineCache 转换为趋势/回踩/反转策略输入，并接入 `run_paper_realtime.py`。
+3. 下一步继续真实行情 Paper Trading：把 `REVERSAL_PROBE` 趋势转换策略接入实时多周期适配器，并通过 signal router 保留完整入场价/止损/止盈字段。
 4. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 
 ## 最近提交
@@ -198,6 +201,10 @@
 - `1954808 feat: add multi interval binance stream helpers`
 - `fec4ca9 test: require multi interval paper runner config`
 - `2bcf48d feat: support multi interval paper runner`
+- `654065b test: add realtime strategy adapter cases`
+- `ba6baea feat: add realtime strategy adapter`
+- `7b93f4f test: require default realtime paper strategy`
+- `af62e50 feat: wire realtime strategy into paper runner`
 
 ## 风险提醒
 
