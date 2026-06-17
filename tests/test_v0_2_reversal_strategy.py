@@ -45,6 +45,10 @@ def test_generates_early_reversal_long_entry_and_caps_score():
     assert signal.score == Decimal("100")
     assert signal.risk_pct == Decimal("0.002")
     assert signal.max_standard_position_pct == Decimal("0.2")
+    assert signal.entry_price == Decimal("100")
+    assert signal.stop_loss == Decimal("99")
+    assert signal.take_profit == Decimal("102")
+    assert signal.risk_reward == Decimal("2")
 
 
 def test_generates_confirmed_reversal_short_entry():
@@ -91,6 +95,10 @@ def test_generates_confirmed_reversal_short_entry():
     assert signal.score >= Decimal("70")
     assert signal.risk_pct == Decimal("0.003")
     assert signal.max_standard_position_pct == Decimal("0.5")
+    assert signal.entry_price == Decimal("100")
+    assert signal.stop_loss == Decimal("101")
+    assert signal.take_profit == Decimal("98")
+    assert signal.risk_reward == Decimal("2")
 
 
 def test_blocks_reversal_long_when_chasing_too_far_from_ema50():
