@@ -13,7 +13,7 @@
 - 当前项目已有 git 仓库，并已按功能节点持续提交。
 - V0.3 回测系统已补充真实策略信号复用、maker/taker 手续费和按策略统计。
 - V0.4 Paper Trading 已完成最小撮合与账户闭环。
-- 本轮继续补充 V0.4 Binance WebSocket transport，以及 V0.5 主策略/趋势转换仓位计算、止损候选选择、趋势转换分批止盈计划、OrderPlan、ONE_WAY + ISOLATED 执行约束和 Stop Order Guard 判定层。
+- 本轮继续补充 V0.4 Binance WebSocket transport，以及 V0.5 主策略/趋势转换仓位计算、止损候选选择、趋势转换分批止盈计划、OrderPlan、ONE_WAY + ISOLATED 执行约束、Stop Order Guard 判定层和 Liquidation Guard 判定层。
 
 ## 本轮修复
 
@@ -79,10 +79,11 @@
 - V0.5 已实现 OrderPlan 合约：包含订单计划核心字段、分批止盈、强平估算、强平缓冲、client_order_id、策略版本和配置快照。
 - V0.5 已实现 MVP 执行约束：默认 leverage = 3，最大 leverage = 5，且只允许 ONE_WAY + ISOLATED。
 - V0.5 已实现 Stop Order Guard 判定层：校验真实持仓是否存在 symbol 匹配、退出方向正确、数量覆盖、reduceOnly、状态 NEW、触发价方向正确的有效止损单；缺失时输出补挂止损动作。
+- V0.5 已实现 Liquidation Guard 判定层：多单要求 liquidation_price < stop_loss < entry_price，空单要求 entry_price < stop_loss < liquidation_price，且止损价与强平价安全距离不低于 liquidation_buffer_pct。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：59 passed。
+- `.venv/bin/python -m pytest -q`：63 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -93,8 +94,8 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 继续 V0.5：实现 Liquidation Guard、Kill Switch 和订单状态机。
-4. Stop Order Guard 已有纯判定层；后续接入真实交易所适配器时再实现补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
+3. 继续 V0.5：实现 Kill Switch 和订单、成交、持仓状态机。
+4. Stop Order Guard / Liquidation Guard 已有纯判定层；后续接入真实交易所适配器时再实现补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 
 ## 最近提交
 
@@ -150,6 +151,8 @@
 - `0f68c36 feat: add order plan contract`
 - `9621be1 test: add stop order guard cases`
 - `8379e30 feat: add stop order guard evaluation`
+- `0a2fae2 test: add liquidation guard cases`
+- `cd90c16 feat: add liquidation guard evaluation`
 
 ## 风险提醒
 
