@@ -1,4 +1,6 @@
+import json
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from app.paper.trading import PaperFill, PaperPosition, PaperSnapshot
@@ -20,6 +22,21 @@ def paper_snapshot_from_payload(payload: dict[str, Any]) -> PaperSnapshot:
         fills=[_fill_from_payload(fill) for fill in payload["fills"]],
         rejected_signals=int(payload["rejected_signals"]),
     )
+
+
+def save_paper_snapshot(snapshot: PaperSnapshot, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(paper_snapshot_to_payload(snapshot), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+def load_paper_snapshot(path: Path) -> PaperSnapshot | None:
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return paper_snapshot_from_payload(payload)
 
 
 def _position_to_payload(position: PaperPosition | None) -> dict[str, Any] | None:
