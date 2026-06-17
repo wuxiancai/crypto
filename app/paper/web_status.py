@@ -35,7 +35,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="5">
-  <title>Paper Trading</title>
+  <title>模拟交易看板</title>
   <style>
     :root {{
       color-scheme: light;
@@ -71,21 +71,21 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
 <body>
   <main>
     <header>
-      <h1>Paper Trading</h1>
-      <div class="badge">{_escape(payload.get("status"))} · refresh 5s</div>
+      <h1>模拟交易看板</h1>
+      <div class="badge">{_status_label(payload.get("status"))} · 5 秒自动刷新</div>
     </header>
     <section class="grid">
-      <div class="panel"><div class="label">equity</div><div class="value">{_escape(payload.get("equity") or "-")}</div></div>
-      <div class="panel"><div class="label">open position</div><div class="value">{_position_title(position)}</div></div>
-      <div class="panel"><div class="label">fills</div><div class="value">{len(fills)}</div></div>
-      <div class="panel"><div class="label" id="rejected-signals">rejected signals</div><div class="value">{_escape(payload.get("rejected_signals"))}</div></div>
+      <div class="panel"><div class="label">账户权益 USDT</div><div class="value">{_escape(payload.get("equity") or "-")}</div></div>
+      <div class="panel"><div class="label">持仓情况</div><div class="value">{_position_title(position)}</div></div>
+      <div class="panel"><div class="label">模拟成交次数</div><div class="value">{len(fills)}</div></div>
+      <div class="panel"><div class="label" id="rejected-signals">拒绝信号</div><div class="value">{_escape(payload.get("rejected_signals"))}</div></div>
     </section>
     <section class="panel">
-      <h2>Open Position</h2>
+      <h2>持仓情况</h2>
       {_render_position(position)}
     </section>
     <section style="margin-top: 16px;">
-      <h2>All Fills</h2>
+      <h2>全部模拟交易记录</h2>
       {_render_fills(fills)}
     </section>
   </main>
@@ -95,15 +95,15 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
 
 def _render_position(position: dict[str, Any] | None) -> str:
     if position is None:
-        return '<div class="empty">No open position</div>'
+        return '<div class="empty">当前无持仓</div>'
     rows = [
-        ("symbol", position.get("symbol")),
-        ("side", position.get("side")),
-        ("strategy", position.get("strategy_type")),
-        ("entry_price", position.get("entry_price")),
-        ("stop_loss", position.get("stop_loss")),
-        ("take_profit", position.get("take_profit")),
-        ("quantity", position.get("quantity")),
+        ("交易对", position.get("symbol")),
+        ("方向", _side_label(position.get("side"))),
+        ("使用策略", position.get("strategy_type")),
+        ("入场价", position.get("entry_price")),
+        ("止损价", position.get("stop_loss")),
+        ("止盈价", position.get("take_profit")),
+        ("持仓数量", position.get("quantity")),
     ]
     cells = "".join(f"<tr><th>{_escape(label)}</th><td>{_escape(value)}</td></tr>" for label, value in rows)
     return f'<div class="table-wrap"><table>{cells}</table></div>'
@@ -111,14 +111,14 @@ def _render_position(position: dict[str, Any] | None) -> str:
 
 def _render_fills(fills: list[dict[str, Any]]) -> str:
     if not fills:
-        return '<div class="empty">No fills yet</div>'
+        return '<div class="empty">暂无模拟成交</div>'
     rows = "\n".join(_render_fill_row(fill) for fill in fills)
     return f"""<div class="table-wrap">
 <table>
   <thead>
     <tr>
-      <th>symbol</th><th>side</th><th>strategy</th><th>entry</th><th>exit</th>
-      <th>qty</th><th>gross pnl</th><th>fees</th><th>net pnl</th><th>reason</th>
+      <th>交易对</th><th>方向</th><th>使用策略</th><th>买入价</th><th>卖出价</th>
+      <th>数量</th><th>毛盈亏</th><th>手续费</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -129,24 +129,57 @@ def _render_fills(fills: list[dict[str, Any]]) -> str:
 def _render_fill_row(fill: dict[str, Any]) -> str:
     pnl = str(fill.get("net_pnl", "0"))
     pnl_class = "loss" if pnl.startswith("-") else "profit"
+    buy_price, sell_price = _buy_sell_prices(fill)
     return f"""<tr>
   <td>{_escape(fill.get("symbol"))}</td>
-  <td>{_escape(fill.get("side"))}</td>
+  <td>{_side_label(fill.get("side"))}</td>
   <td>{_escape(fill.get("strategy_type"))}</td>
-  <td>{_escape(fill.get("entry_price"))}</td>
-  <td>{_escape(fill.get("exit_price"))}</td>
+  <td>{_escape(buy_price)}</td>
+  <td>{_escape(sell_price)}</td>
   <td>{_escape(fill.get("quantity"))}</td>
   <td>{_escape(fill.get("gross_pnl"))}</td>
   <td>{_escape(fill.get("fees"))}</td>
   <td class="{pnl_class}">{_escape(fill.get("net_pnl"))}</td>
-  <td>{_escape(fill.get("exit_reason"))}</td>
+  <td>{_exit_reason_label(fill.get("exit_reason"))}</td>
 </tr>"""
 
 
 def _position_title(position: dict[str, Any] | None) -> str:
     if position is None:
-        return "NONE"
-    return f"{_escape(position.get('symbol'))} {_escape(position.get('side'))}"
+        return "无"
+    return f"{_escape(position.get('symbol'))} {_side_label(position.get('side'))}"
+
+
+def _buy_sell_prices(fill: dict[str, Any]) -> tuple[Any, Any]:
+    if fill.get("side") == "SHORT":
+        return fill.get("exit_price"), fill.get("entry_price")
+    return fill.get("entry_price"), fill.get("exit_price")
+
+
+def _side_label(side: Any) -> str:
+    if side == "LONG":
+        return "做多"
+    if side == "SHORT":
+        return "做空"
+    return _escape(side)
+
+
+def _exit_reason_label(reason: Any) -> str:
+    if reason == "TAKE_PROFIT":
+        return "止盈"
+    if reason == "STOP_LOSS":
+        return "止损"
+    if reason == "LIQUIDATION":
+        return "强平"
+    return _escape(reason)
+
+
+def _status_label(status: Any) -> str:
+    if status == "RUNNING":
+        return "运行中"
+    if status == "WAITING_FOR_STATE":
+        return "等待状态文件"
+    return _escape(status)
 
 
 def _escape(value: Any) -> str:

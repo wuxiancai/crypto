@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--intervals", nargs="+", default=["15m", "1h", "4h"])
     parser.add_argument("--websocket-base-url", default="wss://fstream.binance.com")
     parser.add_argument("--state-path", type=Path, default=Path("runtime/paper-state.json"))
-    parser.add_argument("--initial-equity", default="10000")
+    parser.add_argument("--initial-equity", default="1000")
     parser.add_argument("--risk-per-trade-pct", default="0.005")
     parser.add_argument("--maker-fee-rate", default="0.0002")
     parser.add_argument("--taker-fee-rate", default="0.0004")
