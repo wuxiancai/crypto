@@ -15,6 +15,7 @@
 - V0.4 Paper Trading 已完成最小撮合与账户闭环。
 - 本轮继续补充 V0.4 Binance WebSocket transport，完成 V0.5 风控与订单计划核心模块，完成 V0.6 AI/Funding 过滤纯风控层，并开始 V1.0 小资金实盘准备。用户已明确当前暂无 API Key，下一阶段主线改为真实行情驱动的 Paper Trading，真实/测试网下单延后。
 - 用户明确要求系统越简单越好，后续开发必须避免过度设计。优先保持少模块、少抽象、少配置；任何新增组件都必须解决当前真实运行或复盘痛点。
+- 已新增 Ubuntu 一键部署脚本和启动脚本，带端口冲突自动顺延机制。
 
 ## 本轮修复
 
@@ -95,6 +96,7 @@
 - 已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓、成交和拒单计数。
 - 已实现真实行情 Paper runner 与脚本入口：`scripts/run_paper_realtime.py` 会连接 Binance WebSocket 已收盘 K 线流，并使用持久化 Paper stream runner 保存状态。
 - 已实现极简中文 Web 状态页：`scripts/run_paper_status_web.py` 读取 `runtime/paper-state.json`，展示账户权益、持仓情况、全部模拟交易记录、买入价、卖出价、使用策略和 rejected signals，并每 5 秒自动刷新。
+- 已实现 Ubuntu 部署入口：`scripts/deploy_ubuntu.sh` 首次部署，`scripts/start_ubuntu.sh` 后续启动。脚本会自动检测 PostgreSQL/Web 页面端口冲突并顺延，最终写入 `.env.ports.generated`。
 - 真实行情 Paper runner 已支持多周期订阅，默认订阅 15m / 1h / 4h；已新增 MultiTimeframeKlineCache，用于按 symbol 聚合多周期已收盘 K 线。
 - 已新增实时策略适配器：把 4h / 1h / 15m 已收盘 K 线历史转换为 EMA、ATR、ADX、DI、swing 与趋势转换结构输入，并复用现有趋势识别、`TREND_PULLBACK` 主趋势回踩策略和 `REVERSAL_PROBE` 趋势转换策略。
 - 真实行情 Paper runner 默认路径已接入实时策略适配器：不传 `signal_fn` 时，会用多周期缓存生成主趋势或趋势转换 Paper 信号；有持仓时默认 WAIT，避免重复入场。
@@ -104,6 +106,8 @@
 ## 验证结果
 
 - `.venv/bin/python -m pytest -q`：110 passed。
+- `bash -n scripts/start_ubuntu.sh && bash -n scripts/deploy_ubuntu.sh`：通过。
+- `.venv/bin/python -m pytest tests/test_deploy_ports.py -q`：3 passed。
 - 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
 - 真实行情源验证：`wss://fstream.binancefuture.com` 可收到 BTCUSDT / ETHUSDT Binance Futures K 线推送；`runtime/paper-state.json` 已在收到已收盘 K 线后创建。
 - 2026-06-17 已启动 Web 状态页：`.venv/bin/python scripts/run_paper_status_web.py --host 127.0.0.1 --port 8765 --state-path runtime/paper-state.json`，访问地址 `http://127.0.0.1:8765`。

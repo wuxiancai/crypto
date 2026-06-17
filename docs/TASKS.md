@@ -6,6 +6,20 @@
 
 当前 V0.6 AI/Funding 过滤纯风控层已完成，正在推进真实行情驱动的 Paper Trading 稳定性验证。当前暂无 Binance API Key，测试网/真实下单闭环延后到 API Key 可用后再做。主网真实 K 线入库仍受当前网络 Binance futures HTTP 451 限制，需要在可访问环境补验。
 
+## Ubuntu 部署
+
+- [x] 提供 Ubuntu 一键部署脚本。
+- [x] 提供启动脚本。
+- [x] 实现 PostgreSQL / Web 页面端口冲突自动顺延。
+- [x] 生成 `.env.ports.generated` 记录最终端口和 DATABASE_URL。
+
+说明：
+
+- `scripts/deploy_ubuntu.sh` 用于首次部署，会安装依赖、启动 Docker/PostgreSQL、执行 migration、启动真实行情 Paper Trading 和中文 Web 状态页。
+- `scripts/start_ubuntu.sh` 用于后续启动，会自动检测端口冲突并顺延。
+- 默认 PostgreSQL 端口 `55432`，默认 Web 页面端口 `8765`；如被占用会自动尝试下一个端口。
+- 部署说明见 `docs/UBUNTU_DEPLOY.md`。
+
 ## V0.1 数据与指标
 
 - [x] 初始化项目结构。
