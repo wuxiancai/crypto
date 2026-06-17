@@ -107,7 +107,7 @@
 - [x] 实现 ONE_WAY + ISOLATED 执行约束。
 - [x] 实现 Stop Order Guard。
 - [x] 实现 Liquidation Guard。
-- [ ] 实现 Kill Switch。
+- [x] 实现 Kill Switch。
 - [ ] 实现订单、成交、持仓状态机。
 
 说明：
@@ -120,6 +120,7 @@
 - 当前已实现 MVP 执行约束：默认 leverage = 3，最大 leverage = 5，且只允许 ONE_WAY + ISOLATED。
 - 当前已实现 Stop Order Guard 判定层：校验真实持仓是否存在 symbol 匹配、退出方向正确、数量覆盖、reduceOnly、状态 NEW、触发价方向正确的有效止损单；缺失时输出补挂止损动作。
 - 当前已实现 Liquidation Guard 判定层：多单要求 liquidation_price < stop_loss < entry_price，空单要求 entry_price < stop_loss < liquidation_price，且止损价与强平价安全距离不低于 liquidation_buffer_pct。
+- 当前已实现 Kill Switch 状态转移：触发后禁止新开仓，可标记是否平仓，并记录操作者、原因、触发时间和解除操作者。
 
 ## V0.6 AI/Funding 过滤
 
