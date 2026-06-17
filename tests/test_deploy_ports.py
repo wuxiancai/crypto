@@ -47,3 +47,22 @@ def test_generate_ports_env_writes_shifted_ports(tmp_path):
     assert allocated["POSTGRES_PORT"] == 55433
     assert allocated["PAPER_WEB_PORT"] == 8767
     assert path.exists()
+
+
+def test_docker_published_ports_are_treated_as_unavailable():
+    from app.deploy.ports import docker_published_ports
+
+    ports = docker_published_ports(
+        command_runner=lambda _cmd: (
+            "0.0.0.0:55432->5432/tcp, [::]:55432->5432/tcp\n"
+            "127.0.0.1:8765->8765/tcp\n"
+        )
+    )
+
+    assert ports == {55432, 8765}
+
+
+def test_compose_does_not_pin_postgres_container_name():
+    content = Path("docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "container_name:" not in content
