@@ -78,6 +78,16 @@ docker rm crypto_quant_postgres
 bash scripts/start_ubuntu.sh
 ```
 
+再次启动默认复用 `.env.ports.generated` 中的端口，不会重新顺延端口。因此部署后第一次输出的 Web 页面端口会保持稳定。
+
+如果确实需要重新分配端口，可以执行：
+
+```bash
+REGENERATE_PORTS=1 bash scripts/start_ubuntu.sh
+```
+
+或者删除 `.env.ports.generated` 后重新启动。
+
 ## Docker 安装冲突
 
 如果服务器之前安装过 Docker CE 或添加过 Docker CE 软件源，Ubuntu 的 `docker.io` 可能会与 `containerd.io` 冲突，典型错误是：
