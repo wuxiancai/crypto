@@ -68,6 +68,15 @@ class PaperTradingEngine:
         self._fills: list[PaperFill] = []
         self._rejected_signals = 0
 
+    @classmethod
+    def from_snapshot(cls, config: PaperConfig, snapshot: PaperSnapshot) -> "PaperTradingEngine":
+        engine = cls(config)
+        engine._equity = snapshot.equity
+        engine._position = snapshot.open_position
+        engine._fills = list(snapshot.fills)
+        engine._rejected_signals = snapshot.rejected_signals
+        return engine
+
     def on_signal(self, kline: Kline, signal: SignalLike) -> PaperPosition | None:
         if signal.action not in {"LONG_ENTRY", "SHORT_ENTRY", "REVERSAL_LONG_ENTRY", "REVERSAL_SHORT_ENTRY"}:
             return None
