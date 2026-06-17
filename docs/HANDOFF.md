@@ -89,10 +89,11 @@
 - Live 自检已覆盖：API 不允许提现、IP 白名单、USDⓈ-M Futures API 可用性、服务器时间偏差、database migration、缓存可用或降级、交易所规则同步、ONE_WAY、ISOLATED、leverage <= max_leverage、未知持仓、缺失止损持仓、Stop Order Guard、Liquidation Guard、数据延迟、Kill Switch、通知通道、小资金配置、`LIVE_TRADING_CONFIRM=I_UNDERSTAND_THE_RISK`。
 - V1.0 已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 3，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
 - 当前阶段不接入 Binance API 下单；先以真实行情驱动 Paper Trading，验证策略表现、风控和连续运行稳定性。测试网完整下单闭环等待 API Key 可用后再实现。
+- 已实现 Paper Trading 连续运行健康检查：检测 WebSocket 连接、行情延迟、Paper 回撤、拒单数量和运行时错误；该模块用于后续“连续 2 周无重大错误”的自动化验收。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：86 passed。
+- `.venv/bin/python -m pytest -q`：90 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -103,7 +104,7 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 下一步继续真实行情 Paper Trading：实现连续运行健康检查、状态持久化/恢复入口、Stop/Liquidation Guard 演练脚本和运行报告。
+3. 下一步继续真实行情 Paper Trading：实现状态持久化/恢复入口、Stop/Liquidation Guard 演练脚本和运行报告。
 4. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 
 ## 最近提交
@@ -176,6 +177,8 @@
 - `b5b9c75 feat: add live preflight checks`
 - `e57248d test: add small capital config checks`
 - `771416d feat: add small capital config validation`
+- `bc304c0 test: add paper runtime health checks`
+- `77d3d3a feat: add paper runtime health checks`
 
 ## 风险提醒
 
