@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-当前 V0.5 风控与订单计划核心模块已完成，正在推进 V0.6 AI/Funding 过滤。主网真实 K 线入库仍受当前网络 Binance futures HTTP 451 限制，需要在可访问环境补验。
+当前 V0.6 AI/Funding 过滤纯风控层已完成，正在推进 V1.0 小资金实盘准备的启动前自检。主网真实 K 线入库仍受当前网络 Binance futures HTTP 451 限制，需要在可访问环境补验。
 
 ## V0.1 数据与指标
 
@@ -140,9 +140,14 @@
 ## V1.0 小资金实盘准备
 
 - [ ] 测试网完整下单闭环。
-- [ ] Live 启动前自检。
-- [ ] API 权限和 IP 白名单检查。
+- [x] Live 启动前自检。
+- [x] API 权限和 IP 白名单检查。
 - [ ] 小资金实盘专用配置。
 - [ ] Paper Trading 连续 2 周无重大错误。
 - [ ] Stop Order Guard 和 Liquidation Guard 演练通过。
 - [ ] 主订单成交但止损失败的应急流程演练通过。
+
+说明：
+
+- 当前已实现 Live 启动前自检纯校验层：任一失败项都会禁止启动 Live，并一次性返回所有 failed_checks。
+- 自检已覆盖：API 不允许提现、IP 白名单、USDⓈ-M Futures API 可用性、服务器时间偏差、database migration、缓存可用或降级、交易所规则同步、ONE_WAY、ISOLATED、leverage <= max_leverage、未知持仓、缺失止损持仓、Stop Order Guard、Liquidation Guard、数据延迟、Kill Switch、通知通道、小资金配置、`LIVE_TRADING_CONFIRM=I_UNDERSTAND_THE_RISK`。
