@@ -56,6 +56,10 @@ class ReversalSignal:
     risk_pct: Decimal | None
     max_standard_position_pct: Decimal | None
     reason: list[str]
+    entry_price: Decimal | None = None
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
+    risk_reward: Decimal | None = None
 
 
 def build_reversal_signal(
@@ -80,9 +84,9 @@ def _build_long_signal(setup: ReversalSetup, min_entry_score: Decimal) -> Revers
     if score < min_entry_score:
         return _wait(score, ["reversal score below entry threshold"])
     if _confirmed_long(setup):
-        return _entry("REVERSAL_LONG_ENTRY", "CONFIRMED", score, ["confirmed reversal long"])
+        return _entry("REVERSAL_LONG_ENTRY", "CONFIRMED", score, setup, ["confirmed reversal long"])
     if _early_long(setup):
-        return _entry("REVERSAL_LONG_ENTRY", "EARLY", score, ["early reversal long"])
+        return _entry("REVERSAL_LONG_ENTRY", "EARLY", score, setup, ["early reversal long"])
     return _wait(score, ["reversal long conditions incomplete"])
 
 
@@ -93,9 +97,9 @@ def _build_short_signal(setup: ReversalSetup, min_entry_score: Decimal) -> Rever
     if score < min_entry_score:
         return _wait(score, ["reversal score below entry threshold"])
     if _confirmed_short(setup):
-        return _entry("REVERSAL_SHORT_ENTRY", "CONFIRMED", score, ["confirmed reversal short"])
+        return _entry("REVERSAL_SHORT_ENTRY", "CONFIRMED", score, setup, ["confirmed reversal short"])
     if _early_short(setup):
-        return _entry("REVERSAL_SHORT_ENTRY", "EARLY", score, ["early reversal short"])
+        return _entry("REVERSAL_SHORT_ENTRY", "EARLY", score, setup, ["early reversal short"])
     return _wait(score, ["reversal short conditions incomplete"])
 
 
@@ -207,13 +211,20 @@ def _blocked_by_risk_filter(setup: ReversalSetup) -> bool:
     return setup.atr_pct_extreme or setup.ai_block or setup.funding_block or setup.account_risk_block
 
 
-def _entry(action: str, signal_level: str, score: Decimal, reason: list[str]) -> ReversalSignal:
+def _entry(
+    action: str,
+    signal_level: str,
+    score: Decimal,
+    setup: ReversalSetup,
+    reason: list[str],
+) -> ReversalSignal:
     if signal_level == "EARLY":
         risk_pct = Decimal("0.002")
         max_position_pct = Decimal("0.2")
     else:
         risk_pct = Decimal("0.003")
         max_position_pct = Decimal("0.5")
+    stop_loss, take_profit = _prices_for_action(action, setup)
     return ReversalSignal(
         action=action,
         strategy_type="REVERSAL_PROBE",
@@ -222,6 +233,10 @@ def _entry(action: str, signal_level: str, score: Decimal, reason: list[str]) ->
         risk_pct=risk_pct,
         max_standard_position_pct=max_position_pct,
         reason=reason,
+        entry_price=setup.entry_price,
+        stop_loss=stop_loss,
+        take_profit=take_profit,
+        risk_reward=Decimal("2"),
     )
 
 
@@ -235,3 +250,14 @@ def _wait(score: Decimal, reason: list[str]) -> ReversalSignal:
         max_standard_position_pct=None,
         reason=reason,
     )
+
+
+def _prices_for_action(action: str, setup: ReversalSetup) -> tuple[Decimal, Decimal]:
+    risk = setup.atr_15m
+    if action == "REVERSAL_LONG_ENTRY":
+        stop_loss = setup.entry_price - risk
+        take_profit = setup.entry_price + risk * Decimal("2")
+        return stop_loss, take_profit
+    stop_loss = setup.entry_price + risk
+    take_profit = setup.entry_price - risk * Decimal("2")
+    return stop_loss, take_profit
