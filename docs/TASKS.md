@@ -79,7 +79,7 @@
 
 ## V0.4 Paper Trading
 
-- [ ] 实现实时行情订阅。
+- [x] 实现实时行情订阅。
 - [x] 实现 Paper 撮合。
 - [x] 实现 Paper 持仓与账户权益。
 - [x] 接入主趋势策略 Paper 验证。
@@ -95,12 +95,12 @@
 - 当前已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。
 - 当前已实现可测试的异步 K 线流消费入口，可接入 Paper 引擎。
 - 当前已实现 Binance WebSocket kline payload 解析、combined stream URL 构造、raw message 到已收盘 Kline 的异步转换。
-- 真实 WebSocket transport 连接仍未完成。
+- 当前已实现 Binance WebSocket transport 连接入口，支持真实 `websockets.connect` 与测试 connector 注入。
 
 ## V0.5 风控与订单计划
 
-- [ ] 实现主策略仓位计算。
-- [ ] 实现趋势转换分级仓位计算。
+- [x] 实现主策略仓位计算。
+- [x] 实现趋势转换分级仓位计算。
 - [ ] 实现止损候选选择。
 - [ ] 实现 TP1/TP2/TP3 与 TP3 方向校验。
 - [ ] 实现 OrderPlan。
@@ -109,6 +109,11 @@
 - [ ] 实现 Liquidation Guard。
 - [ ] 实现 Kill Switch。
 - [ ] 实现订单、成交、持仓状态机。
+
+说明：
+
+- 当前已实现主策略按账户风险预算、止损距离、交易所数量/名义价值过滤计算仓位。
+- 当前已实现趋势转换仓位计算：最终数量取风险上限和评分仓位上限的较小值；EARLY 使用 0.2% 风险，CONFIRMED 使用 0.3% 风险。
 
 ## V0.6 AI/Funding 过滤
 

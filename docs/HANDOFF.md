@@ -13,7 +13,7 @@
 - 当前项目已有 git 仓库，并已按功能节点持续提交。
 - V0.3 回测系统已补充真实策略信号复用、maker/taker 手续费和按策略统计。
 - V0.4 Paper Trading 已完成最小撮合与账户闭环。
-- 本轮继续补充 V0.3 回测归档，以及 V0.4 Binance WebSocket K 线解析与流辅助层。
+- 本轮继续补充 V0.4 Binance WebSocket transport，以及 V0.5 主策略/趋势转换仓位计算。
 
 ## 本轮修复
 
@@ -69,12 +69,15 @@
 - V0.4 Paper 已支持主趋势和趋势转换信号，趋势转换同样使用自身 `risk_pct`。
 - V0.4 已实现 Paper CLI 状态格式化输出。
 - V0.4 已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。
-- V0.4 已实现可测试的异步 K 线流消费入口，可接入 Paper 引擎；真实 Binance WebSocket provider 仍未完成。
-- V0.4 已实现 Binance WebSocket kline payload 解析、combined stream URL 构造、raw message 到已收盘 Kline 的异步转换；真实 WebSocket transport 连接仍未完成。
+- V0.4 已实现可测试的异步 K 线流消费入口，可接入 Paper 引擎。
+- V0.4 已实现 Binance WebSocket kline payload 解析、combined stream URL 构造、raw message 到已收盘 Kline 的异步转换。
+- V0.4 已实现 Binance WebSocket transport 连接入口，支持真实 `websockets.connect` 与测试 connector 注入。
+- V0.5 已实现主策略仓位计算。
+- V0.5 已实现趋势转换分级仓位计算：取风险上限和评分仓位上限中的较小值。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：44 passed。
+- `.venv/bin/python -m pytest -q`：47 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -85,8 +88,8 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 继续 V0.4：实现真实 Binance WebSocket transport 连接。
-4. 后续进入 V0.5：主策略仓位计算、趋势转换分级仓位计算、止损候选和 OrderPlan。
+3. 继续 V0.5：实现止损候选选择、TP1/TP2/TP3 与 TP3 方向校验。
+4. 继续 V0.5：实现 OrderPlan 与 ONE_WAY + ISOLATED 执行约束。
 
 ## 最近提交
 
@@ -130,6 +133,10 @@
 - `58c375b feat: parse binance websocket klines`
 - `e938369 test: add binance websocket stream provider cases`
 - `2f56647 feat: add binance websocket kline stream helpers`
+- `68b3587 test: add binance websocket transport case`
+- `ab6d57c feat: add binance websocket transport`
+- `2d2b29f test: add position sizing cases`
+- `cc39e8d feat: add position sizing rules`
 
 ## 风险提醒
 
