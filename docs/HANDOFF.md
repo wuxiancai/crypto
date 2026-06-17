@@ -90,10 +90,11 @@
 - V1.0 已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 3，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
 - 当前阶段不接入 Binance API 下单；先以真实行情驱动 Paper Trading，验证策略表现、风控和连续运行稳定性。测试网完整下单闭环等待 API Key 可用后再实现。
 - 已实现 Paper Trading 连续运行健康检查：检测 WebSocket 连接、行情延迟、Paper 回撤、拒单数量和运行时错误；该模块用于后续“连续 2 周无重大错误”的自动化验收。
+- 已实现 Paper Trading 状态持久化/恢复入口：PaperSnapshot 可无损序列化为 JSON payload，并支持保存到本地状态文件和从状态文件恢复；Decimal 金额以字符串保存，避免浮点误差。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：90 passed。
+- `.venv/bin/python -m pytest -q`：94 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -104,7 +105,7 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 下一步继续真实行情 Paper Trading：实现状态持久化/恢复入口、Stop/Liquidation Guard 演练脚本和运行报告。
+3. 下一步继续真实行情 Paper Trading：把状态持久化接入真实行情 stream runner，或实现 Stop/Liquidation Guard 演练脚本和运行报告。
 4. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 
 ## 最近提交
@@ -179,6 +180,10 @@
 - `771416d feat: add small capital config validation`
 - `bc304c0 test: add paper runtime health checks`
 - `77d3d3a feat: add paper runtime health checks`
+- `aaef40d test: add paper snapshot persistence cases`
+- `4644aaf feat: add paper snapshot persistence`
+- `6569e43 test: add paper state file store cases`
+- `6f3a3dc feat: add paper state file store`
 
 ## 风险提醒
 
