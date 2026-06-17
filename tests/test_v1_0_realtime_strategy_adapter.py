@@ -86,3 +86,45 @@ def test_realtime_strategy_builds_trend_pullback_long_signal_from_multitimeframe
     assert signal.entry_price == Decimal("126")
     assert signal.stop_loss == Decimal("118")
     assert signal.take_profit == Decimal("142")
+
+
+def test_realtime_strategy_builds_reversal_long_signal_when_4h_down_and_1h_turns_up():
+    from app.paper.multitimeframe import MultiTimeframeFrame
+    from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
+
+    frame = MultiTimeframeFrame(
+        symbol="BTCUSDT",
+        klines_by_interval={
+            "4h": tuple(
+                _kline("BTCUSDT", "4h", index, close)
+                for index, close in enumerate(["120", "110", "100", "90", "82", "80"])
+            ),
+            "1h": tuple(
+                _kline("BTCUSDT", "1h", index, close)
+                for index, close in enumerate(["80", "84", "88", "92", "96", "100"])
+            ),
+            "15m": tuple(
+                _kline("BTCUSDT", "15m", index, close)
+                for index, close in enumerate(["90", "94", "98", "96", "97", "98"])
+            ),
+        },
+    )
+
+    signal = build_realtime_strategy_signal(
+        frame,
+        config=RealtimeStrategyConfig(
+            ema_fast_period=3,
+            ema_slow_period=5,
+            atr_period=3,
+            dmi_period=3,
+            swing_lookback=5,
+        ),
+    )
+
+    assert signal.action == "REVERSAL_LONG_ENTRY"
+    assert signal.strategy_type == "REVERSAL_PROBE"
+    assert signal.signal_level == "EARLY"
+    assert signal.risk_pct == Decimal("0.002")
+    assert signal.entry_price == Decimal("98")
+    assert signal.stop_loss is not None
+    assert signal.take_profit is not None
