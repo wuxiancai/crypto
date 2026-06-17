@@ -162,3 +162,4 @@
 - 当前 `scripts/run_paper_realtime.py` 默认路径已不再永久 WAIT；不注入自定义策略函数时，会通过多周期缓存生成实时主趋势或趋势转换 Paper 信号。有持仓时默认不加仓，避免重复入场噪音。
 - 当前已修复 signal router 字段丢失问题：主趋势与趋势转换信号经路由后会保留 entry_price、stop_loss、take_profit、risk_reward、risk_pct、score、signal_level 等执行/统计字段。
 - 当前趋势转换信号已补充可执行 entry_price、ATR 止损与 2R take_profit，Paper 不再依赖默认止损止盈模拟趋势转换策略。
+- 当前已新增极简 Web 状态页：`scripts/run_paper_status_web.py` 读取 `runtime/paper-state.json`，展示权益、当前持仓、所有模拟成交和 rejected signals，并每 5 秒自动刷新。
