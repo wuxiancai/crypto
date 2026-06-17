@@ -61,7 +61,7 @@
 - [x] 模拟交易所最小数量、最小名义价值、价格精度、数量精度。
 - [x] 模拟强平风险。
 - [x] 输出整体指标与按 strategy_type 拆分指标。
-- [ ] 归档 backtest_run、config_snapshot、backtest_trades。
+- [x] 归档 backtest_run、config_snapshot、backtest_trades。
 
 说明：
 
@@ -75,6 +75,7 @@
 - 当前已实现限价未触达不成交、限价部分成交比例和 partial_fills 统计。
 - 当前已实现价格 tick 方向细化：买入向上取 tick，卖出向下取 tick。
 - 当前已实现强平风险模拟，触发强平时优先于止损退出并计入 liquidations。
+- 当前已实现 `backtest_runs`、`config_snapshots`、`backtest_trades` 归档，并提供 repository 写入入口。
 
 ## V0.4 Paper Trading
 
@@ -93,7 +94,8 @@
 - 当前已实现稳定的 Paper CLI 状态格式化输出。
 - 当前已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。
 - 当前已实现可测试的异步 K 线流消费入口，可接入 Paper 引擎。
-- 真实 Binance WebSocket provider 仍未完成。
+- 当前已实现 Binance WebSocket kline payload 解析、combined stream URL 构造、raw message 到已收盘 Kline 的异步转换。
+- 真实 WebSocket transport 连接仍未完成。
 
 ## V0.5 风控与订单计划
 

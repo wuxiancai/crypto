@@ -13,7 +13,7 @@
 - 当前项目已有 git 仓库，并已按功能节点持续提交。
 - V0.3 回测系统已补充真实策略信号复用、maker/taker 手续费和按策略统计。
 - V0.4 Paper Trading 已完成最小撮合与账户闭环。
-- 本轮继续补充 V0.3 价格 tick 方向、强平风险，以及 V0.4 Paper 异步 K 线流入口。
+- 本轮继续补充 V0.3 回测归档，以及 V0.4 Binance WebSocket K 线解析与流辅助层。
 
 ## 本轮修复
 
@@ -63,16 +63,19 @@
 - V0.3 回测已支持限价未触达不成交、限价部分成交比例和 partial_fills 统计。
 - V0.3 回测已支持价格 tick 方向细化：买入向上取 tick，卖出向下取 tick。
 - V0.3 回测已支持强平风险模拟，触发强平时优先于止损退出并计入 liquidations。
+- V0.3 已新增 `backtest_runs`、`backtest_trades` 表，并复用 `config_snapshots` 归档配置 hash。
+- V0.3 已新增 `archive_backtest_result()` repository 写入入口。
 - V0.4 已实现 Paper Trading 最小内核：信号入场、单仓位撮合、止盈/止损退出、权益更新、fills 记录、rejected_signals 计数。
 - V0.4 Paper 已支持主趋势和趋势转换信号，趋势转换同样使用自身 `risk_pct`。
 - V0.4 已实现 Paper CLI 状态格式化输出。
 - V0.4 已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。
 - V0.4 已实现可测试的异步 K 线流消费入口，可接入 Paper 引擎；真实 Binance WebSocket provider 仍未完成。
+- V0.4 已实现 Binance WebSocket kline payload 解析、combined stream URL 构造、raw message 到已收盘 Kline 的异步转换；真实 WebSocket transport 连接仍未完成。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：39 passed。
-- `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过。
+- `.venv/bin/python -m pytest -q`：44 passed。
+- `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
 - 本地 Postgres `klines` 行数：BTCUSDT 15m = 5，ETHUSDT 15m = 5。
@@ -82,8 +85,8 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 继续 V0.3：归档 backtest_run、config_snapshot、backtest_trades。
-4. 继续 V0.4：实现真实 Binance WebSocket K 线 provider。
+3. 继续 V0.4：实现真实 Binance WebSocket transport 连接。
+4. 后续进入 V0.5：主策略仓位计算、趋势转换分级仓位计算、止损候选和 OrderPlan。
 
 ## 最近提交
 
@@ -121,6 +124,12 @@
 - `e0c75f0 feat: add liquidation risk to backtests`
 - `b9533c2 test: add paper kline stream case`
 - `b875d2e feat: add paper kline stream runner`
+- `81dfffb test: add backtest archive case`
+- `37c9019 feat: archive backtest runs and trades`
+- `e23c4e0 test: add binance websocket kline parsing`
+- `58c375b feat: parse binance websocket klines`
+- `e938369 test: add binance websocket stream provider cases`
+- `2f56647 feat: add binance websocket kline stream helpers`
 
 ## 风险提醒
 
