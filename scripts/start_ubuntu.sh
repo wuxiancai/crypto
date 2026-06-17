@@ -27,9 +27,23 @@ set +a
 compose() {
   if docker compose version >/dev/null 2>&1; then
     docker compose "$@"
-  else
-    docker-compose "$@"
+    return
   fi
+  if sudo docker compose version >/dev/null 2>&1; then
+    sudo docker compose "$@"
+    return
+  fi
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
+    return
+  fi
+  if sudo docker-compose version >/dev/null 2>&1; then
+    sudo docker-compose "$@"
+    return
+  fi
+
+  echo "未找到 docker compose。请先安装 Docker Compose plugin。" >&2
+  exit 1
 }
 
 POSTGRES_PORT="$POSTGRES_PORT" compose --env-file "$PORT_ENV" up -d postgres
