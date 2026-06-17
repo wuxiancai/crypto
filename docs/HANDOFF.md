@@ -13,7 +13,7 @@
 - 当前项目已有 git 仓库，并已按功能节点持续提交。
 - V0.3 回测系统已补充真实策略信号复用、maker/taker 手续费和按策略统计。
 - V0.4 Paper Trading 已完成最小撮合与账户闭环。
-- 本轮继续补充 V0.4 Binance WebSocket transport，以及 V0.5 主策略/趋势转换仓位计算。
+- 本轮继续补充 V0.4 Binance WebSocket transport，以及 V0.5 主策略/趋势转换仓位计算和止损候选选择。
 
 ## 本轮修复
 
@@ -74,10 +74,11 @@
 - V0.4 已实现 Binance WebSocket transport 连接入口，支持真实 `websockets.connect` 与测试 connector 注入。
 - V0.5 已实现主策略仓位计算。
 - V0.5 已实现趋势转换分级仓位计算：取风险上限和评分仓位上限中的较小值。
+- V0.5 已实现止损候选选择：LONG 只接受低于入场价的止损，SHORT 只接受高于入场价的止损，并在最大止损距离内选择距离入场价最近的候选。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：47 passed。
+- `.venv/bin/python -m pytest -q`：50 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -137,6 +138,8 @@
 - `ab6d57c feat: add binance websocket transport`
 - `2d2b29f test: add position sizing cases`
 - `cc39e8d feat: add position sizing rules`
+- `6152b72 test: add stop loss selection cases`
+- `720d601 feat: add stop loss candidate selection`
 
 ## 风险提醒
 
