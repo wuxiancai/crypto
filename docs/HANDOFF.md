@@ -103,6 +103,8 @@
 ## 验证结果
 
 - `.venv/bin/python -m pytest -q`：107 passed。
+- 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
+- 真实行情源验证：`wss://fstream.binancefuture.com` 可收到 BTCUSDT / ETHUSDT Binance Futures K 线推送；`runtime/paper-state.json` 已在收到已收盘 K 线后创建。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
