@@ -1,7 +1,6 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: crypto_quant_postgres
     environment:
       POSTGRES_USER: crypto
       POSTGRES_PASSWORD: crypto
@@ -18,4 +17,3 @@ services:
 
 volumes:
   crypto_quant_postgres_data:
-

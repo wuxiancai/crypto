@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from pathlib import Path
+import re
 import socket
+import subprocess
 
 
 DEFAULT_PORTS = {
@@ -55,6 +57,9 @@ def write_ports_env(path: Path, ports: dict[str, int]) -> None:
 
 
 def port_is_available(port: int) -> bool:
+    if port in docker_published_ports():
+        return False
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -62,6 +67,22 @@ def port_is_available(port: int) -> bool:
         except OSError:
             return False
     return True
+
+
+def docker_published_ports(
+    command_runner: Callable[[list[str]], str] | None = None,
+) -> set[int]:
+    runner = command_runner or _run_command
+    try:
+        output = runner(["docker", "ps", "--format", "{{.Ports}}"])
+    except Exception:
+        return set()
+
+    return {int(match) for match in re.findall(r"(?::|\\[::\\]:)(\d+)->", output)}
+
+
+def _run_command(command: list[str]) -> str:
+    return subprocess.check_output(command, text=True, stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":
