@@ -94,13 +94,14 @@
 - 已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓、成交和拒单计数。
 - 已实现真实行情 Paper runner 与脚本入口：`scripts/run_paper_realtime.py` 会连接 Binance WebSocket 已收盘 K 线流，并使用持久化 Paper stream runner 保存状态。
 - 真实行情 Paper runner 已支持多周期订阅，默认订阅 15m / 1h / 4h；已新增 MultiTimeframeKlineCache，用于按 symbol 聚合多周期已收盘 K 线。
-- 已新增实时策略适配器：把 4h / 1h / 15m 已收盘 K 线历史转换为 EMA、ATR、ADX、DI 与 swing 输入，并复用现有趋势识别和 `TREND_PULLBACK` 主趋势回踩策略。
-- 真实行情 Paper runner 默认路径已接入实时策略适配器：不传 `signal_fn` 时，会用多周期缓存生成 Paper 信号；有持仓时默认 WAIT，避免重复入场。
-- 趋势转换 `REVERSAL_PROBE` 的实时多周期适配仍待接入；现阶段回测/Paper 单元层策略核心已完成。
+- 已新增实时策略适配器：把 4h / 1h / 15m 已收盘 K 线历史转换为 EMA、ATR、ADX、DI、swing 与趋势转换结构输入，并复用现有趋势识别、`TREND_PULLBACK` 主趋势回踩策略和 `REVERSAL_PROBE` 趋势转换策略。
+- 真实行情 Paper runner 默认路径已接入实时策略适配器：不传 `signal_fn` 时，会用多周期缓存生成主趋势或趋势转换 Paper 信号；有持仓时默认 WAIT，避免重复入场。
+- 已修复 signal router 字段丢失问题：主趋势与趋势转换信号经路由后会保留 entry_price、stop_loss、take_profit、risk_reward、risk_pct、score、signal_level 等执行/统计字段。
+- 趋势转换信号已补充可执行 entry_price、ATR 止损与 2R take_profit，Paper 不再依赖默认止损止盈模拟趋势转换策略。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：104 passed。
+- `.venv/bin/python -m pytest -q`：107 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -111,7 +112,7 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 下一步继续真实行情 Paper Trading：把 `REVERSAL_PROBE` 趋势转换策略接入实时多周期适配器，并通过 signal router 保留完整入场价/止损/止盈字段。
+3. 下一步继续真实行情 Paper Trading：把实时 Paper 的每次信号、拒绝原因、成交、持仓快照持久化到数据库表，便于连续 2 周稳定性验证和复盘统计。
 4. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 
 ## 最近提交
@@ -205,6 +206,12 @@
 - `ba6baea feat: add realtime strategy adapter`
 - `7b93f4f test: require default realtime paper strategy`
 - `af62e50 feat: wire realtime strategy into paper runner`
+- `cada0fb test: require signal router field preservation`
+- `007822e feat: preserve routed signal fields`
+- `9c51e30 test: require executable reversal signal prices`
+- `4090519 feat: add executable reversal signal prices`
+- `c07c006 test: require realtime reversal strategy signal`
+- `7fa6746 feat: wire realtime reversal paper strategy`
 
 ## 风险提醒
 

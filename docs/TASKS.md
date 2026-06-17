@@ -158,6 +158,7 @@
 - 当前已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓、成交和拒单计数。
 - 当前已实现真实行情 Paper runner 与脚本入口：`scripts/run_paper_realtime.py` 会连接 Binance WebSocket 已收盘 K 线流，并使用持久化 Paper stream runner 保存状态。
 - 当前真实行情 Paper runner 已支持多周期订阅，默认订阅 15m / 1h / 4h；已新增 MultiTimeframeKlineCache，用于按 symbol 聚合多周期已收盘 K 线。
-- 当前已新增实时策略适配器：把 4h / 1h / 15m 已收盘 K 线历史转换为 EMA、ATR、ADX、DI 与 swing 输入，并复用现有趋势识别和 `TREND_PULLBACK` 主趋势回踩策略。
-- 当前 `scripts/run_paper_realtime.py` 默认路径已不再永久 WAIT；不注入自定义策略函数时，会通过多周期缓存生成实时主趋势 Paper 信号。有持仓时默认不加仓，避免重复入场噪音。
-- 趋势转换 `REVERSAL_PROBE` 的实时多周期适配仍待接入；现有趋势转换策略核心已实现并可用于回测/Paper 单元层验证。
+- 当前已新增实时策略适配器：把 4h / 1h / 15m 已收盘 K 线历史转换为 EMA、ATR、ADX、DI、swing 与趋势转换结构输入，并复用现有趋势识别、`TREND_PULLBACK` 主趋势回踩策略和 `REVERSAL_PROBE` 趋势转换策略。
+- 当前 `scripts/run_paper_realtime.py` 默认路径已不再永久 WAIT；不注入自定义策略函数时，会通过多周期缓存生成实时主趋势或趋势转换 Paper 信号。有持仓时默认不加仓，避免重复入场噪音。
+- 当前已修复 signal router 字段丢失问题：主趋势与趋势转换信号经路由后会保留 entry_price、stop_loss、take_profit、risk_reward、risk_pct、score、signal_level 等执行/统计字段。
+- 当前趋势转换信号已补充可执行 entry_price、ATR 止损与 2R take_profit，Paper 不再依赖默认止损止盈模拟趋势转换策略。
