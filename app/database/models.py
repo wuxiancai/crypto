@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, MetaData, Numeric, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, MetaData, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -86,4 +86,40 @@ class ConfigSnapshot(Base):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     version: Mapped[str] = mapped_column(String(64), nullable=False)
     content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BacktestRun(Base):
+    __tablename__ = "backtest_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    config_snapshot_id: Mapped[int] = mapped_column(ForeignKey("config_snapshots.id"), nullable=False)
+    initial_equity: Mapped[float] = mapped_column(Numeric, nullable=False)
+    final_equity: Mapped[float] = mapped_column(Numeric, nullable=False)
+    total_trades: Mapped[int] = mapped_column(Integer, nullable=False)
+    wins: Mapped[int] = mapped_column(Integer, nullable=False)
+    losses: Mapped[int] = mapped_column(Integer, nullable=False)
+    net_pnl: Mapped[float] = mapped_column(Numeric, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BacktestTradeRecord(Base):
+    __tablename__ = "backtest_trades"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    backtest_run_id: Mapped[int] = mapped_column(ForeignKey("backtest_runs.id"), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    side: Mapped[str] = mapped_column(String(16), nullable=False)
+    strategy_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    entry_time: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    exit_time: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    entry_price: Mapped[float] = mapped_column(Numeric, nullable=False)
+    exit_price: Mapped[float] = mapped_column(Numeric, nullable=False)
+    quantity: Mapped[float] = mapped_column(Numeric, nullable=False)
+    gross_pnl: Mapped[float] = mapped_column(Numeric, nullable=False)
+    fees: Mapped[float] = mapped_column(Numeric, nullable=False)
+    funding_fee: Mapped[float] = mapped_column(Numeric, nullable=False)
+    net_pnl: Mapped[float] = mapped_column(Numeric, nullable=False)
+    exit_reason: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
