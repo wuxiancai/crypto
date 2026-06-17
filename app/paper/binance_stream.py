@@ -33,6 +33,15 @@ def build_binance_kline_stream_url(base_url: str, symbols: list[str], interval: 
     return f"{base_url.rstrip('/')}/stream?streams={streams}"
 
 
+def build_binance_multi_interval_stream_url(base_url: str, symbols: list[str], intervals: list[str]) -> str:
+    streams = "/".join(
+        f"{symbol.lower()}@kline_{interval}"
+        for symbol in symbols
+        for interval in intervals
+    )
+    return f"{base_url.rstrip('/')}/stream?streams={streams}"
+
+
 async def iter_binance_ws_klines(raw_messages: AsyncIterable[str | dict[str, Any]]) -> AsyncIterator[Kline]:
     async for raw_message in raw_messages:
         message = json.loads(raw_message) if isinstance(raw_message, str) else raw_message
@@ -48,6 +57,23 @@ async def iter_binance_websocket_klines(
     connect: Callable[[str], Any] | None = None,
 ) -> AsyncIterator[Kline]:
     url = build_binance_kline_stream_url(base_url=base_url, symbols=symbols, interval=interval)
+    connector = connect or _default_websocket_connect
+    async with connector(url) as websocket:
+        async for kline in iter_binance_ws_klines(websocket):
+            yield kline
+
+
+async def iter_binance_multi_interval_websocket_klines(
+    base_url: str,
+    symbols: list[str],
+    intervals: list[str],
+    connect: Callable[[str], Any] | None = None,
+) -> AsyncIterator[Kline]:
+    url = build_binance_multi_interval_stream_url(
+        base_url=base_url,
+        symbols=symbols,
+        intervals=intervals,
+    )
     connector = connect or _default_websocket_connect
     async with connector(url) as websocket:
         async for kline in iter_binance_ws_klines(websocket):
