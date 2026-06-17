@@ -126,14 +126,16 @@
 ## V0.6 AI/Funding 过滤
 
 - [x] 实现资金费率过滤。
-- [ ] 实现 AI filter 接口。
-- [ ] 实现 deterministic stub。
-- [ ] 记录 AI 输入、输出、fallback 原因。
-- [ ] 保持真实 LLM 默认关闭。
+- [x] 实现 AI filter 接口。
+- [x] 实现 deterministic stub。
+- [x] 记录 AI 输入、输出、fallback 原因。
+- [x] 保持真实 LLM 默认关闭。
 
 说明：
 
 - 当前已实现 Funding 过滤器：距离结算时间 <= 15 分钟禁止新开仓，abs(funding_rate) >= 0.0015 禁止新开仓，abs(funding_rate) >= 0.0005 输出 WARN 并将仓位乘数降为 0.5。
+- 当前已实现 AI filter 接口与 deterministic stub：默认 `enabled = false` 时输出 ALLOW；新闻不可用时 fallback BLOCK；显式模拟重大风险事件时 BLOCK。
+- 当前已实现 AI filter 日志 entry：记录输入 payload、输出 payload、fallback_reason、provider 和 evaluated_at，真实 LLM 仍未接入且默认关闭。
 
 ## V1.0 小资金实盘准备
 
