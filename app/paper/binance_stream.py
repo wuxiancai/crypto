@@ -1,5 +1,5 @@
 import json
-from collections.abc import AsyncIterable, AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator, Callable
 from decimal import Decimal
 from typing import Any
 
@@ -39,3 +39,22 @@ async def iter_binance_ws_klines(raw_messages: AsyncIterable[str | dict[str, Any
         kline = parse_binance_ws_kline(message)
         if kline is not None:
             yield kline
+
+
+async def iter_binance_websocket_klines(
+    base_url: str,
+    symbols: list[str],
+    interval: str,
+    connect: Callable[[str], Any] | None = None,
+) -> AsyncIterator[Kline]:
+    url = build_binance_kline_stream_url(base_url=base_url, symbols=symbols, interval=interval)
+    connector = connect or _default_websocket_connect
+    async with connector(url) as websocket:
+        async for kline in iter_binance_ws_klines(websocket):
+            yield kline
+
+
+def _default_websocket_connect(url: str) -> Any:
+    import websockets
+
+    return websockets.connect(url)
