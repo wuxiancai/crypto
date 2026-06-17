@@ -26,7 +26,7 @@ def test_real_market_paper_runner_wires_source_to_persistent_stream(tmp_path):
         run_real_market_paper(
             RealMarketPaperConfig(
                 symbols=("BTCUSDT", "ETHUSDT"),
-                interval="15m",
+                intervals=("15m", "1h", "4h"),
                 websocket_base_url="wss://fstream.binance.com",
                 state_path=state_path,
                 initial_equity=Decimal("10000"),
@@ -107,7 +107,7 @@ def test_real_market_paper_runner_uses_injected_strategy_signal(tmp_path):
         run_real_market_paper(
             RealMarketPaperConfig(
                 symbols=("BTCUSDT",),
-                interval="15m",
+                intervals=("15m", "1h", "4h"),
                 websocket_base_url="wss://fstream.binance.com",
                 state_path=state_path,
                 initial_equity=Decimal("10000"),
