@@ -14,8 +14,14 @@ class StrategySignal:
     action: str
     strategy_type: str
     reason: list[str]
+    entry_price: Decimal | None = None
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
+    risk_reward: Decimal | None = None
     signal_level: str | None = None
     score: Decimal | None = None
+    risk_pct: Decimal | None = None
+    max_standard_position_pct: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -46,13 +52,17 @@ def _is_active(signal: EntryCandidate | None) -> bool:
 
 
 def _from_candidate(signal: EntryCandidate) -> StrategySignal:
-    signal_level = getattr(signal, "signal_level", None)
-    score = getattr(signal, "score", None)
     return StrategySignal(
         action=signal.action,
         strategy_type=signal.strategy_type,
-        signal_level=signal_level,
-        score=score,
+        entry_price=getattr(signal, "entry_price", None),
+        stop_loss=getattr(signal, "stop_loss", None),
+        take_profit=getattr(signal, "take_profit", None),
+        risk_reward=getattr(signal, "risk_reward", None),
+        signal_level=getattr(signal, "signal_level", None),
+        score=getattr(signal, "score", None),
+        risk_pct=getattr(signal, "risk_pct", None),
+        max_standard_position_pct=getattr(signal, "max_standard_position_pct", None),
         reason=signal.reason,
     )
 
