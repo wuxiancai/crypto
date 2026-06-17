@@ -1,3 +1,5 @@
+import json
+from collections.abc import AsyncIterable, AsyncIterator
 from decimal import Decimal
 from typing import Any
 
@@ -5,6 +7,8 @@ from app.data.quality import Kline
 
 
 def parse_binance_ws_kline(message: dict[str, Any]) -> Kline | None:
+    if "data" in message and isinstance(message["data"], dict):
+        message = message["data"]
     payload = message.get("k")
     if not isinstance(payload, dict) or payload.get("x") is not True:
         return None
@@ -22,3 +26,16 @@ def parse_binance_ws_kline(message: dict[str, Any]) -> Kline | None:
         volume=Decimal(str(payload["v"])),
         is_closed=True,
     )
+
+
+def build_binance_kline_stream_url(base_url: str, symbols: list[str], interval: str) -> str:
+    streams = "/".join(f"{symbol.lower()}@kline_{interval}" for symbol in symbols)
+    return f"{base_url.rstrip('/')}/stream?streams={streams}"
+
+
+async def iter_binance_ws_klines(raw_messages: AsyncIterable[str | dict[str, Any]]) -> AsyncIterator[Kline]:
+    async for raw_message in raw_messages:
+        message = json.loads(raw_message) if isinstance(raw_message, str) else raw_message
+        kline = parse_binance_ws_kline(message)
+        if kline is not None:
+            yield kline
