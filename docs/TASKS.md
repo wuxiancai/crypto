@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-当前 V0.3 回测系统继续补充撮合与统计能力，同时已进入 V0.4 Paper Trading 最小闭环开发。主网真实 K 线入库仍受当前网络 Binance futures HTTP 451 限制，需要在可访问环境补验。
+当前 V0.5 风控与订单计划核心模块已完成，正在推进 V0.6 AI/Funding 过滤。主网真实 K 线入库仍受当前网络 Binance futures HTTP 451 限制，需要在可访问环境补验。
 
 ## V0.1 数据与指标
 
@@ -125,11 +125,15 @@
 
 ## V0.6 AI/Funding 过滤
 
-- [ ] 实现资金费率过滤。
+- [x] 实现资金费率过滤。
 - [ ] 实现 AI filter 接口。
 - [ ] 实现 deterministic stub。
 - [ ] 记录 AI 输入、输出、fallback 原因。
 - [ ] 保持真实 LLM 默认关闭。
+
+说明：
+
+- 当前已实现 Funding 过滤器：距离结算时间 <= 15 分钟禁止新开仓，abs(funding_rate) >= 0.0015 禁止新开仓，abs(funding_rate) >= 0.0005 输出 WARN 并将仓位乘数降为 0.5。
 
 ## V1.0 小资金实盘准备
 
