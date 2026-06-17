@@ -106,3 +106,74 @@ def test_iterates_closed_klines_from_raw_websocket_messages():
 
     assert len(klines) == 1
     assert klines[0].open_time == 900_000
+
+
+def test_iterates_binance_websocket_klines_with_injected_connector():
+    import asyncio
+
+    from app.paper.binance_stream import iter_binance_websocket_klines
+
+    class FakeWebSocket:
+        def __init__(self, messages):
+            self.messages = messages
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self.messages:
+                raise StopAsyncIteration
+            return self.messages.pop(0)
+
+    captured_urls = []
+
+    def fake_connect(url):
+        captured_urls.append(url)
+        return FakeWebSocket(
+            [
+                json.dumps(
+                    {
+                        "stream": "btcusdt@kline_15m",
+                        "data": {
+                            "e": "kline",
+                            "s": "BTCUSDT",
+                            "k": {
+                                "t": 0,
+                                "T": 899_999,
+                                "s": "BTCUSDT",
+                                "i": "15m",
+                                "o": "100.00",
+                                "h": "110.00",
+                                "l": "95.00",
+                                "c": "105.00",
+                                "v": "12.500",
+                                "x": True,
+                            },
+                        },
+                    }
+                )
+            ]
+        )
+
+    async def collect():
+        return [
+            kline
+            async for kline in iter_binance_websocket_klines(
+                base_url="wss://fstream.binance.com",
+                symbols=["BTCUSDT"],
+                interval="15m",
+                connect=fake_connect,
+            )
+        ]
+
+    klines = asyncio.run(collect())
+
+    assert captured_urls == ["wss://fstream.binance.com/stream?streams=btcusdt@kline_15m"]
+    assert len(klines) == 1
+    assert klines[0].symbol == "BTCUSDT"
