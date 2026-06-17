@@ -91,10 +91,11 @@
 - 当前阶段不接入 Binance API 下单；先以真实行情驱动 Paper Trading，验证策略表现、风控和连续运行稳定性。测试网完整下单闭环等待 API Key 可用后再实现。
 - 已实现 Paper Trading 连续运行健康检查：检测 WebSocket 连接、行情延迟、Paper 回撤、拒单数量和运行时错误；该模块用于后续“连续 2 周无重大错误”的自动化验收。
 - 已实现 Paper Trading 状态持久化/恢复入口：PaperSnapshot 可无损序列化为 JSON payload，并支持保存到本地状态文件和从状态文件恢复；Decimal 金额以字符串保存，避免浮点误差。
+- 已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓、成交和拒单计数。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：94 passed。
+- `.venv/bin/python -m pytest -q`：95 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -105,7 +106,7 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 下一步继续真实行情 Paper Trading：把状态持久化接入真实行情 stream runner，或实现 Stop/Liquidation Guard 演练脚本和运行报告。
+3. 下一步继续真实行情 Paper Trading：实现 Stop/Liquidation Guard 演练脚本、运行报告，或将持久化 stream runner 接到 Binance WebSocket transport 的可执行脚本入口。
 4. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 
 ## 最近提交
@@ -184,6 +185,8 @@
 - `4644aaf feat: add paper snapshot persistence`
 - `6569e43 test: add paper state file store cases`
 - `6f3a3dc feat: add paper state file store`
+- `d1aa428 test: add persistent paper stream case`
+- `2f6264b feat: persist paper stream state`
 
 ## 风险提醒
 
