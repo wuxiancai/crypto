@@ -103,8 +103,8 @@
 - [x] 实现趋势转换分级仓位计算。
 - [x] 实现止损候选选择。
 - [x] 实现 TP1/TP2/TP3 与 TP3 方向校验。
-- [ ] 实现 OrderPlan。
-- [ ] 实现 ONE_WAY + ISOLATED 执行约束。
+- [x] 实现 OrderPlan。
+- [x] 实现 ONE_WAY + ISOLATED 执行约束。
 - [ ] 实现 Stop Order Guard。
 - [ ] 实现 Liquidation Guard。
 - [ ] 实现 Kill Switch。
@@ -116,6 +116,8 @@
 - 当前已实现趋势转换仓位计算：最终数量取风险上限和评分仓位上限的较小值；EARLY 使用 0.2% 风险，CONFIRMED 使用 0.3% 风险。
 - 当前已实现止损候选选择：LONG 只接受低于入场价的止损，SHORT 只接受高于入场价的止损，并在最大止损距离内选择距离入场价最近的候选。
 - 当前已实现趋势转换分批止盈计划：TP1 = 1R 平 30%，TP2 = 前高/前低平 30%，TP3 = 4h EMA200 或方向校验后的 3R/结构位平 40%，TP1 后移动止损到保本。
+- 当前已实现 OrderPlan 合约：包含 symbol、side、strategy_type、order_type、entry_price、quantity、stop_loss、take_profit_levels、leverage、margin_type、position_mode、estimated_liquidation_price、liquidation_buffer_pct、reduce_only、client_order_id、strategy_version、config_snapshot_id。
+- 当前已实现 MVP 执行约束：默认 leverage = 3，最大 leverage = 5，且只允许 ONE_WAY + ISOLATED。
 
 ## V0.6 AI/Funding 过滤
 
