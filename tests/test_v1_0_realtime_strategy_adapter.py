@@ -97,7 +97,7 @@ def test_realtime_strategy_builds_reversal_long_signal_when_4h_down_and_1h_turns
         klines_by_interval={
             "4h": tuple(
                 _kline("BTCUSDT", "4h", index, close)
-                for index, close in enumerate(["120", "110", "100", "90", "82", "80"])
+                for index, close in enumerate(["120", "110", "100", "90", "80", "81"])
             ),
             "1h": tuple(
                 _kline("BTCUSDT", "1h", index, close)
