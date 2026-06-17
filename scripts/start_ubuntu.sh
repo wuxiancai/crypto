@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 VENV_PYTHON="$ROOT_DIR/.venv/bin/python"
 PORT_ENV="$ROOT_DIR/.env.ports.generated"
+REGENERATE_PORTS="${REGENERATE_PORTS:-0}"
 RUNTIME_DIR="$ROOT_DIR/runtime"
 LOG_DIR="$RUNTIME_DIR/logs"
 
@@ -19,7 +20,12 @@ fi
 "$VENV_PYTHON" -m ensurepip --upgrade >/dev/null
 "$VENV_PYTHON" -m pip install -e . >/dev/null
 
-"$VENV_PYTHON" -m app.deploy.ports
+if [[ "$REGENERATE_PORTS" == "1" || ! -f "$PORT_ENV" ]]; then
+  "$VENV_PYTHON" -m app.deploy.ports
+else
+  echo "Using existing port config: ${PORT_ENV}"
+fi
+
 set -a
 source "$PORT_ENV"
 set +a
@@ -46,7 +52,7 @@ compose() {
   exit 1
 }
 
-POSTGRES_PORT="$POSTGRES_PORT" compose --env-file "$PORT_ENV" up -d postgres
+POSTGRES_PORT="$POSTGRES_PORT" compose --env-file "$PORT_ENV" up -d --remove-orphans postgres
 
 echo "Waiting for Postgres on port ${POSTGRES_PORT}..."
 for _ in $(seq 1 40); do
