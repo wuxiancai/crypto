@@ -108,7 +108,7 @@
 - [x] 实现 Stop Order Guard。
 - [x] 实现 Liquidation Guard。
 - [x] 实现 Kill Switch。
-- [ ] 实现订单、成交、持仓状态机。
+- [x] 实现订单、成交、持仓状态机。
 
 说明：
 
@@ -121,6 +121,7 @@
 - 当前已实现 Stop Order Guard 判定层：校验真实持仓是否存在 symbol 匹配、退出方向正确、数量覆盖、reduceOnly、状态 NEW、触发价方向正确的有效止损单；缺失时输出补挂止损动作。
 - 当前已实现 Liquidation Guard 判定层：多单要求 liquidation_price < stop_loss < entry_price，空单要求 entry_price < stop_loss < liquidation_price，且止损价与强平价安全距离不低于 liquidation_buffer_pct。
 - 当前已实现 Kill Switch 状态转移：触发后禁止新开仓，可标记是否平仓，并记录操作者、原因、触发时间和解除操作者。
+- 当前已实现订单、成交、持仓状态机：覆盖订单提交、部分成交、完全成交、止损提交/确认/失败、止盈提交、退出成交；主订单成交但止损失败会进入 CRITICAL 并暂停新开仓。
 
 ## V0.6 AI/Funding 过滤
 

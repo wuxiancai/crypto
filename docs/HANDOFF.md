@@ -13,7 +13,7 @@
 - 当前项目已有 git 仓库，并已按功能节点持续提交。
 - V0.3 回测系统已补充真实策略信号复用、maker/taker 手续费和按策略统计。
 - V0.4 Paper Trading 已完成最小撮合与账户闭环。
-- 本轮继续补充 V0.4 Binance WebSocket transport，以及 V0.5 主策略/趋势转换仓位计算、止损候选选择、趋势转换分批止盈计划、OrderPlan、ONE_WAY + ISOLATED 执行约束、Stop Order Guard 判定层、Liquidation Guard 判定层和 Kill Switch 状态转移。
+- 本轮继续补充 V0.4 Binance WebSocket transport，并完成 V0.5 风控与订单计划核心模块。
 
 ## 本轮修复
 
@@ -81,10 +81,11 @@
 - V0.5 已实现 Stop Order Guard 判定层：校验真实持仓是否存在 symbol 匹配、退出方向正确、数量覆盖、reduceOnly、状态 NEW、触发价方向正确的有效止损单；缺失时输出补挂止损动作。
 - V0.5 已实现 Liquidation Guard 判定层：多单要求 liquidation_price < stop_loss < entry_price，空单要求 entry_price < stop_loss < liquidation_price，且止损价与强平价安全距离不低于 liquidation_buffer_pct。
 - V0.5 已实现 Kill Switch 状态转移：触发后禁止新开仓，可标记是否平仓，并记录操作者、原因、触发时间和解除操作者。
+- V0.5 已实现订单、成交、持仓状态机：覆盖订单提交、部分成交、完全成交、止损提交/确认/失败、止盈提交、退出成交；主订单成交但止损失败会进入 CRITICAL 并暂停新开仓。
 
 ## 验证结果
 
-- `.venv/bin/python -m pytest -q`：66 passed。
+- `.venv/bin/python -m pytest -q`：70 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0002_backtest_archive`。
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
@@ -95,8 +96,8 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 继续 V0.5：实现订单、成交、持仓状态机。
-4. Stop Order Guard / Liquidation Guard 已有纯判定层；后续接入真实交易所适配器时再实现补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
+3. 继续 V0.6：实现 Funding 过滤、AI filter 接口、deterministic stub 和 AI fallback 日志。
+4. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 
 ## 最近提交
 
@@ -156,6 +157,8 @@
 - `cd90c16 feat: add liquidation guard evaluation`
 - `88a3959 test: add kill switch cases`
 - `e6099d0 feat: add kill switch state transitions`
+- `6a1c7e8 test: add execution state machine cases`
+- `cabe0da feat: add execution state machine`
 
 ## 风险提醒
 
