@@ -4,7 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from app.data.quality import Kline
-from app.paper.binance_stream import iter_binance_websocket_klines
+from app.paper.binance_stream import iter_binance_multi_interval_websocket_klines
 from app.paper.stream import SignalFn, run_persistent_paper_kline_stream
 from app.paper.trading import PaperConfig, PaperSnapshot
 from app.strategy.signal_router import StrategySignal
@@ -13,7 +13,7 @@ from app.strategy.signal_router import StrategySignal
 @dataclass(frozen=True)
 class RealMarketPaperConfig:
     symbols: tuple[str, ...]
-    interval: str
+    intervals: tuple[str, ...]
     websocket_base_url: str
     state_path: Path
     initial_equity: Decimal
@@ -28,10 +28,10 @@ async def run_real_market_paper(
     source: AsyncIterable[Kline] | None = None,
     signal_fn: SignalFn = None,
 ) -> PaperSnapshot:
-    kline_source = source or iter_binance_websocket_klines(
+    kline_source = source or iter_binance_multi_interval_websocket_klines(
         base_url=config.websocket_base_url,
         symbols=list(config.symbols),
-        interval=config.interval,
+        intervals=list(config.intervals),
     )
     return await run_persistent_paper_kline_stream(
         config=PaperConfig(
