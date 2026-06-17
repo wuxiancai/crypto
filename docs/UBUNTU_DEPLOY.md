@@ -71,6 +71,26 @@ E: Error, pkgProblemResolver::Resolve generated breaks
 - 没有 Docker CE 候选包时才安装 Ubuntu `docker.io`。
 - 当前用户没有 Docker 权限时，启动脚本会尝试使用 `sudo docker compose`。
 
+## Python Editable 安装失败
+
+如果部署时出现：
+
+```text
+error: Multiple top-level packages discovered in a flat-layout
+Getting requirements to build editable did not run successfully
+```
+
+通常是 setuptools 自动包发现把 `runtime/`、`migrations/` 等目录误判为顶层包。当前项目已在 `pyproject.toml` 固定包发现规则：
+
+- 只打包 `app*`。
+- 排除 `runtime*`、`migrations*`、`tests*`。
+
+验证命令：
+
+```bash
+.venv/bin/python -m pip install -e .
+```
+
 ## 查看页面
 
 脚本结束时会输出：

@@ -99,6 +99,7 @@
 - 已实现 Ubuntu 部署入口：`scripts/deploy_ubuntu.sh` 首次部署，`scripts/start_ubuntu.sh` 后续启动。脚本会自动检测 PostgreSQL/Web 页面端口冲突并顺延，最终写入 `.env.ports.generated`。
 - 已修复 Ubuntu 首次部署时 Docker 包冲突问题：`deploy_ubuntu.sh` 不再无条件安装 Ubuntu `docker.io`，会复用已有 Docker，或在 Docker CE 软件源可用时优先安装 `docker-ce`，避免 `containerd.io : Conflicts: containerd`。
 - `start_ubuntu.sh` 的 Docker Compose 调用已增强：优先 `docker compose`，当前用户无 Docker 权限时尝试 `sudo docker compose`，再回退 `docker-compose`。
+- 已修复 Python editable 安装失败问题：`pyproject.toml` 显式配置 setuptools 包发现规则，只打包 `app*`，排除 `runtime*`、`migrations*`、`tests*`，避免部署时出现 `Multiple top-level packages discovered in a flat-layout`。
 - 真实行情 Paper runner 已支持多周期订阅，默认订阅 15m / 1h / 4h；已新增 MultiTimeframeKlineCache，用于按 symbol 聚合多周期已收盘 K 线。
 - 已新增实时策略适配器：把 4h / 1h / 15m 已收盘 K 线历史转换为 EMA、ATR、ADX、DI、swing 与趋势转换结构输入，并复用现有趋势识别、`TREND_PULLBACK` 主趋势回踩策略和 `REVERSAL_PROBE` 趋势转换策略。
 - 真实行情 Paper runner 默认路径已接入实时策略适配器：不传 `signal_fn` 时，会用多周期缓存生成主趋势或趋势转换 Paper 信号；有持仓时默认 WAIT，避免重复入场。
@@ -111,6 +112,8 @@
 - `bash -n scripts/start_ubuntu.sh && bash -n scripts/deploy_ubuntu.sh`：通过。
 - `.venv/bin/python -m pytest tests/test_deploy_ports.py -q`：3 passed。
 - `.venv/bin/python -m pytest tests/test_deploy_script.py tests/test_deploy_ports.py -q`：5 passed。
+- `.venv/bin/python -m pip install -e .`：通过，已验证 editable 安装不再触发 setuptools flat-layout 顶层包发现错误。
+- `.venv/bin/python -m pytest -q`：116 passed。
 - 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
 - 真实行情源验证：`wss://fstream.binancefuture.com` 可收到 BTCUSDT / ETHUSDT Binance Futures K 线推送；`runtime/paper-state.json` 已在收到已收盘 K 线后创建。
 - 2026-06-17 已启动 Web 状态页：`.venv/bin/python scripts/run_paper_status_web.py --host 127.0.0.1 --port 8765 --state-path runtime/paper-state.json`，访问地址 `http://127.0.0.1:8765`。
