@@ -35,6 +35,11 @@ bash scripts/deploy_ubuntu.sh
 - `55432` 被占用则尝试 `55433`、`55434` ...
 - `8765` 被占用则尝试 `8766`、`8767` ...
 
+端口检测同时覆盖：
+
+- 宿主机已有进程监听的端口，例如服务器已有 PostgreSQL。
+- Docker 已发布的宿主机端口，例如其他服务的 Postgres 容器。
+
 最终端口写入：
 
 ```bash
@@ -45,6 +50,24 @@ bash scripts/deploy_ubuntu.sh
 
 ```bash
 cat .env.ports.generated
+```
+
+## 已有 PostgreSQL 服务
+
+服务器上已经运行其他 PostgreSQL 服务时，不需要停止原服务。部署脚本会跳过已占用的宿主机端口，并为本项目的 PostgreSQL 自动选择下一个可用端口。
+
+本项目不再固定 Postgres 容器名，避免和旧部署或其他 Compose 项目的容器名冲突。
+
+如果服务器上残留早期版本创建的固定名容器，可以先查看：
+
+```bash
+docker ps -a --filter name=crypto_quant_postgres
+```
+
+确认不是正在使用的数据后再清理：
+
+```bash
+docker rm crypto_quant_postgres
 ```
 
 ## 再次启动
