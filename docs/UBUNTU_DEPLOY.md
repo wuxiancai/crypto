@@ -12,7 +12,9 @@ bash scripts/deploy_ubuntu.sh
 
 脚本会执行：
 
-- 安装 `python3`、`python3-venv`、`docker`、`docker compose`。
+- 安装 `python3`、`python3-venv`。
+- 检查 Docker：如果服务器已安装 Docker 则直接复用；如果存在 Docker CE 软件源则安装 `docker-ce`；否则回退安装 Ubuntu 自带 `docker.io`。
+- 检查 Docker Compose：优先使用 `docker compose` plugin，必要时回退到 `docker-compose`。
 - 自动检测端口冲突。
 - 生成 `.env.ports.generated`。
 - 启动 PostgreSQL。
@@ -52,6 +54,22 @@ cat .env.ports.generated
 ```bash
 bash scripts/start_ubuntu.sh
 ```
+
+## Docker 安装冲突
+
+如果服务器之前安装过 Docker CE 或添加过 Docker CE 软件源，Ubuntu 的 `docker.io` 可能会与 `containerd.io` 冲突，典型错误是：
+
+```text
+containerd.io : Conflicts: containerd
+E: Error, pkgProblemResolver::Resolve generated breaks
+```
+
+当前部署脚本已经处理该场景：
+
+- 已有 `docker` 命令时不重新安装 Docker Engine。
+- 可安装 `docker-ce` 时优先安装 Docker CE 相关包。
+- 没有 Docker CE 候选包时才安装 Ubuntu `docker.io`。
+- 当前用户没有 Docker 权限时，启动脚本会尝试使用 `sudo docker compose`。
 
 ## 查看页面
 
