@@ -17,3 +17,17 @@ def test_deploy_script_prefers_existing_docker_and_supports_docker_ce():
     assert "docker-ce" in content
     assert "docker.io" in content
     assert "docker compose version" in content
+
+
+def test_start_script_reuses_existing_generated_ports():
+    content = Path("scripts/start_ubuntu.sh").read_text(encoding="utf-8")
+
+    assert 'REGENERATE_PORTS="${REGENERATE_PORTS:-0}"' in content
+    assert '[[ "$REGENERATE_PORTS" == "1" || ! -f "$PORT_ENV" ]]' in content
+    assert "Using existing port config" in content
+
+
+def test_start_script_removes_compose_orphans():
+    content = Path("scripts/start_ubuntu.sh").read_text(encoding="utf-8")
+
+    assert "--remove-orphans postgres" in content
