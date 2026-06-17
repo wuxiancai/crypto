@@ -91,6 +91,9 @@ def test_main_signal_takes_priority_over_reversal_signal():
 
     assert decision.action == "SHORT_ENTRY"
     assert decision.strategy_type == "TREND_PULLBACK"
+    assert decision.entry_price == Decimal("100")
+    assert decision.stop_loss == Decimal("105")
+    assert decision.take_profit == Decimal("90")
 
 
 def test_data_sync_block_runs_before_all_signals():
@@ -109,3 +112,29 @@ def test_data_sync_block_runs_before_all_signals():
 
     assert decision.action == "WAIT"
     assert decision.reason == ["data not ready"]
+
+
+def test_reversal_signal_preserves_risk_fields_for_paper_execution():
+    from app.strategy.reversal_strategy import ReversalSignal
+    from app.strategy.signal_router import SignalInputs, select_signal
+
+    decision = select_signal(
+        SignalInputs(
+            reversal_signal=ReversalSignal(
+                action="REVERSAL_LONG_ENTRY",
+                strategy_type="REVERSAL_PROBE",
+                signal_level="EARLY",
+                score=Decimal("80"),
+                risk_pct=Decimal("0.002"),
+                max_standard_position_pct=Decimal("0.2"),
+                reason=["reversal entry"],
+            )
+        )
+    )
+
+    assert decision.action == "REVERSAL_LONG_ENTRY"
+    assert decision.strategy_type == "REVERSAL_PROBE"
+    assert decision.signal_level == "EARLY"
+    assert decision.score == Decimal("80")
+    assert decision.risk_pct == Decimal("0.002")
+    assert decision.max_standard_position_pct == Decimal("0.2")
