@@ -70,6 +70,22 @@ def test_builds_binance_combined_kline_stream_url():
     assert url == "wss://fstream.binance.com/stream?streams=btcusdt@kline_15m/ethusdt@kline_15m"
 
 
+def test_builds_binance_combined_multi_interval_stream_url():
+    from app.paper.binance_stream import build_binance_multi_interval_stream_url
+
+    url = build_binance_multi_interval_stream_url(
+        base_url="wss://fstream.binance.com",
+        symbols=["BTCUSDT", "ETHUSDT"],
+        intervals=["15m", "1h", "4h"],
+    )
+
+    assert url == (
+        "wss://fstream.binance.com/stream?streams="
+        "btcusdt@kline_15m/btcusdt@kline_1h/btcusdt@kline_4h/"
+        "ethusdt@kline_15m/ethusdt@kline_1h/ethusdt@kline_4h"
+    )
+
+
 def test_iterates_closed_klines_from_raw_websocket_messages():
     import asyncio
 
