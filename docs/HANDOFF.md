@@ -13,7 +13,7 @@
 - 当前项目已有 git 仓库，并已按功能节点持续提交。
 - V0.3 回测系统已补充真实策略信号复用、maker/taker 手续费和按策略统计。
 - V0.4 Paper Trading 已完成最小撮合与账户闭环。
-- 本轮继续补充 V0.4 Binance WebSocket transport，完成 V0.5 风控与订单计划核心模块，完成 V0.6 AI/Funding 过滤纯风控层，并开始 V1.0 小资金实盘准备。
+- 本轮继续补充 V0.4 Binance WebSocket transport，完成 V0.5 风控与订单计划核心模块，完成 V0.6 AI/Funding 过滤纯风控层，并开始 V1.0 小资金实盘准备。用户已明确当前暂无 API Key，下一阶段主线改为真实行情驱动的 Paper Trading，真实/测试网下单延后。
 
 ## 本轮修复
 
@@ -88,6 +88,7 @@
 - V1.0 已实现 Live 启动前自检纯校验层：任一失败项都会禁止启动 Live，并一次性返回所有 failed_checks。
 - Live 自检已覆盖：API 不允许提现、IP 白名单、USDⓈ-M Futures API 可用性、服务器时间偏差、database migration、缓存可用或降级、交易所规则同步、ONE_WAY、ISOLATED、leverage <= max_leverage、未知持仓、缺失止损持仓、Stop Order Guard、Liquidation Guard、数据延迟、Kill Switch、通知通道、小资金配置、`LIVE_TRADING_CONFIRM=I_UNDERSTAND_THE_RISK`。
 - V1.0 已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 3，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
+- 当前阶段不接入 Binance API 下单；先以真实行情驱动 Paper Trading，验证策略表现、风控和连续运行稳定性。测试网完整下单闭环等待 API Key 可用后再实现。
 
 ## 验证结果
 
@@ -102,7 +103,7 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 下一步可继续 V1.0：在提供 Binance Futures Testnet API 凭证后实现测试网完整下单闭环；或先实现 Paper Trading 连续运行健康检查与 Stop/Liquidation Guard 演练脚本。
+3. 下一步继续真实行情 Paper Trading：实现连续运行健康检查、状态持久化/恢复入口、Stop/Liquidation Guard 演练脚本和运行报告。
 4. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 
 ## 最近提交

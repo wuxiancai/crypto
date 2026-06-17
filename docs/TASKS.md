@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-当前 V0.6 AI/Funding 过滤纯风控层已完成，正在推进 V1.0 小资金实盘准备。主网真实 K 线入库仍受当前网络 Binance futures HTTP 451 限制，需要在可访问环境补验。
+当前 V0.6 AI/Funding 过滤纯风控层已完成，正在推进真实行情驱动的 Paper Trading 稳定性验证。当前暂无 Binance API Key，测试网/真实下单闭环延后到 API Key 可用后再做。主网真实 K 线入库仍受当前网络 Binance futures HTTP 451 限制，需要在可访问环境补验。
 
 ## V0.1 数据与指标
 
@@ -139,7 +139,7 @@
 
 ## V1.0 小资金实盘准备
 
-- [ ] 测试网完整下单闭环。
+- [ ] 测试网完整下单闭环。API Key 可用后再实现。
 - [x] Live 启动前自检。
 - [x] API 权限和 IP 白名单检查。
 - [x] 小资金实盘专用配置。
@@ -152,3 +152,4 @@
 - 当前已实现 Live 启动前自检纯校验层：任一失败项都会禁止启动 Live，并一次性返回所有 failed_checks。
 - 自检已覆盖：API 不允许提现、IP 白名单、USDⓈ-M Futures API 可用性、服务器时间偏差、database migration、缓存可用或降级、交易所规则同步、ONE_WAY、ISOLATED、leverage <= max_leverage、未知持仓、缺失止损持仓、Stop Order Guard、Liquidation Guard、数据延迟、Kill Switch、通知通道、小资金配置、`LIVE_TRADING_CONFIRM=I_UNDERSTAND_THE_RISK`。
 - 当前已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 3，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
+- 当前阶段没有 Binance API Key，不做真实或测试网下单；先用真实行情驱动 Paper Trading，验证策略、风控、状态机和连续运行稳定性。

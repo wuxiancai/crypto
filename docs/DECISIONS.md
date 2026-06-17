@@ -60,3 +60,14 @@ MVP 阶段 AI 过滤器默认关闭，只保留接口、日志和 deterministic 
 ### D11. Decimal 与 UTC
 
 所有交易计算使用 Decimal。数据库时间统一 UTC，禁止依赖本地隐式时区。
+
+### D12. 当前阶段只跑真实行情驱动的 Paper Trading
+
+当前没有 Binance API Key，不接入测试网或真实下单 API。系统下一阶段以真实行情 WebSocket / REST 数据驱动 Paper Trading，先验证策略、风控、状态机和连续运行稳定性。
+
+真实自动交易接入必须等待：
+
+- Paper Trading 连续运行稳定。
+- 策略表现和风控演练通过。
+- 用户提供 Binance Futures Testnet 或生产 API Key。
+- Live 启动前自检、小资金配置、Stop Order Guard、Liquidation Guard 仍全部通过。
