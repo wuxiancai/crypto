@@ -2,7 +2,9 @@ from collections.abc import AsyncIterable
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
+import time
 
+from app.data.binance import BinanceDataError, fetch_klines
 from app.data.quality import Kline
 from app.paper.binance_stream import iter_binance_multi_interval_websocket_klines
 from app.paper.multitimeframe import MultiTimeframeKlineCache
@@ -24,18 +26,23 @@ class RealMarketPaperConfig:
     taker_fee_rate: Decimal
     slippage_pct: Decimal
     strategy_config: RealtimeStrategyConfig = field(default_factory=RealtimeStrategyConfig)
+    historical_warmup_enabled: bool = True
 
 
 async def run_real_market_paper(
     config: RealMarketPaperConfig,
     source: AsyncIterable[Kline] | None = None,
     signal_fn: SignalFn | None = None,
+    warmup_klines: list[Kline] | None = None,
 ) -> PaperSnapshot:
     kline_source = source or iter_binance_multi_interval_websocket_klines(
         base_url=config.websocket_base_url,
         symbols=list(config.symbols),
         intervals=list(config.intervals),
     )
+    historical_klines = warmup_klines
+    if historical_klines is None and source is None and config.historical_warmup_enabled:
+        historical_klines = await fetch_realtime_warmup_klines(config)
     return await run_persistent_paper_kline_stream(
         config=PaperConfig(
             initial_equity=config.initial_equity,
@@ -45,25 +52,41 @@ async def run_real_market_paper(
             slippage_pct=config.slippage_pct,
         ),
         source=kline_source,
-        signal_fn=signal_fn or build_default_realtime_signal_fn(config.strategy_config),
+        signal_fn=signal_fn
+        or build_default_realtime_signal_fn(
+            config.strategy_config,
+            warmup_klines=historical_klines or [],
+        ),
         state_path=config.state_path,
     )
 
 
-def build_default_realtime_signal_fn(config: RealtimeStrategyConfig) -> SignalFn:
-    required_intervals = (*config.trend_intervals, config.entry_interval)
-    max_history = max(
-        config.ema_fast_period,
-        config.ema_slow_period,
-        config.atr_period,
-        config.dmi_period,
-        config.swing_lookback,
-        2,
-    )
+async def fetch_realtime_warmup_klines(config: RealMarketPaperConfig) -> list[Kline]:
+    limit = _required_history_limit(config.strategy_config)
+    now_ms = int(time.time() * 1000)
+    warmup: list[Kline] = []
+    for symbol in config.symbols:
+        for interval in dict.fromkeys((*config.strategy_config.trend_intervals, config.strategy_config.entry_interval)):
+            try:
+                klines = await fetch_klines(symbol=symbol, interval=interval, limit=limit)
+            except BinanceDataError as exc:
+                print(f"Historical warmup skipped for {symbol} {interval}: {exc}")
+                continue
+            warmup.extend(kline for kline in klines if kline.close_time < now_ms)
+    return sorted(warmup, key=lambda kline: (kline.symbol, kline.interval, kline.open_time))
+
+
+def build_default_realtime_signal_fn(
+    config: RealtimeStrategyConfig,
+    warmup_klines: list[Kline] | tuple[Kline, ...] = (),
+) -> SignalFn:
+    max_history = _required_history_limit(config)
     cache = MultiTimeframeKlineCache(
-        required_intervals=dict.fromkeys(required_intervals).keys(),
+        required_intervals=dict.fromkeys((*config.trend_intervals, config.entry_interval)).keys(),
         max_klines_per_interval=max_history,
     )
+    for kline in warmup_klines:
+        cache.update(kline)
 
     def signal_fn(kline: Kline, has_position: bool):
         frame = cache.update(kline)
@@ -82,6 +105,17 @@ def build_default_realtime_signal_fn(config: RealtimeStrategyConfig) -> SignalFn
         return build_realtime_strategy_signal(frame, config=config)
 
     return signal_fn
+
+
+def _required_history_limit(config: RealtimeStrategyConfig) -> int:
+    return max(
+        config.ema_fast_period,
+        config.ema_slow_period,
+        config.atr_period,
+        config.dmi_period,
+        config.swing_lookback,
+        2,
+    )
 
 
 def wait_signal(kline: Kline, has_position: bool) -> StrategySignal:

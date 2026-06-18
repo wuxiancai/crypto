@@ -12,6 +12,8 @@ def paper_snapshot_to_payload(snapshot: PaperSnapshot) -> dict[str, Any]:
         "open_position": _position_to_payload(snapshot.open_position),
         "fills": [_fill_to_payload(fill) for fill in snapshot.fills],
         "rejected_signals": snapshot.rejected_signals,
+        "runtime_started_at_ms": snapshot.runtime_started_at_ms,
+        "last_update_at_ms": snapshot.last_update_at_ms,
     }
 
 
@@ -21,6 +23,8 @@ def paper_snapshot_from_payload(payload: dict[str, Any]) -> PaperSnapshot:
         open_position=_position_from_payload(payload["open_position"]),
         fills=[_fill_from_payload(fill) for fill in payload["fills"]],
         rejected_signals=int(payload["rejected_signals"]),
+        runtime_started_at_ms=payload.get("runtime_started_at_ms"),
+        last_update_at_ms=payload.get("last_update_at_ms"),
     )
 
 

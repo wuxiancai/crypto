@@ -1,10 +1,12 @@
 import html
 import json
 from pathlib import Path
+import time
 from typing import Any
 
 
-def build_paper_status_payload(state_path: Path) -> dict[str, Any]:
+def build_paper_status_payload(state_path: Path, current_time_ms: int | None = None) -> dict[str, Any]:
+    now_ms = current_time_ms if current_time_ms is not None else int(time.time() * 1000)
     if not state_path.exists():
         return {
             "status": "WAITING_FOR_STATE",
@@ -13,9 +15,12 @@ def build_paper_status_payload(state_path: Path) -> dict[str, Any]:
             "open_position": None,
             "fills": [],
             "rejected_signals": 0,
+            "runtime_seconds": 0,
+            "last_update_at_ms": None,
         }
 
     payload = json.loads(state_path.read_text(encoding="utf-8"))
+    started_at = payload.get("runtime_started_at_ms")
     return {
         "status": "RUNNING",
         "state_path": str(state_path),
@@ -23,6 +28,8 @@ def build_paper_status_payload(state_path: Path) -> dict[str, Any]:
         "open_position": payload.get("open_position"),
         "fills": payload.get("fills", []),
         "rejected_signals": payload.get("rejected_signals", 0),
+        "runtime_seconds": _runtime_seconds(started_at, now_ms),
+        "last_update_at_ms": payload.get("last_update_at_ms"),
     }
 
 
@@ -46,6 +53,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     body {{ margin: 0; }}
     main {{ max-width: 1180px; margin: 0 auto; padding: 24px; }}
     header {{ display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }}
+    .header-meta {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }}
     h1 {{ font-size: 24px; margin: 0; }}
     .badge {{ font-size: 13px; padding: 6px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; }}
     .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
@@ -63,6 +71,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     @media (max-width: 820px) {{
       main {{ padding: 14px; }}
       header {{ align-items: flex-start; flex-direction: column; }}
+      .header-meta {{ justify-content: flex-start; }}
       .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .table-wrap {{ overflow-x: auto; }}
     }}
@@ -72,7 +81,10 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
   <main>
     <header>
       <h1>模拟交易看板</h1>
-      <div class="badge">{_status_label(payload.get("status"))} · 5 秒自动刷新</div>
+      <div class="header-meta">
+        <div class="badge">系统运行时间：{_format_duration(payload.get("runtime_seconds"))}</div>
+        <div class="badge">{_status_label(payload.get("status"))} · 5 秒自动刷新</div>
+      </div>
     </header>
     <section class="grid">
       <div class="panel"><div class="label">账户权益 USDT</div><div class="value">{_escape(payload.get("equity") or "-")}</div></div>
@@ -180,6 +192,29 @@ def _status_label(status: Any) -> str:
     if status == "WAITING_FOR_STATE":
         return "等待状态文件"
     return _escape(status)
+
+
+def _runtime_seconds(started_at_ms: Any, now_ms: int) -> int:
+    if started_at_ms is None:
+        return 0
+    return max(0, int((now_ms - int(started_at_ms)) / 1000))
+
+
+def _format_duration(seconds: Any) -> str:
+    total_seconds = max(0, int(seconds or 0))
+    days, remainder = divmod(total_seconds, 24 * 60 * 60)
+    hours, remainder = divmod(remainder, 60 * 60)
+    minutes, seconds = divmod(remainder, 60)
+    parts: list[str] = []
+    if days:
+        parts.append(f"{days} 天")
+    if hours or parts:
+        parts.append(f"{hours} 小时")
+    if minutes or parts:
+        parts.append(f"{minutes} 分钟")
+    if not parts:
+        parts.append(f"{seconds} 秒")
+    return " ".join(parts)
 
 
 def _escape(value: Any) -> str:

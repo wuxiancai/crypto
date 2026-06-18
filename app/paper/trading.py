@@ -50,6 +50,8 @@ class PaperSnapshot:
     open_position: PaperPosition | None
     fills: list[PaperFill]
     rejected_signals: int
+    runtime_started_at_ms: int | None = None
+    last_update_at_ms: int | None = None
 
 
 class SignalLike:

@@ -285,18 +285,19 @@ def test_default_realtime_strategy_can_be_warmed_with_historical_klines(tmp_path
     warmup_klines = [
         *[
             _kline("BTCUSDT", "4h", index, close)
-            for index, close in enumerate(["100", "104", "108", "112", "116"])
+            for index, close in enumerate(["100", "104", "108", "112", "116", "120"])
         ],
         *[
             _kline("BTCUSDT", "1h", index, close)
-            for index, close in enumerate(["108", "112", "116", "120", "124"])
+            for index, close in enumerate(["108", "112", "116", "120", "124", "128"])
         ],
         *[
             _kline("BTCUSDT", "15m", index, close)
-            for index, close in enumerate(["120", "124", "128", "124", "126"])
+            for index, close in enumerate(["120", "124", "128", "124"])
         ],
     ]
-    live_kline = Kline(
+    entry_kline = _kline("BTCUSDT", "15m", 4, "126")
+    exit_kline = Kline(
         symbol="BTCUSDT",
         interval="15m",
         open_time=5 * INTERVAL_MS["15m"],
@@ -309,7 +310,8 @@ def test_default_realtime_strategy_can_be_warmed_with_historical_klines(tmp_path
     )
 
     async def source():
-        yield live_kline
+        yield entry_kline
+        yield exit_kline
 
     snapshot = asyncio.run(
         run_real_market_paper(
@@ -336,5 +338,6 @@ def test_default_realtime_strategy_can_be_warmed_with_historical_klines(tmp_path
         )
     )
 
-    assert snapshot.open_position is not None
-    assert snapshot.open_position.strategy_type == "TREND_PULLBACK"
+    assert snapshot.open_position is None
+    assert len(snapshot.fills) == 1
+    assert snapshot.fills[0].strategy_type == "TREND_PULLBACK"
