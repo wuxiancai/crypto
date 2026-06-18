@@ -256,7 +256,7 @@ def _render_strategy_conditions(evaluations: list[dict[str, Any]]) -> str:
     rows = "".join(_render_condition_row(condition) for condition in conditions)
     return f"""<div class="panel">
   <div class="condition-summary">
-    <div class="condition-title">{_escape(_nearest_strategy_summary(nearest))}</div>
+    <div class="condition-title">{_escape(_nearest_strategy_summary(nearest, evaluation.get("symbol")))}</div>
     <div class="condition-missing">{_escape(_missing_conditions_summary(conditions))}</div>
   </div>
   <div class="condition-list">{rows}</div>
@@ -287,13 +287,14 @@ def _condition_status_label(passed: bool) -> str:
     return "满足" if passed else "未满足"
 
 
-def _nearest_strategy_summary(nearest: Any) -> str:
+def _nearest_strategy_summary(nearest: Any, symbol: Any = None) -> str:
     if not isinstance(nearest, dict) or not nearest:
         return "当前趋势：暂无"
     name = nearest.get("name") or "-"
     matched = nearest.get("matched", 0)
     total = nearest.get("total", 0)
-    return f"当前趋势：{name} · 已满足 {matched}/{total}"
+    prefix = f"{symbol} " if symbol else ""
+    return f"当前趋势：{prefix}{name} · 已满足 {matched}/{total}"
 
 
 def _nearest_strategy_name(nearest: Any) -> str | None:

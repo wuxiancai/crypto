@@ -515,7 +515,7 @@ def test_paper_status_page_shows_only_nearest_strategy_conditions_in_compact_vie
 
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
-    assert "当前趋势：主趋势做空" in html
+    assert "当前趋势：ETHUSDT 主趋势做空" in html
     assert "已满足 3/6" in html
     assert "还差：4h 下跌趋势、1h 下跌趋势、15m 反弹到 EMA50 区域" in html
     assert "主趋势做多" not in html
