@@ -523,3 +523,73 @@ def test_paper_status_page_shows_only_nearest_strategy_conditions_in_compact_vie
     assert "long detail should be hidden" not in html
     assert "reversal detail should be hidden" not in html
     assert "<summary>计算明细</summary>" in html
+
+
+def test_paper_status_page_shows_strategy_conditions_for_each_symbol(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "62720",
+                        "action": "WAIT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "nearest_strategy": {
+                            "name": "主趋势做空",
+                            "matched": 6,
+                            "total": 8,
+                            "action": "SHORT_ENTRY",
+                        },
+                        "condition_statuses": [
+                            {
+                                "strategy": "主趋势做空",
+                                "text": "4h 空头结构",
+                                "passed": True,
+                                "detail": "BTC bearish structure",
+                            }
+                        ],
+                    },
+                    {
+                        "evaluated_at_ms": 2,
+                        "symbol": "ETHUSDT",
+                        "interval": "15m",
+                        "close": "1720",
+                        "action": "WAIT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "nearest_strategy": {
+                            "name": "主趋势做空",
+                            "matched": 4,
+                            "total": 8,
+                            "action": "SHORT_ENTRY",
+                        },
+                        "condition_statuses": [
+                            {
+                                "strategy": "主趋势做空",
+                                "text": "4h 空头结构",
+                                "passed": False,
+                                "detail": "ETH not below EMA50",
+                            }
+                        ],
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "当前趋势：BTCUSDT 主趋势做空 · 已满足 6/8" in html
+    assert "当前趋势：ETHUSDT 主趋势做空 · 已满足 4/8" in html
+    assert "BTC bearish structure" in html
+    assert "ETH not below EMA50" in html
