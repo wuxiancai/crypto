@@ -128,6 +128,10 @@ def _signal_evaluation_to_payload(evaluation: PaperSignalEvaluation) -> dict[str
         "reason": list(evaluation.reason),
         "core_rules": list(evaluation.core_rules),
         "chart_points": list(evaluation.chart_points),
+        "chart_timeframes": {
+            interval: list(points)
+            for interval, points in evaluation.chart_timeframes.items()
+        },
     }
 
 
@@ -142,4 +146,8 @@ def _signal_evaluation_from_payload(payload: dict[str, Any]) -> PaperSignalEvalu
         reason=tuple(payload.get("reason", [])),
         core_rules=tuple(payload.get("core_rules", [])),
         chart_points=tuple(payload.get("chart_points", [])),
+        chart_timeframes={
+            interval: tuple(points)
+            for interval, points in payload.get("chart_timeframes", {}).items()
+        },
     )

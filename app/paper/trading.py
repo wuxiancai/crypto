@@ -55,6 +55,7 @@ class PaperSignalEvaluation:
     reason: tuple[str, ...]
     core_rules: tuple[str, ...] = ()
     chart_points: tuple[dict[str, str], ...] = ()
+    chart_timeframes: dict[str, tuple[dict[str, str], ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

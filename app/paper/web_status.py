@@ -79,6 +79,11 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
     .rule-list {{ display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; color: #344055; font-size: 13px; }}
     .chart-wrap {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 10px; overflow-x: auto; }}
+    .chart-tabs {{ display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }}
+    .chart-tab {{ border: 1px solid #b8c2d6; background: #fff; color: #344055; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 13px; }}
+    .chart-tab.active {{ background: #172033; color: #fff; border-color: #172033; }}
+    .chart-panel {{ display: none; }}
+    .chart-panel.active {{ display: block; }}
     .legend {{ display: flex; gap: 14px; align-items: center; flex-wrap: wrap; color: #65748b; font-size: 12px; margin-bottom: 8px; }}
     .legend-item {{ display: inline-flex; align-items: center; gap: 5px; }}
     .legend-swatch {{ width: 16px; height: 3px; display: inline-block; border-radius: 2px; }}
@@ -131,6 +136,20 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       {_render_error_logs(payload.get("error_logs", []))}
     </section>
   </main>
+  <script>
+    document.querySelectorAll("[data-chart-target]").forEach((button) => {{
+      button.addEventListener("click", () => {{
+        const target = button.getAttribute("data-chart-target");
+        document.querySelectorAll("[data-chart-target]").forEach((item) => item.classList.remove("active"));
+        document.querySelectorAll("[data-chart-panel]").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        const panel = document.querySelector(`[data-chart-panel="${{target}}"]`);
+        if (panel) {{
+          panel.classList.add("active");
+        }}
+      }});
+    }});
+  </script>
 </body>
 </html>"""
 
@@ -219,26 +238,89 @@ def _render_strategy_chart(evaluations: list[dict[str, Any]]) -> str:
     if evaluation is None:
         return '<div class="empty">暂无K线图数据</div>'
     rules = _render_core_rules(evaluation.get("core_rules", []))
-    points = _normalise_chart_points(evaluation.get("chart_points", []))
-    if len(points) < 2:
+    chart_timeframes = _chart_timeframes_from_evaluation(evaluation)
+    if not chart_timeframes:
         return f'{rules}<div class="empty">K线图数据不足</div>'
+    preferred_order = ("4h", "1h", "15m")
+    intervals = [
+        interval
+        for interval in preferred_order
+        if interval in chart_timeframes
+    ] + [
+        interval
+        for interval in chart_timeframes
+        if interval not in preferred_order
+    ]
+    tabs = "".join(
+        _render_chart_tab(interval=interval, active=index == 0)
+        for index, interval in enumerate(intervals)
+    )
+    panels = "".join(
+        _render_chart_panel(
+            interval=interval,
+            points=chart_timeframes[interval],
+            symbol=evaluation.get("symbol"),
+            active=index == 0,
+        )
+        for index, interval in enumerate(intervals)
+    )
     return f"""{rules}
 <div class="chart-wrap">
+  <div class="chart-tabs">{tabs}</div>
+  {panels}
+</div>"""
+
+
+def _chart_timeframes_from_evaluation(evaluation: dict[str, Any]) -> dict[str, list[dict[str, Decimal]]]:
+    raw_timeframes = evaluation.get("chart_timeframes")
+    if isinstance(raw_timeframes, dict):
+        chart_timeframes = {
+            str(interval): points
+            for interval, raw_points in raw_timeframes.items()
+            if len(points := _normalise_chart_points(raw_points)) >= 2
+        }
+        if chart_timeframes:
+            return chart_timeframes
+    fallback_points = _normalise_chart_points(evaluation.get("chart_points", []))
+    if len(fallback_points) < 2:
+        return {}
+    return {str(evaluation.get("interval") or "15m"): fallback_points}
+
+
+def _render_chart_tab(interval: str, active: bool) -> str:
+    active_class = " active" if active else ""
+    chart_id = _chart_id(interval)
+    return f'<button class="chart-tab{active_class}" type="button" data-chart-target="{chart_id}">{_escape(interval)}</button>'
+
+
+def _render_chart_panel(
+    interval: str,
+    points: list[dict[str, Decimal]],
+    symbol: Any,
+    active: bool,
+) -> str:
+    active_class = " active" if active else ""
+    chart_id = _chart_id(interval)
+    return f"""<div class="chart-panel{active_class}" data-chart-panel="{chart_id}">
   <div class="legend">
     <span class="legend-item"><span class="legend-swatch" style="background:#0a7c52"></span>K线</span>
     <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span>EMA50</span>
     <span class="legend-item"><span class="legend-swatch" style="background:#9333ea"></span>EMA200</span>
-    <span>{_escape(evaluation.get("symbol"))} · {_escape(evaluation.get("interval"))}</span>
+    <span>{_escape(symbol)} · {_escape(interval)}</span>
   </div>
   {_render_chart_svg(points)}
 </div>"""
+
+
+def _chart_id(interval: str) -> str:
+    return f"chart-{''.join(char for char in interval if char.isalnum())}"
 
 
 def _latest_chart_evaluation(evaluations: list[dict[str, Any]]) -> dict[str, Any] | None:
     chartable = [
         evaluation
         for evaluation in evaluations
-        if evaluation.get("chart_points")
+        if evaluation.get("chart_timeframes") or evaluation.get("chart_points")
     ]
     if not chartable:
         return None

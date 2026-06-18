@@ -87,6 +87,10 @@ def _signal_evaluation_from(
         reason=tuple(getattr(signal, "reason", []) or []),
         core_rules=tuple(getattr(signal, "core_rules", []) or []),
         chart_points=tuple(getattr(signal, "chart_points", []) or []),
+        chart_timeframes={
+            interval: tuple(points)
+            for interval, points in (getattr(signal, "chart_timeframes", {}) or {}).items()
+        },
     )
 
 

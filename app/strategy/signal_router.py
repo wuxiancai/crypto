@@ -24,6 +24,7 @@ class StrategySignal:
     max_standard_position_pct: Decimal | None = None
     core_rules: list[str] = field(default_factory=list)
     chart_points: list[dict[str, str]] = field(default_factory=list)
+    chart_timeframes: dict[str, list[dict[str, str]]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

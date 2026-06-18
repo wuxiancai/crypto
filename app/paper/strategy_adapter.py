@@ -226,6 +226,7 @@ def _attach_realtime_diagnostics(
         max_standard_position_pct=signal.max_standard_position_pct,
         core_rules=_core_rules(frame=frame, config=config),
         chart_points=_chart_points(frame.history(config.entry_interval), config=config),
+        chart_timeframes=_chart_timeframes(frame=frame, config=config),
     )
 
 
@@ -282,3 +283,13 @@ def _chart_points(
             point["ema200"] = str(ema200_value)
         points.append(point)
     return points
+
+
+def _chart_timeframes(
+    frame: MultiTimeframeFrame,
+    config: RealtimeStrategyConfig,
+) -> dict[str, list[dict[str, str]]]:
+    return {
+        interval: _chart_points(frame.history(interval), config=config)
+        for interval in (*config.trend_intervals, config.entry_interval)
+    }
