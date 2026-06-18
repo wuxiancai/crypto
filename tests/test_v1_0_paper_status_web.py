@@ -420,7 +420,7 @@ def test_paper_status_page_shows_strategy_trigger_conditions(tmp_path):
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
     assert "策略触发条件" in html
-    assert "当前趋势：主趋势做空 · 已满足 5/6" in html
+    assert "当前趋势：BTCUSDT 主趋势做空 · 已满足 5/6" in html
     assert "还差：15m 看跌确认" in html
     assert "4h 下跌趋势" in html
     assert "15m 看跌确认" in html
