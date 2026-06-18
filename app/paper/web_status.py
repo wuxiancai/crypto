@@ -78,13 +78,16 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .error-log-box {{ display: grid; gap: 8px; }}
     .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
     .rule-list {{ display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; color: #344055; font-size: 13px; }}
-    .condition-summary {{ margin-bottom: 10px; color: #172033; font-weight: 700; }}
-    .condition-list {{ display: grid; gap: 8px; }}
-    .condition-row {{ display: grid; grid-template-columns: 120px minmax(160px, 1fr) minmax(220px, 1.4fr); gap: 10px; align-items: start; padding: 10px; border: 1px solid #e6ebf2; border-radius: 4px; background: #fff; font-size: 13px; }}
+    .condition-summary {{ display: grid; gap: 6px; margin-bottom: 12px; }}
+    .condition-title {{ color: #172033; font-size: 17px; font-weight: 700; }}
+    .condition-missing {{ color: #65748b; font-size: 13px; }}
+    .condition-list {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }}
+    .condition-row {{ padding: 10px; border: 1px solid #e6ebf2; border-radius: 4px; background: #fff; font-size: 13px; }}
     .condition-status {{ font-weight: 700; white-space: nowrap; }}
     .condition-pass {{ color: #0a7c52; }}
     .condition-fail {{ color: #b42318; }}
-    .condition-detail {{ color: #65748b; overflow-wrap: anywhere; }}
+    .condition-detail {{ color: #65748b; overflow-wrap: anywhere; margin-top: 6px; }}
+    .condition-detail summary {{ cursor: pointer; color: #65748b; }}
     .chart-wrap {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 10px; overflow-x: auto; }}
     .chart-tabs {{ display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }}
     .chart-tab {{ border: 1px solid #b8c2d6; background: #fff; color: #344055; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 13px; }}
@@ -103,7 +106,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       header {{ align-items: flex-start; flex-direction: column; }}
       .header-meta {{ justify-content: flex-start; }}
       .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-      .condition-row {{ grid-template-columns: 1fr; }}
+      .condition-list {{ grid-template-columns: 1fr; }}
       .table-wrap {{ overflow-x: auto; }}
     }}
   </style>
@@ -249,17 +252,17 @@ def _render_strategy_conditions(evaluations: list[dict[str, Any]]) -> str:
     evaluation = _latest_condition_evaluation(evaluations)
     if evaluation is None:
         return '<div class="empty">暂无策略触发条件</div>'
-    conditions = [
-        condition
-        for condition in evaluation.get("condition_statuses", [])
-        if isinstance(condition, dict)
-    ]
+    nearest = evaluation.get("nearest_strategy", {})
+    strategy_name = _nearest_strategy_name(nearest)
+    conditions = _conditions_for_strategy(evaluation.get("condition_statuses", []), strategy_name)
     if not conditions:
         return '<div class="empty">暂无策略触发条件</div>'
-    nearest = evaluation.get("nearest_strategy", {})
     rows = "".join(_render_condition_row(condition) for condition in conditions)
     return f"""<div class="panel">
-  <div class="condition-summary">{_escape(_nearest_strategy_summary(nearest))}</div>
+  <div class="condition-summary">
+    <div class="condition-title">{_escape(_nearest_strategy_summary(nearest))}</div>
+    <div class="condition-missing">{_escape(_missing_conditions_summary(conditions))}</div>
+  </div>
   <div class="condition-list">{rows}</div>
 </div>"""
 
@@ -279,23 +282,56 @@ def _render_condition_row(condition: dict[str, Any]) -> str:
     passed = bool(condition.get("passed"))
     status_class = "condition-pass" if passed else "condition-fail"
     return f"""<div class="condition-row">
-  <div>{_escape(condition.get("strategy"))}</div>
   <div><span class="condition-status {status_class}">{_condition_status_label(passed)}</span> {_escape(condition.get("text"))}</div>
-  <div class="condition-detail">{_escape(condition.get("detail"))}</div>
+  <details class="condition-detail"><summary>计算明细</summary>{_escape(condition.get("detail"))}</details>
 </div>"""
 
 
 def _condition_status_label(passed: bool) -> str:
-    return "已满足" if passed else "未满足"
+    return "满足" if passed else "未满足"
 
 
 def _nearest_strategy_summary(nearest: Any) -> str:
     if not isinstance(nearest, dict) or not nearest:
-        return "即将触发：暂无"
+        return "当前趋势：暂无"
     name = nearest.get("name") or "-"
     matched = nearest.get("matched", 0)
     total = nearest.get("total", 0)
-    return f"即将触发：{name}（{matched}/{total}）"
+    return f"当前趋势：{name} · 已满足 {matched}/{total}"
+
+
+def _nearest_strategy_name(nearest: Any) -> str | None:
+    if not isinstance(nearest, dict):
+        return None
+    name = nearest.get("name")
+    return str(name) if name else None
+
+
+def _conditions_for_strategy(raw_conditions: Any, strategy_name: str | None) -> list[dict[str, Any]]:
+    conditions = [
+        condition
+        for condition in raw_conditions
+        if isinstance(condition, dict)
+    ]
+    if strategy_name is None:
+        return conditions
+    selected = [
+        condition
+        for condition in conditions
+        if condition.get("strategy") == strategy_name
+    ]
+    return selected or conditions
+
+
+def _missing_conditions_summary(conditions: list[dict[str, Any]]) -> str:
+    missing = [
+        str(condition.get("text"))
+        for condition in conditions
+        if not condition.get("passed")
+    ]
+    if not missing:
+        return "所有关键条件已满足，等待下一根已收盘 K 线确认或执行。"
+    return "还差：" + "、".join(missing)
 
 
 def _render_strategy_chart(evaluations: list[dict[str, Any]]) -> str:
