@@ -1,6 +1,6 @@
 # Handoff
 
-更新时间：2026-06-18
+更新时间：2026-06-19
 
 ## 当前状态
 
@@ -115,6 +115,7 @@
 - Web 状态页已新增“策略K线图”：用内嵌 SVG 绘制 4h / 1h / 15m 三套 K 线图并叠加 EMA50、EMA200；用户可点击周期按钮切换图表，交互方式接近交易所周期切换。页面同时展示核心规则摘要，如 `EMA200 > EMA50：空头基础`、主趋势回踩/反弹规则和趋势转换试仓规则。
 - Web 状态页已新增精简版“策略触发条件”：状态文件仍持久化每次策略评估的完整条件明细，但页面只展示当前最接近触发的策略方向，例如主趋势做空时隐藏主趋势做多和不相关趋势转换组；页面顶部显示交易对，例如 `当前趋势：BTCUSDT 主趋势做空 · 已满足 4/8` 和 `还差：...`。主趋势诊断已拆分为“空头/多头结构”和“动能确认”；空头/多头结构只按 EMA50/EMA200 排列判断，价格是否已经低于/高于 EMA50 不再混入结构条件。
 - Web 状态页的“策略触发条件”已按交易对分组展示：BTCUSDT 和 ETHUSDT 会各自显示最新条件卡。此前页面只取全局最新一条策略评估，容易出现页面显示 ETHUSDT、用户拿 BTCUSDT Binance 图对照的误判。
+- 已修复主趋势回踩/反弹策略过于依赖 15m 收盘价导致长期错过交易的问题：此前“15m 反弹/回踩到 EMA50 区域”只用 `abs(close - EMA50) <= ATR` 判断，导致价格影线触达 EMA50 区域并收出确认 K 线时，因为 close 已经离开 EMA50 区域而不会触发。现在主趋势做空使用 `high >= EMA50 - ATR` 且 `close <= EMA50 + ATR` 判断反弹触达，并用 `close < open` 判断看跌确认；主趋势做多对称使用 `low <= EMA50 + ATR` 且 `close >= EMA50 - ATR` 判断回踩触达，并用 `close > open` 判断看涨确认。页面策略触发条件同步显示 high/low/open 计算明细。
 
 ## 验证结果
 
@@ -159,6 +160,10 @@
 - `.venv/bin/python -m pytest tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_paper_status_web.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_real_market_paper_runner.py -q`：28 passed。
 - `.venv/bin/python -m py_compile app/paper/strategy_adapter.py`：通过。
 - `.venv/bin/python -m pytest -q`：136 passed。
+- `.venv/bin/python -m pytest tests/test_v0_2_pullback_strategy.py::test_generates_main_short_entry_when_candle_wicks_into_ema50_zone_then_rejects -q`：先失败，确认旧策略无法表达 15m 影线触达 EMA50 后收阴确认。
+- `.venv/bin/python -m pytest tests/test_v0_2_pullback_strategy.py tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_paper_status_web.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_real_market_paper_runner.py -q`：32 passed。
+- `.venv/bin/python -m py_compile app/strategy/pullback_strategy.py app/paper/strategy_adapter.py`：通过。
+- `.venv/bin/python -m pytest -q`：137 passed。
 - 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
 - 真实行情源验证：`wss://fstream.binancefuture.com` 可收到 BTCUSDT / ETHUSDT Binance Futures K 线推送；`runtime/paper-state.json` 已在收到已收盘 K 线后创建。
 - 2026-06-17 已启动 Web 状态页：`.venv/bin/python scripts/run_paper_status_web.py --host 127.0.0.1 --port 8765 --state-path runtime/paper-state.json`，访问地址 `http://127.0.0.1:8765`。
