@@ -140,3 +140,42 @@ def test_fill_prices_are_displayed_as_buy_and_sell_prices_for_long_and_short(tmp
     assert "64600" in html
     assert "1760" in html
     assert "1800" in html
+
+
+def test_paper_status_page_shows_only_error_log_lines_in_red(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    log_path = tmp_path / "paper-realtime.log"
+    log_path.write_text(
+        "\n".join(
+            [
+                "Paper runner started",
+                "Historical warmup skipped for BTCUSDT 4h: Binance futures data endpoint returned HTTP 451",
+                "ERROR websocket disconnected",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(
+        build_paper_status_payload(state_path, error_log_path=log_path)
+    )
+
+    assert "错误日志" in html
+    assert "Historical warmup skipped" in html
+    assert "ERROR websocket disconnected" in html
+    assert "Paper runner started" not in html
+    assert "error-log-line" in html
+    assert "color: #b42318" in html

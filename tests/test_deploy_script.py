@@ -31,3 +31,10 @@ def test_start_script_removes_compose_orphans():
     content = Path("scripts/start_ubuntu.sh").read_text(encoding="utf-8")
 
     assert "--remove-orphans postgres" in content
+
+
+def test_start_script_passes_realtime_error_log_to_status_page():
+    content = Path("scripts/start_ubuntu.sh").read_text(encoding="utf-8")
+
+    assert "--error-log-path" in content
+    assert "$LOG_DIR/paper-realtime.log" in content

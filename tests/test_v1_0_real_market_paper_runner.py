@@ -341,3 +341,35 @@ def test_default_realtime_strategy_can_be_warmed_with_historical_klines(tmp_path
     assert snapshot.open_position is None
     assert len(snapshot.fills) == 1
     assert snapshot.fills[0].strategy_type == "TREND_PULLBACK"
+
+
+def test_realtime_warmup_fetches_250_closed_klines_by_default(monkeypatch, tmp_path):
+    from app.paper import live_runner
+    from app.paper.live_runner import RealMarketPaperConfig, fetch_realtime_warmup_klines
+
+    requested_limits: list[int] = []
+
+    async def fake_fetch_klines(symbol: str, interval: str, limit: int, settings=None):
+        requested_limits.append(limit)
+        return []
+
+    monkeypatch.setattr(live_runner, "fetch_klines", fake_fetch_klines)
+
+    asyncio.run(
+        fetch_realtime_warmup_klines(
+            RealMarketPaperConfig(
+                symbols=("BTCUSDT", "ETHUSDT"),
+                intervals=("15m", "1h", "4h"),
+                websocket_base_url="wss://fstream.binance.com",
+                state_path=tmp_path / "paper-state.json",
+                initial_equity=Decimal("10000"),
+                risk_per_trade_pct=Decimal("0.005"),
+                maker_fee_rate=Decimal("0"),
+                taker_fee_rate=Decimal("0"),
+                slippage_pct=Decimal("0"),
+            )
+        )
+    )
+
+    assert requested_limits
+    assert set(requested_limits) == {250}
