@@ -131,6 +131,9 @@ def _build_entry_frame(
         atr=latest_atr,
         recent_swing_low=min(kline.low for kline in swing_window),
         recent_swing_high=max(kline.high for kline in swing_window),
+        open=klines[-1].open,
+        high=klines[-1].high,
+        low=klines[-1].low,
     )
 
 
@@ -344,14 +347,14 @@ def _main_long_conditions(
         _condition(
             "主趋势做多",
             "15m 回踩到 EMA50 区域",
-            _near_ema50(entry_frame),
-            f"|close-EMA50|={_fmt_decimal(abs(entry_frame.close - entry_frame.ema50))} <= ATR={_fmt_decimal(entry_frame.atr)}",
+            _pullback_to_ema50_zone(entry_frame),
+            _pullback_zone_detail(entry_frame),
         ),
         _condition(
             "主趋势做多",
             "15m 看涨确认",
-            entry_frame.close > entry_frame.previous_close,
-            f"close={_fmt_decimal(entry_frame.close)} > previous_close={_fmt_decimal(entry_frame.previous_close)}",
+            _bullish_confirmation(entry_frame),
+            _confirmation_detail(entry_frame, "UP"),
         ),
         _condition(
             "主趋势做多",
@@ -389,14 +392,14 @@ def _main_short_conditions(
         _condition(
             "主趋势做空",
             "15m 反弹到 EMA50 区域",
-            _near_ema50(entry_frame),
-            f"|close-EMA50|={_fmt_decimal(abs(entry_frame.close - entry_frame.ema50))} <= ATR={_fmt_decimal(entry_frame.atr)}",
+            _rebound_to_ema50_zone(entry_frame),
+            _rebound_zone_detail(entry_frame),
         ),
         _condition(
             "主趋势做空",
             "15m 看跌确认",
-            entry_frame.close < entry_frame.previous_close,
-            f"close={_fmt_decimal(entry_frame.close)} < previous_close={_fmt_decimal(entry_frame.previous_close)}",
+            _bearish_confirmation(entry_frame),
+            _confirmation_detail(entry_frame, "DOWN"),
         ),
         _condition(
             "主趋势做空",
@@ -575,8 +578,50 @@ def _trend_detail(frame: TrendFrame, direction: str) -> str:
     )
 
 
-def _near_ema50(frame: EntryFrame) -> bool:
-    return abs(frame.close - frame.ema50) <= frame.atr
+def _pullback_to_ema50_zone(frame: EntryFrame) -> bool:
+    low = frame.low if frame.low is not None else frame.close
+    return low <= frame.ema50 + frame.atr and frame.close >= frame.ema50 - frame.atr
+
+
+def _rebound_to_ema50_zone(frame: EntryFrame) -> bool:
+    high = frame.high if frame.high is not None else frame.close
+    return high >= frame.ema50 - frame.atr and frame.close <= frame.ema50 + frame.atr
+
+
+def _bullish_confirmation(frame: EntryFrame) -> bool:
+    if frame.open is not None:
+        return frame.close > frame.open
+    return frame.close > frame.previous_close
+
+
+def _bearish_confirmation(frame: EntryFrame) -> bool:
+    if frame.open is not None:
+        return frame.close < frame.open
+    return frame.close < frame.previous_close
+
+
+def _pullback_zone_detail(frame: EntryFrame) -> str:
+    low = frame.low if frame.low is not None else frame.close
+    return (
+        f"low={_fmt_decimal(low)} <= EMA50+ATR={_fmt_decimal(frame.ema50 + frame.atr)}, "
+        f"close={_fmt_decimal(frame.close)} >= EMA50-ATR={_fmt_decimal(frame.ema50 - frame.atr)}"
+    )
+
+
+def _rebound_zone_detail(frame: EntryFrame) -> str:
+    high = frame.high if frame.high is not None else frame.close
+    return (
+        f"high={_fmt_decimal(high)} >= EMA50-ATR={_fmt_decimal(frame.ema50 - frame.atr)}, "
+        f"close={_fmt_decimal(frame.close)} <= EMA50+ATR={_fmt_decimal(frame.ema50 + frame.atr)}"
+    )
+
+
+def _confirmation_detail(frame: EntryFrame, direction: str) -> str:
+    if frame.open is not None:
+        operator = ">" if direction == "UP" else "<"
+        return f"close={_fmt_decimal(frame.close)} {operator} open={_fmt_decimal(frame.open)}"
+    operator = ">" if direction == "UP" else "<"
+    return f"close={_fmt_decimal(frame.close)} {operator} previous_close={_fmt_decimal(frame.previous_close)}"
 
 
 def _score_reversal_long(setup: ReversalSetup) -> Decimal:

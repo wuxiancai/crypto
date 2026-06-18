@@ -12,6 +12,9 @@ class EntryFrame:
     atr: Decimal
     recent_swing_low: Decimal
     recent_swing_high: Decimal
+    open: Decimal | None = None
+    high: Decimal | None = None
+    low: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -40,10 +43,10 @@ def build_pullback_signal(
 
 def _build_long_signal(frame: EntryFrame, min_risk_reward: Decimal, target_risk_reward: Decimal) -> TradeSignal:
     reason = ["main trend uptrend"]
-    if not _near_ema50(frame):
+    if not _pullback_to_ema50_zone(frame):
         return _wait(reason + ["price not in ema50 pullback zone"])
     reason.append("price pulled back to ema50 zone")
-    if frame.close <= frame.previous_close:
+    if not _bullish_confirmation(frame):
         return _wait(reason + ["missing bullish 15m confirmation"])
     reason.append("bullish 15m confirmation")
 
@@ -70,10 +73,10 @@ def _build_long_signal(frame: EntryFrame, min_risk_reward: Decimal, target_risk_
 
 def _build_short_signal(frame: EntryFrame, min_risk_reward: Decimal, target_risk_reward: Decimal) -> TradeSignal:
     reason = ["main trend downtrend"]
-    if not _near_ema50(frame):
+    if not _rebound_to_ema50_zone(frame):
         return _wait(reason + ["price not in ema50 rebound zone"])
     reason.append("price rebounded to ema50 zone")
-    if frame.close >= frame.previous_close:
+    if not _bearish_confirmation(frame):
         return _wait(reason + ["missing bearish 15m confirmation"])
     reason.append("bearish 15m confirmation")
 
@@ -96,6 +99,28 @@ def _build_short_signal(frame: EntryFrame, min_risk_reward: Decimal, target_risk
         risk_reward=risk_reward,
         reason=reason + ["risk reward accepted"],
     )
+
+
+def _pullback_to_ema50_zone(frame: EntryFrame) -> bool:
+    low = frame.low if frame.low is not None else frame.close
+    return low <= frame.ema50 + frame.atr and frame.close >= frame.ema50 - frame.atr
+
+
+def _rebound_to_ema50_zone(frame: EntryFrame) -> bool:
+    high = frame.high if frame.high is not None else frame.close
+    return high >= frame.ema50 - frame.atr and frame.close <= frame.ema50 + frame.atr
+
+
+def _bullish_confirmation(frame: EntryFrame) -> bool:
+    if frame.open is not None:
+        return frame.close > frame.open
+    return frame.close > frame.previous_close
+
+
+def _bearish_confirmation(frame: EntryFrame) -> bool:
+    if frame.open is not None:
+        return frame.close < frame.open
+    return frame.close < frame.previous_close
 
 
 def _near_ema50(frame: EntryFrame) -> bool:

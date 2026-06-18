@@ -2,7 +2,15 @@ import asyncio
 from decimal import Decimal
 
 
-def _kline(symbol: str, interval: str, index: int, close: str):
+def _kline(
+    symbol: str,
+    interval: str,
+    index: int,
+    close: str,
+    open_price: str | None = None,
+    high: str | None = None,
+    low: str | None = None,
+):
     from app.data.quality import INTERVAL_MS, Kline
 
     open_time = index * INTERVAL_MS[interval]
@@ -12,9 +20,9 @@ def _kline(symbol: str, interval: str, index: int, close: str):
         interval=interval,
         open_time=open_time,
         close_time=open_time + INTERVAL_MS[interval] - 1,
-        open=price,
-        high=price + Decimal("2"),
-        low=price - Decimal("2"),
+        open=Decimal(open_price) if open_price is not None else price,
+        high=Decimal(high) if high is not None else price + Decimal("2"),
+        low=Decimal(low) if low is not None else price - Decimal("2"),
         close=price,
         volume=Decimal("10"),
     )
@@ -161,17 +169,18 @@ def test_real_market_paper_runner_uses_default_realtime_strategy(tmp_path):
         ],
         *[
             _kline("BTCUSDT", "15m", index, close)
-            for index, close in enumerate(["120", "124", "128", "124", "126"])
+            for index, close in enumerate(["120", "124", "128", "124"])
         ],
+        _kline("BTCUSDT", "15m", 4, "126", open_price="125"),
         Kline(
             symbol="BTCUSDT",
             interval="15m",
             open_time=5 * INTERVAL_MS["15m"],
             close_time=6 * INTERVAL_MS["15m"] - 1,
-            open=Decimal("126"),
+            open=Decimal("160"),
             high=Decimal("160"),
             low=Decimal("125"),
-            close=Decimal("160"),
+            close=Decimal("130"),
             volume=Decimal("10"),
         ),
     ]
@@ -296,16 +305,16 @@ def test_default_realtime_strategy_can_be_warmed_with_historical_klines(tmp_path
             for index, close in enumerate(["120", "124", "128", "124"])
         ],
     ]
-    entry_kline = _kline("BTCUSDT", "15m", 4, "126")
+    entry_kline = _kline("BTCUSDT", "15m", 4, "126", open_price="125")
     exit_kline = Kline(
         symbol="BTCUSDT",
         interval="15m",
         open_time=5 * INTERVAL_MS["15m"],
         close_time=6 * INTERVAL_MS["15m"] - 1,
-        open=Decimal("126"),
+        open=Decimal("160"),
         high=Decimal("160"),
         low=Decimal("125"),
-        close=Decimal("160"),
+        close=Decimal("130"),
         volume=Decimal("10"),
     )
 

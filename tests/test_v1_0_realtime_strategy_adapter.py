@@ -1,7 +1,15 @@
 from decimal import Decimal
 
 
-def _kline(symbol: str, interval: str, index: int, close: str):
+def _kline(
+    symbol: str,
+    interval: str,
+    index: int,
+    close: str,
+    open_price: str | None = None,
+    high: str | None = None,
+    low: str | None = None,
+):
     from app.data.quality import INTERVAL_MS, Kline
 
     open_time = index * INTERVAL_MS[interval]
@@ -11,12 +19,16 @@ def _kline(symbol: str, interval: str, index: int, close: str):
         interval=interval,
         open_time=open_time,
         close_time=open_time + INTERVAL_MS[interval] - 1,
-        open=price,
-        high=price + Decimal("2"),
-        low=price - Decimal("2"),
+        open=Decimal(open_price) if open_price is not None else price,
+        high=Decimal(high) if high is not None else price + Decimal("2"),
+        low=Decimal(low) if low is not None else price - Decimal("2"),
         close=price,
         volume=Decimal("10"),
     )
+
+
+def _klines(symbol: str, interval: str, closes: list[str]):
+    return tuple(_kline(symbol, interval, index, close) for index, close in enumerate(closes))
 
 
 def test_realtime_strategy_waits_until_indicator_history_is_ready():
@@ -63,9 +75,9 @@ def test_realtime_strategy_builds_trend_pullback_long_signal_from_multitimeframe
                 _kline("BTCUSDT", "1h", index, close)
                 for index, close in enumerate(["108", "112", "116", "120", "124", "128"])
             ),
-            "15m": tuple(
-                _kline("BTCUSDT", "15m", index, close)
-                for index, close in enumerate(["120", "124", "128", "124", "126"])
+            "15m": (
+                *_klines("BTCUSDT", "15m", ["120", "124", "128", "124"]),
+                _kline("BTCUSDT", "15m", 4, "126", open_price="125"),
             ),
         },
     )
@@ -149,9 +161,9 @@ def test_realtime_strategy_reports_trigger_conditions_and_nearest_strategy():
                 _kline("BTCUSDT", "1h", index, close)
                 for index, close in enumerate(["108", "112", "116", "120", "124", "128"])
             ),
-            "15m": tuple(
-                _kline("BTCUSDT", "15m", index, close)
-                for index, close in enumerate(["120", "124", "128", "124", "126"])
+            "15m": (
+                *_klines("BTCUSDT", "15m", ["120", "124", "128", "124"]),
+                _kline("BTCUSDT", "15m", 4, "126", open_price="125"),
             ),
         },
     )
