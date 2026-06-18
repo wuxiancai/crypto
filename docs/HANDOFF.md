@@ -113,7 +113,7 @@
 - 已定位“运行 11 小时仍 0 成交且页面无输出”的主要问题：当前成交计数为 0 不等于程序停了，`rejected_signals` 也只统计已有入场信号但被 Paper 撮合拒绝的情况；普通策略 `WAIT` 原因以前没有持久化和展示。现在 Paper 状态文件会保留最近 50 条策略评估结果，Web 状态页新增“最近策略输出”，0 成交时也能看到每根已收盘 K 线的动作、使用策略和等待原因。
 - 已修复最近策略输出只看到 5m 的可观察性问题：根因是 5m K 线更新频率最高，会挤掉 15m/1h/4h 记录；现在状态文件按“交易对 + 周期”保留最新输出，页面可同时看到各周期最新状态。
 - Web 状态页已新增“策略K线图”：用内嵌 SVG 绘制 4h / 1h / 15m 三套 K 线图并叠加 EMA50、EMA200；用户可点击周期按钮切换图表，交互方式接近交易所周期切换。页面同时展示核心规则摘要，如 `EMA200 > EMA50：空头基础`、主趋势回踩/反弹规则和趋势转换试仓规则。
-- Web 状态页已新增“策略触发条件”：状态文件会持久化每次策略评估的条件明细和最近触发候选，页面逐行显示主趋势做多、主趋势做空、趋势转换做多、趋势转换做空的已满足/未满足状态，并显示类似 `即将触发：主趋势做空（5/6）` 的实时进度。
+- Web 状态页已新增精简版“策略触发条件”：状态文件仍持久化每次策略评估的完整条件明细，但页面只展示当前最接近触发的策略方向，例如主趋势做空时隐藏主趋势做多和不相关趋势转换组；页面顶部显示 `当前趋势：主趋势做空 · 已满足 3/6` 和 `还差：...`，计算公式默认折叠到“计算明细”。
 
 ## 验证结果
 
@@ -142,6 +142,10 @@
 - `.venv/bin/python -m pytest tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_paper_status_web.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_real_market_paper_runner.py -q`：24 passed。
 - `.venv/bin/python -m py_compile app/paper/strategy_adapter.py app/paper/stream.py app/paper/trading.py app/paper/persistence.py app/paper/web_status.py app/strategy/signal_router.py`：通过。
 - `.venv/bin/python -m pytest -q`：132 passed。
+- `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py::test_paper_status_page_shows_only_nearest_strategy_conditions_in_compact_view -q`：先失败，确认旧页面没有精简当前趋势视图。
+- `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_real_market_paper_runner.py -q`：25 passed。
+- `.venv/bin/python -m py_compile app/paper/web_status.py`：通过。
+- `.venv/bin/python -m pytest -q`：133 passed。
 - 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
 - 真实行情源验证：`wss://fstream.binancefuture.com` 可收到 BTCUSDT / ETHUSDT Binance Futures K 线推送；`runtime/paper-state.json` 已在收到已收盘 K 线后创建。
 - 2026-06-17 已启动 Web 状态页：`.venv/bin/python scripts/run_paper_status_web.py --host 127.0.0.1 --port 8765 --state-path runtime/paper-state.json`，访问地址 `http://127.0.0.1:8765`。
@@ -260,6 +264,8 @@
 - `7fa6746 feat: wire realtime reversal paper strategy`
 - `151e9c0 test: require strategy trigger condition diagnostics`
 - `a3aee57 feat: show strategy trigger condition diagnostics`
+- `fa22366 test: require compact strategy condition view`
+- `a22ffde feat: simplify strategy condition dashboard`
 
 ## 风险提醒
 
