@@ -110,10 +110,10 @@
 - 趋势转换信号已补充可执行 entry_price、ATR 止损与 2R take_profit，Paper 不再依赖默认止损止盈模拟趋势转换策略。
 - Web 状态页已在顶部显示“系统运行时间”，便于确认服务是否中途断开或重启；运行时间随 Paper 状态文件持久化，重启恢复时保持连续。
 - Web 状态页已增加“错误日志”框，只展示 `paper-realtime.log` 中的错误/异常/失败/`Historical warmup skipped` 行，并用红色字体显示；`start_ubuntu.sh` 会把实时 runner 日志路径传给状态页。
-- 已定位“运行 11 小时仍 0 成交且页面无输出”的主要问题：当前成交计数为 0 不等于程序停了，`rejected_signals` 也只统计已有入场信号但被 Paper 撮合拒绝的情况；普通策略 `WAIT` 原因以前没有持久化和展示。现在 Paper 状态文件会保留最近 50 条策略评估结果，Web 状态页新增“最近策略输出”，0 成交时也能看到每根已收盘 K 线的动作、使用策略和等待原因。
+- 已定位“运行 11 小时仍 0 成交且页面无输出”的主要问题：当前成交计数为 0 不等于程序停了，`rejected_signals` 也只统计已有入场信号但被 Paper 撮合拒绝的情况；普通策略 `WAIT` 原因以前没有持久化。现在 Paper 状态文件会保留最近 50 条策略评估结果。早期 Web 状态页显示过“最近策略输出”调试表；当前主页面已隐藏该表，避免 `SYSTEM / no actionable signal` 干扰用户阅读。
 - 已修复最近策略输出只看到 5m 的可观察性问题：根因是 5m K 线更新频率最高，会挤掉 15m/1h/4h 记录；现在状态文件按“交易对 + 周期”保留最新输出，页面可同时看到各周期最新状态。
 - Web 状态页已新增“策略K线图”：用内嵌 SVG 绘制 4h / 1h / 15m 三套 K 线图并叠加 EMA50、EMA200；用户可点击周期按钮切换图表，交互方式接近交易所周期切换。页面同时展示核心规则摘要，如 `EMA200 > EMA50：空头基础`、主趋势回踩/反弹规则和趋势转换试仓规则。
-- Web 状态页已新增精简版“策略触发条件”：状态文件仍持久化每次策略评估的完整条件明细，但页面只展示当前最接近触发的策略方向，例如主趋势做空时隐藏主趋势做多和不相关趋势转换组；页面顶部显示 `当前趋势：主趋势做空 · 已满足 3/6` 和 `还差：...`，计算公式默认折叠到“计算明细”。
+- Web 状态页已新增精简版“策略触发条件”：状态文件仍持久化每次策略评估的完整条件明细，但页面只展示当前最接近触发的策略方向，例如主趋势做空时隐藏主趋势做多和不相关趋势转换组；页面顶部显示交易对，例如 `当前趋势：BTCUSDT 主趋势做空 · 已满足 4/8` 和 `还差：...`。主趋势诊断已拆分为“空头/多头结构”和“动能确认”，避免把 EMA 空头结构误显示为“下跌趋势未满足”。
 
 ## 验证结果
 
@@ -146,6 +146,10 @@
 - `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_real_market_paper_runner.py -q`：25 passed。
 - `.venv/bin/python -m py_compile app/paper/web_status.py`：通过。
 - `.venv/bin/python -m pytest -q`：133 passed。
+- `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py::test_paper_status_page_hides_recent_strategy_output_table_from_main_dashboard tests/test_v1_0_realtime_strategy_adapter.py::test_realtime_strategy_reports_bearish_structure_separately_from_momentum_confirmation -q`：先失败，确认旧页面仍显示调试表且旧诊断仍混用“下跌趋势”。
+- `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_real_market_paper_runner.py -q`：27 passed。
+- `.venv/bin/python -m py_compile app/paper/web_status.py app/paper/strategy_adapter.py`：通过。
+- `.venv/bin/python -m pytest -q`：135 passed。
 - 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
 - 真实行情源验证：`wss://fstream.binancefuture.com` 可收到 BTCUSDT / ETHUSDT Binance Futures K 线推送；`runtime/paper-state.json` 已在收到已收盘 K 线后创建。
 - 2026-06-17 已启动 Web 状态页：`.venv/bin/python scripts/run_paper_status_web.py --host 127.0.0.1 --port 8765 --state-path runtime/paper-state.json`，访问地址 `http://127.0.0.1:8765`。
@@ -266,6 +270,10 @@
 - `a3aee57 feat: show strategy trigger condition diagnostics`
 - `fa22366 test: require compact strategy condition view`
 - `a22ffde feat: simplify strategy condition dashboard`
+- `1357126 test: require clearer bearish trend diagnostics`
+- `df7db2e feat: clarify trend diagnostics on status page`
+- `2bb68ab test: require symbol in strategy condition summary`
+- `a47f57d feat: show symbol in strategy condition summary`
 
 ## 风险提醒
 
