@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
 from app.data.quality import Kline
@@ -45,6 +45,17 @@ class PaperFill:
 
 
 @dataclass(frozen=True)
+class PaperSignalEvaluation:
+    evaluated_at_ms: int
+    symbol: str
+    interval: str
+    close: Decimal
+    action: str
+    strategy_type: str
+    reason: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class PaperSnapshot:
     equity: Decimal
     open_position: PaperPosition | None
@@ -52,6 +63,7 @@ class PaperSnapshot:
     rejected_signals: int
     runtime_started_at_ms: int | None = None
     last_update_at_ms: int | None = None
+    signal_evaluations: list[PaperSignalEvaluation] = field(default_factory=list)
 
 
 class SignalLike:

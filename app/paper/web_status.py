@@ -22,6 +22,7 @@ def build_paper_status_payload(
             "runtime_seconds": 0,
             "last_update_at_ms": None,
             "error_logs": _read_error_logs(error_log_path),
+            "signal_evaluations": [],
         }
 
     payload = json.loads(state_path.read_text(encoding="utf-8"))
@@ -36,6 +37,7 @@ def build_paper_status_payload(
         "runtime_seconds": _runtime_seconds(started_at, now_ms),
         "last_update_at_ms": payload.get("last_update_at_ms"),
         "error_logs": _read_error_logs(error_log_path),
+        "signal_evaluations": payload.get("signal_evaluations", []),
     }
 
 
@@ -108,6 +110,10 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       <h2>全部模拟交易记录</h2>
       {_render_fills(fills)}
     </section>
+    <section style="margin-top: 16px;">
+      <h2>最近策略输出</h2>
+      {_render_signal_evaluations(payload.get("signal_evaluations", []))}
+    </section>
     <section class="panel" style="margin-top: 16px;">
       <h2>错误日志</h2>
       {_render_error_logs(payload.get("error_logs", []))}
@@ -157,6 +163,33 @@ def _render_error_logs(lines: list[str]) -> str:
     return f'<div class="error-log-box">{rendered}</div>'
 
 
+def _render_signal_evaluations(evaluations: list[dict[str, Any]]) -> str:
+    if not evaluations:
+        return '<div class="empty">暂无策略输出</div>'
+    rows = "\n".join(_render_signal_evaluation_row(evaluation) for evaluation in reversed(evaluations[-20:]))
+    return f"""<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>交易对</th><th>周期</th><th>收盘价</th><th>动作</th><th>使用策略</th><th>原因</th>
+    </tr>
+  </thead>
+  <tbody>{rows}</tbody>
+</table>
+</div>"""
+
+
+def _render_signal_evaluation_row(evaluation: dict[str, Any]) -> str:
+    return f"""<tr>
+  <td>{_escape(evaluation.get("symbol"))}</td>
+  <td>{_escape(evaluation.get("interval"))}</td>
+  <td>{_escape(evaluation.get("close"))}</td>
+  <td>{_action_label(evaluation.get("action"))}</td>
+  <td>{_escape(evaluation.get("strategy_type"))}</td>
+  <td>{_escape(_format_reasons(evaluation.get("reason")))}</td>
+</tr>"""
+
+
 def _render_fill_row(fill: dict[str, Any]) -> str:
     pnl = str(fill.get("net_pnl", "0"))
     pnl_class = "loss" if pnl.startswith("-") else "profit"
@@ -203,6 +236,24 @@ def _exit_reason_label(reason: Any) -> str:
     if reason == "LIQUIDATION":
         return "强平"
     return _escape(reason)
+
+
+def _action_label(action: Any) -> str:
+    if action == "WAIT":
+        return "等待"
+    if action in {"LONG_ENTRY", "REVERSAL_LONG_ENTRY"}:
+        return "做多入场"
+    if action in {"SHORT_ENTRY", "REVERSAL_SHORT_ENTRY"}:
+        return "做空入场"
+    return _escape(action)
+
+
+def _format_reasons(reasons: Any) -> str:
+    if not reasons:
+        return "-"
+    if isinstance(reasons, list):
+        return "；".join(str(reason) for reason in reasons)
+    return str(reasons)
 
 
 def _status_label(status: Any) -> str:

@@ -3,7 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from app.paper.trading import PaperFill, PaperPosition, PaperSnapshot
+from app.paper.trading import PaperFill, PaperPosition, PaperSignalEvaluation, PaperSnapshot
 
 
 def paper_snapshot_to_payload(snapshot: PaperSnapshot) -> dict[str, Any]:
@@ -14,6 +14,10 @@ def paper_snapshot_to_payload(snapshot: PaperSnapshot) -> dict[str, Any]:
         "rejected_signals": snapshot.rejected_signals,
         "runtime_started_at_ms": snapshot.runtime_started_at_ms,
         "last_update_at_ms": snapshot.last_update_at_ms,
+        "signal_evaluations": [
+            _signal_evaluation_to_payload(evaluation)
+            for evaluation in (snapshot.signal_evaluations or [])
+        ],
     }
 
 
@@ -25,6 +29,10 @@ def paper_snapshot_from_payload(payload: dict[str, Any]) -> PaperSnapshot:
         rejected_signals=int(payload["rejected_signals"]),
         runtime_started_at_ms=payload.get("runtime_started_at_ms"),
         last_update_at_ms=payload.get("last_update_at_ms"),
+        signal_evaluations=[
+            _signal_evaluation_from_payload(evaluation)
+            for evaluation in payload.get("signal_evaluations", [])
+        ],
     )
 
 
@@ -106,4 +114,28 @@ def _fill_from_payload(payload: dict[str, Any]) -> PaperFill:
         fees=Decimal(payload["fees"]),
         net_pnl=Decimal(payload["net_pnl"]),
         exit_reason=payload["exit_reason"],
+    )
+
+
+def _signal_evaluation_to_payload(evaluation: PaperSignalEvaluation) -> dict[str, Any]:
+    return {
+        "evaluated_at_ms": evaluation.evaluated_at_ms,
+        "symbol": evaluation.symbol,
+        "interval": evaluation.interval,
+        "close": str(evaluation.close),
+        "action": evaluation.action,
+        "strategy_type": evaluation.strategy_type,
+        "reason": list(evaluation.reason),
+    }
+
+
+def _signal_evaluation_from_payload(payload: dict[str, Any]) -> PaperSignalEvaluation:
+    return PaperSignalEvaluation(
+        evaluated_at_ms=int(payload["evaluated_at_ms"]),
+        symbol=payload["symbol"],
+        interval=payload["interval"],
+        close=Decimal(payload["close"]),
+        action=payload["action"],
+        strategy_type=payload["strategy_type"],
+        reason=tuple(payload.get("reason", [])),
     )
