@@ -18,13 +18,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--state-path", type=Path, default=Path("runtime/paper-state.json"))
+    parser.add_argument("--error-log-path", type=Path, default=Path("runtime/logs/paper-realtime.log"))
     return parser.parse_args()
 
 
-def make_handler(state_path: Path):
+def make_handler(state_path: Path, error_log_path: Path):
     class PaperStatusHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
-            payload = build_paper_status_payload(state_path)
+            payload = build_paper_status_payload(state_path, error_log_path=error_log_path)
             if self.path == "/api/status":
                 self._send_json(payload)
                 return
@@ -57,9 +58,10 @@ def make_handler(state_path: Path):
 
 def main() -> None:
     args = parse_args()
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(args.state_path))
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(args.state_path, args.error_log_path))
     print(f"Paper status page: http://{args.host}:{args.port}")
     print(f"Reading state: {args.state_path}")
+    print(f"Reading error log: {args.error_log_path}")
     server.serve_forever()
 
 

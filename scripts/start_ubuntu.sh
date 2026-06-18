@@ -89,6 +89,7 @@ nohup "$VENV_PYTHON" scripts/run_paper_status_web.py \
   --host 0.0.0.0 \
   --port "$PAPER_WEB_PORT" \
   --state-path "$PAPER_STATE_PATH" \
+  --error-log-path "$LOG_DIR/paper-realtime.log" \
   > "$LOG_DIR/paper-status-web.log" 2>&1 &
 
 cat <<EOF

@@ -27,6 +27,7 @@ class RealMarketPaperConfig:
     slippage_pct: Decimal
     strategy_config: RealtimeStrategyConfig = field(default_factory=RealtimeStrategyConfig)
     historical_warmup_enabled: bool = True
+    historical_warmup_limit: int = 250
 
 
 async def run_real_market_paper(
@@ -62,7 +63,7 @@ async def run_real_market_paper(
 
 
 async def fetch_realtime_warmup_klines(config: RealMarketPaperConfig) -> list[Kline]:
-    limit = _required_history_limit(config.strategy_config)
+    limit = max(config.historical_warmup_limit, _required_history_limit(config.strategy_config))
     now_ms = int(time.time() * 1000)
     warmup: list[Kline] = []
     for symbol in config.symbols:

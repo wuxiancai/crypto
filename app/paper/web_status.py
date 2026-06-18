@@ -5,7 +5,11 @@ import time
 from typing import Any
 
 
-def build_paper_status_payload(state_path: Path, current_time_ms: int | None = None) -> dict[str, Any]:
+def build_paper_status_payload(
+    state_path: Path,
+    current_time_ms: int | None = None,
+    error_log_path: Path | None = None,
+) -> dict[str, Any]:
     now_ms = current_time_ms if current_time_ms is not None else int(time.time() * 1000)
     if not state_path.exists():
         return {
@@ -17,6 +21,7 @@ def build_paper_status_payload(state_path: Path, current_time_ms: int | None = N
             "rejected_signals": 0,
             "runtime_seconds": 0,
             "last_update_at_ms": None,
+            "error_logs": _read_error_logs(error_log_path),
         }
 
     payload = json.loads(state_path.read_text(encoding="utf-8"))
@@ -30,6 +35,7 @@ def build_paper_status_payload(state_path: Path, current_time_ms: int | None = N
         "rejected_signals": payload.get("rejected_signals", 0),
         "runtime_seconds": _runtime_seconds(started_at, now_ms),
         "last_update_at_ms": payload.get("last_update_at_ms"),
+        "error_logs": _read_error_logs(error_log_path),
     }
 
 
@@ -66,6 +72,8 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     th {{ background: #eef3f9; color: #344055; }}
     tr:last-child td {{ border-bottom: 0; }}
     .empty {{ color: #65748b; padding: 14px; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; }}
+    .error-log-box {{ display: grid; gap: 8px; }}
+    .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
     .profit {{ color: #0a7c52; }}
     .loss {{ color: #b42318; }}
     @media (max-width: 820px) {{
@@ -99,6 +107,10 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     <section style="margin-top: 16px;">
       <h2>全部模拟交易记录</h2>
       {_render_fills(fills)}
+    </section>
+    <section class="panel" style="margin-top: 16px;">
+      <h2>错误日志</h2>
+      {_render_error_logs(payload.get("error_logs", []))}
     </section>
   </main>
 </body>
@@ -136,6 +148,13 @@ def _render_fills(fills: list[dict[str, Any]]) -> str:
   <tbody>{rows}</tbody>
 </table>
 </div>"""
+
+
+def _render_error_logs(lines: list[str]) -> str:
+    if not lines:
+        return '<div class="empty">暂无错误日志</div>'
+    rendered = "".join(f'<div class="error-log-line">{_escape(line)}</div>' for line in lines)
+    return f'<div class="error-log-box">{rendered}</div>'
 
 
 def _render_fill_row(fill: dict[str, Any]) -> str:
@@ -215,6 +234,25 @@ def _format_duration(seconds: Any) -> str:
     if not parts:
         parts.append(f"{seconds} 秒")
     return " ".join(parts)
+
+
+def _read_error_logs(path: Path | None, max_lines: int = 50) -> list[str]:
+    if path is None or not path.exists():
+        return []
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    matched = [line for line in lines if _is_error_log_line(line)]
+    return matched[-max_lines:]
+
+
+def _is_error_log_line(line: str) -> bool:
+    lowered = line.lower()
+    return (
+        "error" in lowered
+        or "exception" in lowered
+        or "traceback" in lowered
+        or "failed" in lowered
+        or "historical warmup skipped" in lowered
+    )
 
 
 def _escape(value: Any) -> str:
