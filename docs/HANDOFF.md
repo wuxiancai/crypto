@@ -114,6 +114,7 @@
 - 已修复最近策略输出只看到 5m 的可观察性问题：根因是 5m K 线更新频率最高，会挤掉 15m/1h/4h 记录；现在状态文件按“交易对 + 周期”保留最新输出，页面可同时看到各周期最新状态。
 - Web 状态页已新增“策略K线图”：用内嵌 SVG 绘制 4h / 1h / 15m 三套 K 线图并叠加 EMA50、EMA200；用户可点击周期按钮切换图表，交互方式接近交易所周期切换。页面同时展示核心规则摘要，如 `EMA200 > EMA50：空头基础`、主趋势回踩/反弹规则和趋势转换试仓规则。
 - Web 状态页已新增精简版“策略触发条件”：状态文件仍持久化每次策略评估的完整条件明细，但页面只展示当前最接近触发的策略方向，例如主趋势做空时隐藏主趋势做多和不相关趋势转换组；页面顶部显示交易对，例如 `当前趋势：BTCUSDT 主趋势做空 · 已满足 4/8` 和 `还差：...`。主趋势诊断已拆分为“空头/多头结构”和“动能确认”，避免把 EMA 空头结构误显示为“下跌趋势未满足”。
+- Web 状态页的“策略触发条件”已按交易对分组展示：BTCUSDT 和 ETHUSDT 会各自显示最新条件卡。此前页面只取全局最新一条策略评估，容易出现页面显示 ETHUSDT、用户拿 BTCUSDT Binance 图对照的误判。
 
 ## 验证结果
 
@@ -150,6 +151,10 @@
 - `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_real_market_paper_runner.py -q`：27 passed。
 - `.venv/bin/python -m py_compile app/paper/web_status.py app/paper/strategy_adapter.py`：通过。
 - `.venv/bin/python -m pytest -q`：135 passed。
+- `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py::test_paper_status_page_shows_strategy_conditions_for_each_symbol -q`：先失败，确认旧页面只显示全局最新交易对条件。
+- `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_real_market_paper_runner.py -q`：28 passed。
+- `.venv/bin/python -m py_compile app/paper/web_status.py`：通过。
+- `.venv/bin/python -m pytest -q`：136 passed。
 - 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
 - 真实行情源验证：`wss://fstream.binancefuture.com` 可收到 BTCUSDT / ETHUSDT Binance Futures K 线推送；`runtime/paper-state.json` 已在收到已收盘 K 线后创建。
 - 2026-06-17 已启动 Web 状态页：`.venv/bin/python scripts/run_paper_status_web.py --host 127.0.0.1 --port 8765 --state-path runtime/paper-state.json`，访问地址 `http://127.0.0.1:8765`。
@@ -274,6 +279,8 @@
 - `df7db2e feat: clarify trend diagnostics on status page`
 - `2bb68ab test: require symbol in strategy condition summary`
 - `a47f57d feat: show symbol in strategy condition summary`
+- `568bea7 test: require per-symbol strategy condition cards`
+- `ccfed71 feat: show per-symbol strategy condition cards`
 
 ## 风险提醒
 
