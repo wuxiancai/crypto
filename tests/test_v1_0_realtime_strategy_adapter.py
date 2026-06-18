@@ -186,3 +186,46 @@ def test_realtime_strategy_reports_trigger_conditions_and_nearest_strategy():
         for condition in signal.condition_statuses
         if condition["strategy"] == "主趋势做多"
     )
+
+
+def test_realtime_strategy_reports_bearish_structure_separately_from_momentum_confirmation():
+    from app.paper.strategy_adapter import RealtimeStrategyConfig, _main_short_conditions
+    from app.strategy.pullback_strategy import EntryFrame
+    from app.strategy.trend_detector import TrendFrame
+
+    config = RealtimeStrategyConfig(min_adx=Decimal("20"))
+    four_hour = TrendFrame(
+        close=Decimal("62797"),
+        ema50=Decimal("64710"),
+        ema200=Decimal("68537"),
+        ema50_slope=Decimal("25"),
+        di_plus=Decimal("20"),
+        di_minus=Decimal("14"),
+        adx=Decimal("37"),
+    )
+    one_hour = TrendFrame(
+        close=Decimal("62441"),
+        ema50=Decimal("65075"),
+        ema200=Decimal("64812"),
+        ema50_slope=Decimal("-10"),
+        di_plus=Decimal("15"),
+        di_minus=Decimal("27"),
+        adx=Decimal("22"),
+    )
+    entry_frame = EntryFrame(
+        close=Decimal("62746"),
+        previous_close=Decimal("64578"),
+        ema50=Decimal("64430"),
+        atr=Decimal("450"),
+        recent_swing_low=Decimal("62369"),
+        recent_swing_high=Decimal("64607"),
+    )
+
+    conditions = _main_short_conditions(four_hour, one_hour, entry_frame, config)
+
+    by_text = {condition["text"]: condition for condition in conditions}
+    assert "4h 下跌趋势" not in by_text
+    assert by_text["4h 空头结构"]["passed"] is True
+    assert by_text["4h 空头动能确认"]["passed"] is False
+    assert by_text["1h 空头结构"]["passed"] is True
+    assert by_text["1h 空头动能确认"]["passed"] is True

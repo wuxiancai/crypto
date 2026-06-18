@@ -210,12 +210,10 @@ def test_paper_status_page_shows_recent_strategy_outputs(tmp_path):
 
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
-    assert "最近策略输出" in html
     assert "BTCUSDT" in html
     assert "15m" in html
-    assert "等待" in html
-    assert "TREND_PULLBACK" in html
-    assert "price not in ema50 pullback zone" in html
+    assert "最近策略输出" not in html
+    assert "price not in ema50 pullback zone" not in html
 
 
 def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp_path):
@@ -277,7 +275,6 @@ def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp
 
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
-    assert "最近策略输出" in html
     assert html.count("<tr>") >= 3
     assert "15m" in html
     assert "5m" in html
@@ -286,6 +283,39 @@ def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp
     assert "EMA200" in html
     assert "4h EMA200 &gt; EMA50：空头基础" in html
     assert "<svg" in html
+
+
+def test_paper_status_page_hides_recent_strategy_output_table_from_main_dashboard(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "5m",
+                        "close": "63264.40",
+                        "action": "WAIT",
+                        "strategy_type": "SYSTEM",
+                        "reason": ["no actionable signal"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "最近策略输出" not in html
+    assert "no actionable signal" not in html
 
 
 def test_paper_status_page_can_switch_strategy_chart_timeframes(tmp_path):
