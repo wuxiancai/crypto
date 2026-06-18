@@ -178,5 +178,6 @@
 - 当前趋势转换信号已补充可执行 entry_price、ATR 止损与 2R take_profit，Paper 不再依赖默认止损止盈模拟趋势转换策略。
 - 当前已新增极简中文 Web 状态页：`scripts/run_paper_status_web.py` 读取 `runtime/paper-state.json`，展示账户权益、持仓情况、全部模拟交易记录、买入价、卖出价、使用策略和 rejected signals，并每 5 秒自动刷新。
 - 当前真实行情模拟交易默认本金已改为 1000 USDT。
-- 当前已修复实时 Paper 启动后长时间无信号的问题：默认策略需要 4h / 1h / 15m 多周期指标历史，尤其 EMA200；现在启动时会先用 Binance REST 拉取最近真实已收盘 K 线预热策略缓存，再接 WebSocket 实时 K 线推进。
+- 当前已修复实时 Paper 启动后长时间无信号的问题：默认策略需要 4h / 1h / 15m 多周期指标历史，尤其 EMA200；现在启动时会先用 Binance REST 默认拉取最近 250 根真实已收盘 K 线预热策略缓存，再接 WebSocket 实时 K 线推进。
 - 当前 Web 状态页已增加系统运行时间，方便判断模拟交易服务是否中途断开或重启。
+- 当前 Web 状态页已增加错误日志框，只展示 `paper-realtime.log` 中的错误/异常/失败/`Historical warmup skipped` 行，并用红色字体显示。
