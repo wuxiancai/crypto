@@ -274,3 +274,67 @@ def test_real_market_paper_runner_uses_default_reversal_strategy(tmp_path):
     assert len(snapshot.fills) == 1
     assert snapshot.fills[0].strategy_type == "REVERSAL_PROBE"
     assert snapshot.fills[0].net_pnl.quantize(Decimal("0.001")) == Decimal("40.000")
+
+
+def test_default_realtime_strategy_can_be_warmed_with_historical_klines(tmp_path):
+    from app.data.quality import INTERVAL_MS, Kline
+    from app.paper.live_runner import RealMarketPaperConfig, run_real_market_paper
+    from app.paper.strategy_adapter import RealtimeStrategyConfig
+
+    state_path = tmp_path / "paper-state.json"
+    warmup_klines = [
+        *[
+            _kline("BTCUSDT", "4h", index, close)
+            for index, close in enumerate(["100", "104", "108", "112", "116"])
+        ],
+        *[
+            _kline("BTCUSDT", "1h", index, close)
+            for index, close in enumerate(["108", "112", "116", "120", "124"])
+        ],
+        *[
+            _kline("BTCUSDT", "15m", index, close)
+            for index, close in enumerate(["120", "124", "128", "124", "126"])
+        ],
+    ]
+    live_kline = Kline(
+        symbol="BTCUSDT",
+        interval="15m",
+        open_time=5 * INTERVAL_MS["15m"],
+        close_time=6 * INTERVAL_MS["15m"] - 1,
+        open=Decimal("126"),
+        high=Decimal("160"),
+        low=Decimal("125"),
+        close=Decimal("160"),
+        volume=Decimal("10"),
+    )
+
+    async def source():
+        yield live_kline
+
+    snapshot = asyncio.run(
+        run_real_market_paper(
+            RealMarketPaperConfig(
+                symbols=("BTCUSDT",),
+                intervals=("15m", "1h", "4h"),
+                websocket_base_url="wss://fstream.binance.com",
+                state_path=state_path,
+                initial_equity=Decimal("10000"),
+                risk_per_trade_pct=Decimal("0.005"),
+                maker_fee_rate=Decimal("0"),
+                taker_fee_rate=Decimal("0"),
+                slippage_pct=Decimal("0"),
+                strategy_config=RealtimeStrategyConfig(
+                    ema_fast_period=3,
+                    ema_slow_period=5,
+                    atr_period=3,
+                    dmi_period=3,
+                    swing_lookback=5,
+                ),
+            ),
+            source=source(),
+            warmup_klines=warmup_klines,
+        )
+    )
+
+    assert snapshot.open_position is not None
+    assert snapshot.open_position.strategy_type == "TREND_PULLBACK"

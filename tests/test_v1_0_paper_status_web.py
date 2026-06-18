@@ -61,15 +61,19 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
                     },
                 ],
                 "rejected_signals": 1,
+                "runtime_started_at_ms": 1_000,
+                "last_update_at_ms": 121_000,
             }
         ),
         encoding="utf-8",
     )
 
-    html = render_paper_status_html(build_paper_status_payload(state_path))
+    html = render_paper_status_html(build_paper_status_payload(state_path, current_time_ms=121_000))
 
     assert "10080" in html
     assert "模拟交易看板" in html
+    assert "系统运行时间" in html
+    assert "2 分钟" in html
     assert "账户权益" in html
     assert "持仓情况" in html
     assert "全部模拟交易记录" in html

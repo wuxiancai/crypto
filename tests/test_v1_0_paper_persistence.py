@@ -62,3 +62,24 @@ def test_serializes_and_restores_paper_snapshot_without_open_position():
 
     assert payload["open_position"] is None
     assert restored == snapshot
+
+
+def test_serializes_and_restores_paper_runtime_metadata():
+    from app.paper.persistence import paper_snapshot_from_payload, paper_snapshot_to_payload
+    from app.paper.trading import PaperSnapshot
+
+    snapshot = PaperSnapshot(
+        equity=Decimal("1000"),
+        open_position=None,
+        fills=[],
+        rejected_signals=0,
+        runtime_started_at_ms=1_000,
+        last_update_at_ms=2_000,
+    )
+
+    payload = paper_snapshot_to_payload(snapshot)
+    restored = paper_snapshot_from_payload(payload)
+
+    assert payload["runtime_started_at_ms"] == 1_000
+    assert payload["last_update_at_ms"] == 2_000
+    assert restored == snapshot
