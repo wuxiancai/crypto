@@ -400,3 +400,98 @@ def test_paper_status_page_shows_strategy_trigger_conditions(tmp_path):
     assert "close &gt;= previous_close" in html
     assert "condition-pass" in html
     assert "condition-fail" in html
+
+
+def test_paper_status_page_shows_only_nearest_strategy_conditions_in_compact_view(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "ETHUSDT",
+                        "interval": "15m",
+                        "close": "1723",
+                        "action": "WAIT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "reason": ["missing bearish 15m confirmation"],
+                        "nearest_strategy": {
+                            "name": "主趋势做空",
+                            "matched": 3,
+                            "total": 6,
+                            "action": "SHORT_ENTRY",
+                        },
+                        "condition_statuses": [
+                            {
+                                "strategy": "主趋势做多",
+                                "text": "4h 上涨趋势",
+                                "passed": False,
+                                "detail": "long detail should be hidden",
+                            },
+                            {
+                                "strategy": "主趋势做空",
+                                "text": "4h 下跌趋势",
+                                "passed": False,
+                                "detail": "close < EMA200",
+                            },
+                            {
+                                "strategy": "主趋势做空",
+                                "text": "1h 下跌趋势",
+                                "passed": False,
+                                "detail": "close < EMA200",
+                            },
+                            {
+                                "strategy": "主趋势做空",
+                                "text": "15m 反弹到 EMA50 区域",
+                                "passed": False,
+                                "detail": "|close-EMA50| <= ATR",
+                            },
+                            {
+                                "strategy": "主趋势做空",
+                                "text": "15m 看跌确认",
+                                "passed": True,
+                                "detail": "close < previous_close",
+                            },
+                            {
+                                "strategy": "主趋势做空",
+                                "text": "止损有效",
+                                "passed": True,
+                                "detail": "entry < swing_high",
+                            },
+                            {
+                                "strategy": "主趋势做空",
+                                "text": "风险收益比达标",
+                                "passed": True,
+                                "detail": "RR >= 1.5",
+                            },
+                            {
+                                "strategy": "趋势转换做多",
+                                "text": "评分达到 70",
+                                "passed": False,
+                                "detail": "reversal detail should be hidden",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "当前趋势：主趋势做空" in html
+    assert "已满足 3/6" in html
+    assert "还差：4h 下跌趋势、1h 下跌趋势、15m 反弹到 EMA50 区域" in html
+    assert "主趋势做多" not in html
+    assert "趋势转换做多" not in html
+    assert "long detail should be hidden" not in html
+    assert "reversal detail should be hidden" not in html
+    assert "<summary>计算明细</summary>" in html
