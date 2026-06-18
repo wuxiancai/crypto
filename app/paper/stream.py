@@ -85,6 +85,8 @@ def _signal_evaluation_from(
         action=signal.action,
         strategy_type=signal.strategy_type,
         reason=tuple(getattr(signal, "reason", []) or []),
+        core_rules=tuple(getattr(signal, "core_rules", []) or []),
+        chart_points=tuple(getattr(signal, "chart_points", []) or []),
     )
 
 
@@ -93,4 +95,9 @@ def _append_signal_evaluation(
     evaluation: PaperSignalEvaluation,
     max_items: int = 50,
 ) -> list[PaperSignalEvaluation]:
-    return [*evaluations, evaluation][-max_items:]
+    without_current = [
+        item
+        for item in evaluations
+        if not (item.symbol == evaluation.symbol and item.interval == evaluation.interval)
+    ]
+    return [*without_current, evaluation][-max_items:]

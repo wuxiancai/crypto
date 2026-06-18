@@ -126,6 +126,8 @@ def _signal_evaluation_to_payload(evaluation: PaperSignalEvaluation) -> dict[str
         "action": evaluation.action,
         "strategy_type": evaluation.strategy_type,
         "reason": list(evaluation.reason),
+        "core_rules": list(evaluation.core_rules),
+        "chart_points": list(evaluation.chart_points),
     }
 
 
@@ -138,4 +140,6 @@ def _signal_evaluation_from_payload(payload: dict[str, Any]) -> PaperSignalEvalu
         action=payload["action"],
         strategy_type=payload["strategy_type"],
         reason=tuple(payload.get("reason", [])),
+        core_rules=tuple(payload.get("core_rules", [])),
+        chart_points=tuple(payload.get("chart_points", [])),
     )

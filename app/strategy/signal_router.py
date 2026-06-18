@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Protocol
 
@@ -22,6 +22,8 @@ class StrategySignal:
     score: Decimal | None = None
     risk_pct: Decimal | None = None
     max_standard_position_pct: Decimal | None = None
+    core_rules: list[str] = field(default_factory=list)
+    chart_points: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

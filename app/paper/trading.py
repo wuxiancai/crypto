@@ -53,6 +53,8 @@ class PaperSignalEvaluation:
     action: str
     strategy_type: str
     reason: tuple[str, ...]
+    core_rules: tuple[str, ...] = ()
+    chart_points: tuple[dict[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

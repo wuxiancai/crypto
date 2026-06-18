@@ -1,5 +1,6 @@
 import html
 import json
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import time
 from typing import Any
@@ -76,6 +77,13 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .empty {{ color: #65748b; padding: 14px; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; }}
     .error-log-box {{ display: grid; gap: 8px; }}
     .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
+    .rule-list {{ display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; color: #344055; font-size: 13px; }}
+    .chart-wrap {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 10px; overflow-x: auto; }}
+    .legend {{ display: flex; gap: 14px; align-items: center; flex-wrap: wrap; color: #65748b; font-size: 12px; margin-bottom: 8px; }}
+    .legend-item {{ display: inline-flex; align-items: center; gap: 5px; }}
+    .legend-swatch {{ width: 16px; height: 3px; display: inline-block; border-radius: 2px; }}
+    .candle-up {{ color: #0a7c52; }}
+    .candle-down {{ color: #b42318; }}
     .profit {{ color: #0a7c52; }}
     .loss {{ color: #b42318; }}
     @media (max-width: 820px) {{
@@ -113,6 +121,10 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     <section style="margin-top: 16px;">
       <h2>最近策略输出</h2>
       {_render_signal_evaluations(payload.get("signal_evaluations", []))}
+    </section>
+    <section style="margin-top: 16px;">
+      <h2>策略K线图</h2>
+      {_render_strategy_chart(payload.get("signal_evaluations", []))}
     </section>
     <section class="panel" style="margin-top: 16px;">
       <h2>错误日志</h2>
@@ -164,9 +176,10 @@ def _render_error_logs(lines: list[str]) -> str:
 
 
 def _render_signal_evaluations(evaluations: list[dict[str, Any]]) -> str:
-    if not evaluations:
+    latest = _latest_evaluations_by_symbol_interval(evaluations)
+    if not latest:
         return '<div class="empty">暂无策略输出</div>'
-    rows = "\n".join(_render_signal_evaluation_row(evaluation) for evaluation in reversed(evaluations[-20:]))
+    rows = "\n".join(_render_signal_evaluation_row(evaluation) for evaluation in reversed(latest))
     return f"""<div class="table-wrap">
 <table>
   <thead>
@@ -179,6 +192,17 @@ def _render_signal_evaluations(evaluations: list[dict[str, Any]]) -> str:
 </div>"""
 
 
+def _latest_evaluations_by_symbol_interval(evaluations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    latest: dict[tuple[str, str], dict[str, Any]] = {}
+    for evaluation in evaluations:
+        key = (str(evaluation.get("symbol")), str(evaluation.get("interval")))
+        latest[key] = evaluation
+    return sorted(
+        latest.values(),
+        key=lambda item: int(item.get("evaluated_at_ms") or 0),
+    )
+
+
 def _render_signal_evaluation_row(evaluation: dict[str, Any]) -> str:
     return f"""<tr>
   <td>{_escape(evaluation.get("symbol"))}</td>
@@ -188,6 +212,162 @@ def _render_signal_evaluation_row(evaluation: dict[str, Any]) -> str:
   <td>{_escape(evaluation.get("strategy_type"))}</td>
   <td>{_escape(_format_reasons(evaluation.get("reason")))}</td>
 </tr>"""
+
+
+def _render_strategy_chart(evaluations: list[dict[str, Any]]) -> str:
+    evaluation = _latest_chart_evaluation(evaluations)
+    if evaluation is None:
+        return '<div class="empty">暂无K线图数据</div>'
+    rules = _render_core_rules(evaluation.get("core_rules", []))
+    points = _normalise_chart_points(evaluation.get("chart_points", []))
+    if len(points) < 2:
+        return f'{rules}<div class="empty">K线图数据不足</div>'
+    return f"""{rules}
+<div class="chart-wrap">
+  <div class="legend">
+    <span class="legend-item"><span class="legend-swatch" style="background:#0a7c52"></span>K线</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span>EMA50</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#9333ea"></span>EMA200</span>
+    <span>{_escape(evaluation.get("symbol"))} · {_escape(evaluation.get("interval"))}</span>
+  </div>
+  {_render_chart_svg(points)}
+</div>"""
+
+
+def _latest_chart_evaluation(evaluations: list[dict[str, Any]]) -> dict[str, Any] | None:
+    chartable = [
+        evaluation
+        for evaluation in evaluations
+        if evaluation.get("chart_points")
+    ]
+    if not chartable:
+        return None
+    return max(chartable, key=lambda item: int(item.get("evaluated_at_ms") or 0))
+
+
+def _render_core_rules(rules: Any) -> str:
+    if not rules:
+        return ""
+    items = "".join(f"<li>{_escape(rule)}</li>" for rule in rules)
+    return f'<ul class="rule-list">{items}</ul>'
+
+
+def _normalise_chart_points(raw_points: Any) -> list[dict[str, Decimal]]:
+    points: list[dict[str, Decimal]] = []
+    if not isinstance(raw_points, list):
+        return points
+    for raw in raw_points:
+        if not isinstance(raw, dict):
+            continue
+        point: dict[str, Decimal] = {}
+        for key in ("open", "high", "low", "close", "ema50", "ema200"):
+            value = _to_decimal(raw.get(key))
+            if value is not None:
+                point[key] = value
+        if {"open", "high", "low", "close"}.issubset(point):
+            points.append(point)
+    return points
+
+
+def _render_chart_svg(points: list[dict[str, Decimal]]) -> str:
+    width = 1080
+    height = 320
+    padding_left = 48
+    padding_right = 18
+    padding_top = 18
+    padding_bottom = 28
+    plot_width = width - padding_left - padding_right
+    plot_height = height - padding_top - padding_bottom
+    values: list[Decimal] = []
+    for point in points:
+        values.extend([point["high"], point["low"]])
+        values.extend(value for key, value in point.items() if key in {"ema50", "ema200"})
+    minimum = min(values)
+    maximum = max(values)
+    if maximum == minimum:
+        maximum += Decimal("1")
+        minimum -= Decimal("1")
+
+    def x_at(index: int) -> Decimal:
+        if len(points) == 1:
+            return Decimal(padding_left) + Decimal(plot_width) / Decimal("2")
+        return Decimal(padding_left) + Decimal(index) * Decimal(plot_width) / Decimal(len(points) - 1)
+
+    def y_at(value: Decimal) -> Decimal:
+        return Decimal(padding_top) + (maximum - value) * Decimal(plot_height) / (maximum - minimum)
+
+    candle_width = max(3, min(9, int(plot_width / max(len(points), 1) * 0.55)))
+    candles = []
+    for index, point in enumerate(points):
+        x = x_at(index)
+        open_y = y_at(point["open"])
+        close_y = y_at(point["close"])
+        high_y = y_at(point["high"])
+        low_y = y_at(point["low"])
+        color = "#0a7c52" if point["close"] >= point["open"] else "#b42318"
+        body_top = min(open_y, close_y)
+        body_height = max(abs(close_y - open_y), Decimal("1"))
+        candles.append(
+            f'<line x1="{_fmt(x)}" y1="{_fmt(high_y)}" x2="{_fmt(x)}" y2="{_fmt(low_y)}" stroke="{color}" stroke-width="1" />'
+            f'<rect x="{_fmt(x - Decimal(candle_width) / 2)}" y="{_fmt(body_top)}" width="{candle_width}" height="{_fmt(body_height)}" fill="{color}" />'
+        )
+    ema50_path = _line_path(points, "ema50", x_at, y_at)
+    ema200_path = _line_path(points, "ema200", x_at, y_at)
+    grid = _chart_grid(width, padding_left, padding_top, plot_width, plot_height, minimum, maximum)
+    return f"""<svg viewBox="0 0 {width} {height}" width="100%" height="320" role="img" aria-label="K线图 EMA50 EMA200">
+  <rect x="0" y="0" width="{width}" height="{height}" fill="#ffffff" />
+  {grid}
+  {''.join(candles)}
+  <polyline points="{ema50_path}" fill="none" stroke="#2563eb" stroke-width="2" />
+  <polyline points="{ema200_path}" fill="none" stroke="#9333ea" stroke-width="2" />
+</svg>"""
+
+
+def _chart_grid(
+    width: int,
+    padding_left: int,
+    padding_top: int,
+    plot_width: int,
+    plot_height: int,
+    minimum: Decimal,
+    maximum: Decimal,
+) -> str:
+    rows = []
+    for index in range(5):
+        y = Decimal(padding_top) + Decimal(index) * Decimal(plot_height) / Decimal("4")
+        value = maximum - Decimal(index) * (maximum - minimum) / Decimal("4")
+        rows.append(
+            f'<line x1="{padding_left}" y1="{_fmt(y)}" x2="{padding_left + plot_width}" y2="{_fmt(y)}" stroke="#eef3f9" />'
+            f'<text x="8" y="{_fmt(y + Decimal("4"))}" font-size="11" fill="#65748b">{_escape(_fmt(value))}</text>'
+        )
+    rows.append(f'<line x1="{padding_left}" y1="{padding_top}" x2="{padding_left}" y2="{padding_top + plot_height}" stroke="#d9e0ec" />')
+    rows.append(f'<line x1="{padding_left}" y1="{padding_top + plot_height}" x2="{width - 18}" y2="{padding_top + plot_height}" stroke="#d9e0ec" />')
+    return "".join(rows)
+
+
+def _line_path(
+    points: list[dict[str, Decimal]],
+    key: str,
+    x_at: Any,
+    y_at: Any,
+) -> str:
+    pairs = [
+        f"{_fmt(x_at(index))},{_fmt(y_at(point[key]))}"
+        for index, point in enumerate(points)
+        if key in point
+    ]
+    return " ".join(pairs)
+
+
+def _to_decimal(value: Any) -> Decimal | None:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def _fmt(value: Decimal) -> str:
+    return format(value.quantize(Decimal("0.01")), "f")
 
 
 def _render_fill_row(fill: dict[str, Any]) -> str:

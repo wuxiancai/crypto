@@ -65,7 +65,8 @@ def build_realtime_strategy_signal(
         target_risk_reward=strategy_config.target_risk_reward,
     )
     reversal_signal = build_reversal_signal(trend=trend, setup=reversal_setup)
-    return select_signal(SignalInputs(main_signal=main_signal, reversal_signal=reversal_signal))
+    signal = select_signal(SignalInputs(main_signal=main_signal, reversal_signal=reversal_signal))
+    return _attach_realtime_diagnostics(signal=signal, frame=frame, config=strategy_config)
 
 
 def _has_required_history(frame: MultiTimeframeFrame, config: RealtimeStrategyConfig) -> bool:
@@ -204,3 +205,80 @@ def _build_reversal_setup(
             else entry_trend.di_minus > entry_trend.di_plus
         ),
     )
+
+
+def _attach_realtime_diagnostics(
+    signal: StrategySignal,
+    frame: MultiTimeframeFrame,
+    config: RealtimeStrategyConfig,
+) -> StrategySignal:
+    return StrategySignal(
+        action=signal.action,
+        strategy_type=signal.strategy_type,
+        reason=signal.reason,
+        entry_price=signal.entry_price,
+        stop_loss=signal.stop_loss,
+        take_profit=signal.take_profit,
+        risk_reward=signal.risk_reward,
+        signal_level=signal.signal_level,
+        score=signal.score,
+        risk_pct=signal.risk_pct,
+        max_standard_position_pct=signal.max_standard_position_pct,
+        core_rules=_core_rules(frame=frame, config=config),
+        chart_points=_chart_points(frame.history(config.entry_interval), config=config),
+    )
+
+
+def _core_rules(frame: MultiTimeframeFrame, config: RealtimeStrategyConfig) -> list[str]:
+    rules: list[str] = []
+    for interval in (*config.trend_intervals, config.entry_interval):
+        klines = frame.history(interval)
+        closes = [kline.close for kline in klines]
+        if not closes:
+            continue
+        fast = ema(closes, config.ema_fast_period)[-1]
+        slow = ema(closes, config.ema_slow_period)[-1]
+        if fast is None or slow is None:
+            continue
+        if fast > slow:
+            rules.append(f"{interval} EMA50 > EMA200：多头基础")
+        elif slow > fast:
+            rules.append(f"{interval} EMA200 > EMA50：空头基础")
+        else:
+            rules.append(f"{interval} EMA50 = EMA200：方向不明")
+    rules.append("主策略：4h/1h 同向趋势 + 15m 回踩/反弹 EMA50 区域 + 确认 K 线")
+    rules.append("趋势转换：4h/1h 冲突时评估 REVERSAL_PROBE 试仓")
+    return rules
+
+
+def _chart_points(
+    klines: tuple[Kline, ...],
+    config: RealtimeStrategyConfig,
+    max_points: int = 80,
+) -> list[dict[str, str]]:
+    if not klines:
+        return []
+    closes = [kline.close for kline in klines]
+    ema50_values = ema(closes, config.ema_fast_period)
+    ema200_values = ema(closes, config.ema_slow_period)
+    start = max(0, len(klines) - max_points)
+    points: list[dict[str, str]] = []
+    for kline, ema50_value, ema200_value in zip(
+        klines[start:],
+        ema50_values[start:],
+        ema200_values[start:],
+        strict=True,
+    ):
+        point = {
+            "open_time": str(kline.open_time),
+            "open": str(kline.open),
+            "high": str(kline.high),
+            "low": str(kline.low),
+            "close": str(kline.close),
+        }
+        if ema50_value is not None:
+            point["ema50"] = str(ema50_value)
+        if ema200_value is not None:
+            point["ema200"] = str(ema200_value)
+        points.append(point)
+    return points
