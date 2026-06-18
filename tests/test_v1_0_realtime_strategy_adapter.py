@@ -197,9 +197,9 @@ def test_realtime_strategy_reports_bearish_structure_separately_from_momentum_co
 
     config = RealtimeStrategyConfig(min_adx=Decimal("20"))
     four_hour = TrendFrame(
-        close=Decimal("62797"),
-        ema50=Decimal("64710"),
-        ema200=Decimal("68537"),
+        close=Decimal("1742"),
+        ema50=Decimal("1733"),
+        ema200=Decimal("1860"),
         ema50_slope=Decimal("25"),
         di_plus=Decimal("20"),
         di_minus=Decimal("14"),
