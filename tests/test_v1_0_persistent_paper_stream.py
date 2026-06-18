@@ -75,3 +75,60 @@ def test_persistent_paper_stream_restores_state_and_saves_after_each_kline(tmp_p
     assert snapshot.open_position is None
     assert len(snapshot.fills) == 1
     assert persisted == snapshot
+
+
+def test_persistent_paper_stream_records_wait_signal_reason(tmp_path):
+    from app.data.quality import Kline
+    from app.paper.persistence import load_paper_snapshot
+    from app.paper.stream import run_persistent_paper_kline_stream
+    from app.paper.trading import PaperConfig
+    from app.strategy.pullback_strategy import TradeSignal
+
+    state_path = tmp_path / "paper-state.json"
+
+    async def source():
+        yield Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        )
+
+    def signal_fn(kline: Kline, has_position: bool) -> TradeSignal:
+        return TradeSignal(
+            action="WAIT",
+            strategy_type="TREND_PULLBACK",
+            entry_price=None,
+            stop_loss=None,
+            take_profit=None,
+            risk_reward=None,
+            reason=["price not in ema50 pullback zone"],
+        )
+
+    snapshot = asyncio.run(
+        run_persistent_paper_kline_stream(
+            config=PaperConfig(
+                initial_equity=Decimal("1000"),
+                risk_per_trade_pct=Decimal("0.01"),
+                maker_fee_rate=Decimal("0"),
+                taker_fee_rate=Decimal("0"),
+                slippage_pct=Decimal("0"),
+            ),
+            source=source(),
+            signal_fn=signal_fn,
+            state_path=state_path,
+        )
+    )
+
+    persisted = load_paper_snapshot(state_path)
+
+    assert persisted == snapshot
+    assert snapshot.signal_evaluations[-1].action == "WAIT"
+    assert snapshot.signal_evaluations[-1].symbol == "BTCUSDT"
+    assert snapshot.signal_evaluations[-1].interval == "15m"
+    assert snapshot.signal_evaluations[-1].reason == ("price not in ema50 pullback zone",)

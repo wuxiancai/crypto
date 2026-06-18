@@ -179,3 +179,40 @@ def test_paper_status_page_shows_only_error_log_lines_in_red(tmp_path):
     assert "Paper runner started" not in html
     assert "error-log-line" in html
     assert "color: #b42318" in html
+
+
+def test_paper_status_page_shows_recent_strategy_outputs(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1_800_000,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "64000",
+                        "action": "WAIT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "reason": ["price not in ema50 pullback zone"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "最近策略输出" in html
+    assert "BTCUSDT" in html
+    assert "15m" in html
+    assert "等待" in html
+    assert "TREND_PULLBACK" in html
+    assert "price not in ema50 pullback zone" in html
