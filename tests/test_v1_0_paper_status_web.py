@@ -286,3 +286,58 @@ def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp
     assert "EMA200" in html
     assert "4h EMA200 &gt; EMA50：空头基础" in html
     assert "<svg" in html
+
+
+def test_paper_status_page_can_switch_strategy_chart_timeframes(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    point = {
+        "open_time": 1,
+        "open": "100",
+        "high": "110",
+        "low": "95",
+        "close": "105",
+        "ema50": "103",
+        "ema200": "101",
+    }
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "105",
+                        "action": "WAIT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "reason": ["no actionable signal"],
+                        "core_rules": ["4h EMA50 > EMA200：多头基础"],
+                        "chart_timeframes": {
+                            "4h": [point, {**point, "open_time": 2, "close": "106"}],
+                            "1h": [point, {**point, "open_time": 2, "close": "104"}],
+                            "15m": [point, {**point, "open_time": 2, "close": "103"}],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert 'data-chart-target="chart-4h"' in html
+    assert 'data-chart-target="chart-1h"' in html
+    assert 'data-chart-target="chart-15m"' in html
+    assert 'data-chart-panel="chart-4h"' in html
+    assert 'data-chart-panel="chart-1h"' in html
+    assert 'data-chart-panel="chart-15m"' in html
+    assert ">4h<" in html
+    assert ">1h<" in html
+    assert ">15m<" in html

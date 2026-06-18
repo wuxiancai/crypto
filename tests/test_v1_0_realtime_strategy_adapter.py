@@ -86,6 +86,10 @@ def test_realtime_strategy_builds_trend_pullback_long_signal_from_multitimeframe
     assert signal.entry_price == Decimal("126")
     assert signal.stop_loss == Decimal("118")
     assert signal.take_profit == Decimal("142")
+    assert set(signal.chart_timeframes) == {"4h", "1h", "15m"}
+    assert signal.chart_timeframes["4h"][0]["open"] == "100"
+    assert signal.chart_timeframes["1h"][0]["open"] == "108"
+    assert signal.chart_timeframes["15m"][0]["open"] == "120"
 
 
 def test_realtime_strategy_builds_reversal_long_signal_when_4h_down_and_1h_turns_up():
