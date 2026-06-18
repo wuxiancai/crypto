@@ -132,3 +132,57 @@ def test_realtime_strategy_builds_reversal_long_signal_when_4h_down_and_1h_turns
     assert signal.entry_price == Decimal("98")
     assert signal.stop_loss is not None
     assert signal.take_profit is not None
+
+
+def test_realtime_strategy_reports_trigger_conditions_and_nearest_strategy():
+    from app.paper.multitimeframe import MultiTimeframeFrame
+    from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
+
+    frame = MultiTimeframeFrame(
+        symbol="BTCUSDT",
+        klines_by_interval={
+            "4h": tuple(
+                _kline("BTCUSDT", "4h", index, close)
+                for index, close in enumerate(["100", "104", "108", "112", "116", "120"])
+            ),
+            "1h": tuple(
+                _kline("BTCUSDT", "1h", index, close)
+                for index, close in enumerate(["108", "112", "116", "120", "124", "128"])
+            ),
+            "15m": tuple(
+                _kline("BTCUSDT", "15m", index, close)
+                for index, close in enumerate(["120", "124", "128", "124", "126"])
+            ),
+        },
+    )
+
+    signal = build_realtime_strategy_signal(
+        frame,
+        config=RealtimeStrategyConfig(
+            ema_fast_period=3,
+            ema_slow_period=5,
+            atr_period=3,
+            dmi_period=3,
+            swing_lookback=5,
+        ),
+    )
+
+    assert signal.nearest_strategy["name"] == "主趋势做多"
+    assert signal.nearest_strategy["matched"] == signal.nearest_strategy["total"]
+    assert {
+        condition["text"]
+        for condition in signal.condition_statuses
+        if condition["strategy"] == "主趋势做多"
+    } >= {
+        "4h 上涨趋势",
+        "1h 上涨趋势",
+        "15m 回踩到 EMA50 区域",
+        "15m 看涨确认",
+        "止损有效",
+        "风险收益比达标",
+    }
+    assert all(
+        condition["passed"]
+        for condition in signal.condition_statuses
+        if condition["strategy"] == "主趋势做多"
+    )

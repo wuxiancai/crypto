@@ -341,3 +341,62 @@ def test_paper_status_page_can_switch_strategy_chart_timeframes(tmp_path):
     assert ">4h<" in html
     assert ">1h<" in html
     assert ">15m<" in html
+
+
+def test_paper_status_page_shows_strategy_trigger_conditions(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "105",
+                        "action": "WAIT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "reason": ["price not in ema50 pullback zone"],
+                        "nearest_strategy": {
+                            "name": "主趋势做空",
+                            "matched": 5,
+                            "total": 6,
+                            "action": "SHORT_ENTRY",
+                        },
+                        "condition_statuses": [
+                            {
+                                "strategy": "主趋势做空",
+                                "text": "4h 下跌趋势",
+                                "passed": True,
+                                "detail": "close < EMA200",
+                            },
+                            {
+                                "strategy": "主趋势做空",
+                                "text": "15m 看跌确认",
+                                "passed": False,
+                                "detail": "close >= previous_close",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "策略触发条件" in html
+    assert "即将触发：主趋势做空（5/6）" in html
+    assert "4h 下跌趋势" in html
+    assert "15m 看跌确认" in html
+    assert "close &lt; EMA200" in html
+    assert "close &gt;= previous_close" in html
+    assert "condition-pass" in html
+    assert "condition-fail" in html
