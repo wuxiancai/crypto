@@ -245,14 +245,25 @@ def _render_signal_evaluation_row(evaluation: dict[str, Any]) -> str:
 
 
 def _render_strategy_conditions(evaluations: list[dict[str, Any]]) -> str:
-    evaluation = _latest_condition_evaluation(evaluations)
-    if evaluation is None:
+    latest = _latest_condition_evaluations_by_symbol(evaluations)
+    if not latest:
         return '<div class="empty">暂无策略触发条件</div>'
+    rendered = [
+        _render_strategy_condition_card(evaluation)
+        for evaluation in latest
+    ]
+    rendered = [card for card in rendered if card]
+    if not rendered:
+        return '<div class="empty">暂无策略触发条件</div>'
+    return "".join(rendered)
+
+
+def _render_strategy_condition_card(evaluation: dict[str, Any]) -> str:
     nearest = evaluation.get("nearest_strategy", {})
     strategy_name = _nearest_strategy_name(nearest)
     conditions = _conditions_for_strategy(evaluation.get("condition_statuses", []), strategy_name)
     if not conditions:
-        return '<div class="empty">暂无策略触发条件</div>'
+        return ""
     rows = "".join(_render_condition_row(condition) for condition in conditions)
     return f"""<div class="panel">
   <div class="condition-summary">
@@ -263,15 +274,19 @@ def _render_strategy_conditions(evaluations: list[dict[str, Any]]) -> str:
 </div>"""
 
 
-def _latest_condition_evaluation(evaluations: list[dict[str, Any]]) -> dict[str, Any] | None:
-    conditionable = [
-        evaluation
-        for evaluation in evaluations
-        if evaluation.get("condition_statuses")
-    ]
-    if not conditionable:
-        return None
-    return max(conditionable, key=lambda item: int(item.get("evaluated_at_ms") or 0))
+def _latest_condition_evaluations_by_symbol(evaluations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for evaluation in evaluations:
+        if not evaluation.get("condition_statuses"):
+            continue
+        symbol = str(evaluation.get("symbol") or "-")
+        current = latest.get(symbol)
+        if current is None or int(evaluation.get("evaluated_at_ms") or 0) >= int(current.get("evaluated_at_ms") or 0):
+            latest[symbol] = evaluation
+    return sorted(
+        latest.values(),
+        key=lambda item: str(item.get("symbol") or ""),
+    )
 
 
 def _render_condition_row(condition: dict[str, Any]) -> str:
