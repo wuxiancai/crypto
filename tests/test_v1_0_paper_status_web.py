@@ -216,3 +216,73 @@ def test_paper_status_page_shows_recent_strategy_outputs(tmp_path):
     assert "等待" in html
     assert "TREND_PULLBACK" in html
     assert "price not in ema50 pullback zone" in html
+
+
+def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "64000",
+                        "action": "WAIT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "reason": ["price not in ema50 pullback zone"],
+                        "core_rules": ["4h EMA200 > EMA50：空头基础"],
+                        "chart_points": [
+                            {
+                                "open_time": 1,
+                                "open": "63800",
+                                "high": "64200",
+                                "low": "63700",
+                                "close": "64000",
+                                "ema50": "63900",
+                                "ema200": "64100",
+                            },
+                            {
+                                "open_time": 2,
+                                "open": "64000",
+                                "high": "64300",
+                                "low": "63900",
+                                "close": "64100",
+                                "ema50": "63950",
+                                "ema200": "64090",
+                            },
+                        ],
+                    },
+                    {
+                        "evaluated_at_ms": 2,
+                        "symbol": "BTCUSDT",
+                        "interval": "5m",
+                        "close": "64120",
+                        "action": "WAIT",
+                        "strategy_type": "SYSTEM",
+                        "reason": ["non-strategy interval observed"],
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "最近策略输出" in html
+    assert html.count("<tr>") >= 3
+    assert "15m" in html
+    assert "5m" in html
+    assert "策略K线图" in html
+    assert "EMA50" in html
+    assert "EMA200" in html
+    assert "4h EMA200 &gt; EMA50：空头基础" in html
+    assert "<svg" in html

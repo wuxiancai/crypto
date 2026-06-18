@@ -132,3 +132,83 @@ def test_persistent_paper_stream_records_wait_signal_reason(tmp_path):
     assert snapshot.signal_evaluations[-1].symbol == "BTCUSDT"
     assert snapshot.signal_evaluations[-1].interval == "15m"
     assert snapshot.signal_evaluations[-1].reason == ("price not in ema50 pullback zone",)
+
+
+def test_persistent_paper_stream_keeps_latest_strategy_output_per_symbol_interval(tmp_path):
+    from app.data.quality import Kline
+    from app.paper.persistence import load_paper_snapshot
+    from app.paper.stream import run_persistent_paper_kline_stream
+    from app.paper.trading import PaperConfig
+    from app.strategy.signal_router import StrategySignal
+
+    state_path = tmp_path / "paper-state.json"
+    klines = [
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        Kline(
+            symbol="BTCUSDT",
+            interval="5m",
+            open_time=900_000,
+            close_time=1_199_999,
+            open=Decimal("101"),
+            high=Decimal("102"),
+            low=Decimal("100"),
+            close=Decimal("101"),
+            volume=Decimal("10"),
+        ),
+        Kline(
+            symbol="BTCUSDT",
+            interval="5m",
+            open_time=1_200_000,
+            close_time=1_499_999,
+            open=Decimal("102"),
+            high=Decimal("103"),
+            low=Decimal("101"),
+            close=Decimal("102"),
+            volume=Decimal("10"),
+        ),
+    ]
+
+    async def source():
+        for kline in klines:
+            yield kline
+
+    def signal_fn(kline: Kline, has_position: bool) -> StrategySignal:
+        return StrategySignal(
+            action="WAIT",
+            strategy_type="SYSTEM",
+            reason=[f"latest {kline.interval}"],
+        )
+
+    snapshot = asyncio.run(
+        run_persistent_paper_kline_stream(
+            config=PaperConfig(
+                initial_equity=Decimal("1000"),
+                risk_per_trade_pct=Decimal("0.01"),
+                maker_fee_rate=Decimal("0"),
+                taker_fee_rate=Decimal("0"),
+                slippage_pct=Decimal("0"),
+            ),
+            source=source(),
+            signal_fn=signal_fn,
+            state_path=state_path,
+        )
+    )
+
+    persisted = load_paper_snapshot(state_path)
+
+    assert persisted == snapshot
+    assert [(item.symbol, item.interval) for item in snapshot.signal_evaluations] == [
+        ("BTCUSDT", "15m"),
+        ("BTCUSDT", "5m"),
+    ]
+    assert snapshot.signal_evaluations[-1].reason == ("latest 5m",)
