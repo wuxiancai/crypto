@@ -78,6 +78,13 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .error-log-box {{ display: grid; gap: 8px; }}
     .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
     .rule-list {{ display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; color: #344055; font-size: 13px; }}
+    .condition-summary {{ margin-bottom: 10px; color: #172033; font-weight: 700; }}
+    .condition-list {{ display: grid; gap: 8px; }}
+    .condition-row {{ display: grid; grid-template-columns: 120px minmax(160px, 1fr) minmax(220px, 1.4fr); gap: 10px; align-items: start; padding: 10px; border: 1px solid #e6ebf2; border-radius: 4px; background: #fff; font-size: 13px; }}
+    .condition-status {{ font-weight: 700; white-space: nowrap; }}
+    .condition-pass {{ color: #0a7c52; }}
+    .condition-fail {{ color: #b42318; }}
+    .condition-detail {{ color: #65748b; overflow-wrap: anywhere; }}
     .chart-wrap {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 10px; overflow-x: auto; }}
     .chart-tabs {{ display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }}
     .chart-tab {{ border: 1px solid #b8c2d6; background: #fff; color: #344055; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 13px; }}
@@ -96,6 +103,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       header {{ align-items: flex-start; flex-direction: column; }}
       .header-meta {{ justify-content: flex-start; }}
       .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .condition-row {{ grid-template-columns: 1fr; }}
       .table-wrap {{ overflow-x: auto; }}
     }}
   </style>
@@ -126,6 +134,10 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     <section style="margin-top: 16px;">
       <h2>最近策略输出</h2>
       {_render_signal_evaluations(payload.get("signal_evaluations", []))}
+    </section>
+    <section style="margin-top: 16px;">
+      <h2>策略触发条件</h2>
+      {_render_strategy_conditions(payload.get("signal_evaluations", []))}
     </section>
     <section style="margin-top: 16px;">
       <h2>策略K线图</h2>
@@ -231,6 +243,59 @@ def _render_signal_evaluation_row(evaluation: dict[str, Any]) -> str:
   <td>{_escape(evaluation.get("strategy_type"))}</td>
   <td>{_escape(_format_reasons(evaluation.get("reason")))}</td>
 </tr>"""
+
+
+def _render_strategy_conditions(evaluations: list[dict[str, Any]]) -> str:
+    evaluation = _latest_condition_evaluation(evaluations)
+    if evaluation is None:
+        return '<div class="empty">暂无策略触发条件</div>'
+    conditions = [
+        condition
+        for condition in evaluation.get("condition_statuses", [])
+        if isinstance(condition, dict)
+    ]
+    if not conditions:
+        return '<div class="empty">暂无策略触发条件</div>'
+    nearest = evaluation.get("nearest_strategy", {})
+    rows = "".join(_render_condition_row(condition) for condition in conditions)
+    return f"""<div class="panel">
+  <div class="condition-summary">{_escape(_nearest_strategy_summary(nearest))}</div>
+  <div class="condition-list">{rows}</div>
+</div>"""
+
+
+def _latest_condition_evaluation(evaluations: list[dict[str, Any]]) -> dict[str, Any] | None:
+    conditionable = [
+        evaluation
+        for evaluation in evaluations
+        if evaluation.get("condition_statuses")
+    ]
+    if not conditionable:
+        return None
+    return max(conditionable, key=lambda item: int(item.get("evaluated_at_ms") or 0))
+
+
+def _render_condition_row(condition: dict[str, Any]) -> str:
+    passed = bool(condition.get("passed"))
+    status_class = "condition-pass" if passed else "condition-fail"
+    return f"""<div class="condition-row">
+  <div>{_escape(condition.get("strategy"))}</div>
+  <div><span class="condition-status {status_class}">{_condition_status_label(passed)}</span> {_escape(condition.get("text"))}</div>
+  <div class="condition-detail">{_escape(condition.get("detail"))}</div>
+</div>"""
+
+
+def _condition_status_label(passed: bool) -> str:
+    return "已满足" if passed else "未满足"
+
+
+def _nearest_strategy_summary(nearest: Any) -> str:
+    if not isinstance(nearest, dict) or not nearest:
+        return "即将触发：暂无"
+    name = nearest.get("name") or "-"
+    matched = nearest.get("matched", 0)
+    total = nearest.get("total", 0)
+    return f"即将触发：{name}（{matched}/{total}）"
 
 
 def _render_strategy_chart(evaluations: list[dict[str, Any]]) -> str:

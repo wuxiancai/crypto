@@ -25,6 +25,8 @@ class StrategySignal:
     core_rules: list[str] = field(default_factory=list)
     chart_points: list[dict[str, str]] = field(default_factory=list)
     chart_timeframes: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    condition_statuses: list[dict[str, object]] = field(default_factory=list)
+    nearest_strategy: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

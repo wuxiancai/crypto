@@ -212,6 +212,7 @@ def _attach_realtime_diagnostics(
     frame: MultiTimeframeFrame,
     config: RealtimeStrategyConfig,
 ) -> StrategySignal:
+    condition_statuses = _condition_statuses(frame=frame, config=config)
     return StrategySignal(
         action=signal.action,
         strategy_type=signal.strategy_type,
@@ -227,6 +228,8 @@ def _attach_realtime_diagnostics(
         core_rules=_core_rules(frame=frame, config=config),
         chart_points=_chart_points(frame.history(config.entry_interval), config=config),
         chart_timeframes=_chart_timeframes(frame=frame, config=config),
+        condition_statuses=condition_statuses,
+        nearest_strategy=_nearest_strategy(condition_statuses),
     )
 
 
@@ -293,3 +296,341 @@ def _chart_timeframes(
         interval: _chart_points(frame.history(interval), config=config)
         for interval in (*config.trend_intervals, config.entry_interval)
     }
+
+
+def _condition_statuses(
+    frame: MultiTimeframeFrame,
+    config: RealtimeStrategyConfig,
+) -> list[dict[str, object]]:
+    four_hour_interval, one_hour_interval = config.trend_intervals
+    four_hour = _build_trend_frame(frame.history(four_hour_interval), config)
+    one_hour = _build_trend_frame(frame.history(one_hour_interval), config)
+    entry_frame = _build_entry_frame(frame.history(config.entry_interval), config)
+    reversal_setup = _build_reversal_setup(
+        four_hour_klines=frame.history(four_hour_interval),
+        one_hour_klines=frame.history(one_hour_interval),
+        entry_klines=frame.history(config.entry_interval),
+        config=config,
+    )
+    if four_hour is None or one_hour is None or entry_frame is None or reversal_setup is None:
+        return []
+
+    return [
+        *_main_long_conditions(four_hour, one_hour, entry_frame, config),
+        *_main_short_conditions(four_hour, one_hour, entry_frame, config),
+        *_reversal_long_conditions(four_hour, one_hour, entry_frame, reversal_setup, config),
+        *_reversal_short_conditions(four_hour, one_hour, entry_frame, reversal_setup, config),
+    ]
+
+
+def _main_long_conditions(
+    four_hour: TrendFrame,
+    one_hour: TrendFrame,
+    entry_frame: EntryFrame,
+    config: RealtimeStrategyConfig,
+) -> list[dict[str, object]]:
+    entry_price = entry_frame.close
+    risk_per_unit = entry_price - entry_frame.recent_swing_low
+    risk_reward = (
+        config.target_risk_reward
+        if risk_per_unit > 0
+        else Decimal("0")
+    )
+    return [
+        _condition("主趋势做多", "4h 上涨趋势", _trend_up(four_hour, config), _trend_detail(four_hour, "UP")),
+        _condition("主趋势做多", "1h 上涨趋势", _trend_up(one_hour, config), _trend_detail(one_hour, "UP")),
+        _condition(
+            "主趋势做多",
+            "15m 回踩到 EMA50 区域",
+            _near_ema50(entry_frame),
+            f"|close-EMA50|={_fmt_decimal(abs(entry_frame.close - entry_frame.ema50))} <= ATR={_fmt_decimal(entry_frame.atr)}",
+        ),
+        _condition(
+            "主趋势做多",
+            "15m 看涨确认",
+            entry_frame.close > entry_frame.previous_close,
+            f"close={_fmt_decimal(entry_frame.close)} > previous_close={_fmt_decimal(entry_frame.previous_close)}",
+        ),
+        _condition(
+            "主趋势做多",
+            "止损有效",
+            risk_per_unit > 0,
+            f"entry={_fmt_decimal(entry_price)} > swing_low={_fmt_decimal(entry_frame.recent_swing_low)}",
+        ),
+        _condition(
+            "主趋势做多",
+            "风险收益比达标",
+            risk_per_unit > 0 and risk_reward >= config.min_risk_reward,
+            f"RR={_fmt_decimal(risk_reward)} >= {_fmt_decimal(config.min_risk_reward)}",
+        ),
+    ]
+
+
+def _main_short_conditions(
+    four_hour: TrendFrame,
+    one_hour: TrendFrame,
+    entry_frame: EntryFrame,
+    config: RealtimeStrategyConfig,
+) -> list[dict[str, object]]:
+    entry_price = entry_frame.close
+    risk_per_unit = entry_frame.recent_swing_high - entry_price
+    risk_reward = (
+        config.target_risk_reward
+        if risk_per_unit > 0
+        else Decimal("0")
+    )
+    return [
+        _condition("主趋势做空", "4h 下跌趋势", _trend_down(four_hour, config), _trend_detail(four_hour, "DOWN")),
+        _condition("主趋势做空", "1h 下跌趋势", _trend_down(one_hour, config), _trend_detail(one_hour, "DOWN")),
+        _condition(
+            "主趋势做空",
+            "15m 反弹到 EMA50 区域",
+            _near_ema50(entry_frame),
+            f"|close-EMA50|={_fmt_decimal(abs(entry_frame.close - entry_frame.ema50))} <= ATR={_fmt_decimal(entry_frame.atr)}",
+        ),
+        _condition(
+            "主趋势做空",
+            "15m 看跌确认",
+            entry_frame.close < entry_frame.previous_close,
+            f"close={_fmt_decimal(entry_frame.close)} < previous_close={_fmt_decimal(entry_frame.previous_close)}",
+        ),
+        _condition(
+            "主趋势做空",
+            "止损有效",
+            risk_per_unit > 0,
+            f"entry={_fmt_decimal(entry_price)} < swing_high={_fmt_decimal(entry_frame.recent_swing_high)}",
+        ),
+        _condition(
+            "主趋势做空",
+            "风险收益比达标",
+            risk_per_unit > 0 and risk_reward >= config.min_risk_reward,
+            f"RR={_fmt_decimal(risk_reward)} >= {_fmt_decimal(config.min_risk_reward)}",
+        ),
+    ]
+
+
+def _reversal_long_conditions(
+    four_hour: TrendFrame,
+    one_hour: TrendFrame,
+    entry_frame: EntryFrame,
+    setup: ReversalSetup,
+    config: RealtimeStrategyConfig,
+) -> list[dict[str, object]]:
+    score = _score_reversal_long(setup)
+    chasing = _is_chasing_reversal_long(setup)
+    return [
+        _condition("趋势转换做多", "4h 下跌趋势", _trend_down(four_hour, config), _trend_detail(four_hour, "DOWN")),
+        _condition("趋势转换做多", "1h 上涨趋势", _trend_up(one_hour, config), _trend_detail(one_hour, "UP")),
+        _condition("趋势转换做多", "评分达到 70", score >= Decimal("70"), f"score={_fmt_decimal(score)} >= 70"),
+        _condition("趋势转换做多", "没有追高", not chasing, _chase_detail(setup.entry_price - setup.ema50_15m, setup)),
+        _condition("趋势转换做多", "早期做多条件完整", _early_reversal_long(setup), "early long condition group"),
+        _condition("趋势转换做多", "确认做多条件完整", _confirmed_reversal_long(setup), "confirmed long condition group"),
+    ]
+
+
+def _reversal_short_conditions(
+    four_hour: TrendFrame,
+    one_hour: TrendFrame,
+    entry_frame: EntryFrame,
+    setup: ReversalSetup,
+    config: RealtimeStrategyConfig,
+) -> list[dict[str, object]]:
+    score = _score_reversal_short(setup)
+    chasing = _is_chasing_reversal_short(setup)
+    return [
+        _condition("趋势转换做空", "4h 上涨趋势", _trend_up(four_hour, config), _trend_detail(four_hour, "UP")),
+        _condition("趋势转换做空", "1h 下跌趋势", _trend_down(one_hour, config), _trend_detail(one_hour, "DOWN")),
+        _condition("趋势转换做空", "评分达到 70", score >= Decimal("70"), f"score={_fmt_decimal(score)} >= 70"),
+        _condition("趋势转换做空", "没有追空", not chasing, _chase_detail(setup.ema50_15m - setup.entry_price, setup)),
+        _condition("趋势转换做空", "早期做空条件完整", _early_reversal_short(setup), "early short condition group"),
+        _condition("趋势转换做空", "确认做空条件完整", _confirmed_reversal_short(setup), "confirmed short condition group"),
+    ]
+
+
+def _condition(strategy: str, text: str, passed: bool, detail: str) -> dict[str, object]:
+    return {
+        "strategy": strategy,
+        "text": text,
+        "passed": passed,
+        "detail": detail,
+    }
+
+
+def _nearest_strategy(conditions: list[dict[str, object]]) -> dict[str, object]:
+    groups: dict[str, list[dict[str, object]]] = {}
+    for condition in conditions:
+        groups.setdefault(str(condition["strategy"]), []).append(condition)
+    if not groups:
+        return {}
+    name, items = max(
+        groups.items(),
+        key=lambda item: (sum(1 for condition in item[1] if condition["passed"]), -len(item[1])),
+    )
+    action_by_name = {
+        "主趋势做多": "LONG_ENTRY",
+        "主趋势做空": "SHORT_ENTRY",
+        "趋势转换做多": "REVERSAL_LONG_ENTRY",
+        "趋势转换做空": "REVERSAL_SHORT_ENTRY",
+    }
+    matched = sum(1 for condition in items if condition["passed"])
+    return {
+        "name": name,
+        "matched": matched,
+        "total": len(items),
+        "action": action_by_name.get(name, "WAIT"),
+    }
+
+
+def _trend_up(frame: TrendFrame, config: RealtimeStrategyConfig) -> bool:
+    return (
+        frame.close > frame.ema200
+        and frame.ema50 > frame.ema200
+        and frame.ema50_slope > 0
+        and frame.adx >= config.min_adx
+        and frame.di_plus > frame.di_minus
+    )
+
+
+def _trend_down(frame: TrendFrame, config: RealtimeStrategyConfig) -> bool:
+    return (
+        frame.close < frame.ema200
+        and frame.ema50 < frame.ema200
+        and frame.ema50_slope < 0
+        and frame.adx >= config.min_adx
+        and frame.di_minus > frame.di_plus
+    )
+
+
+def _trend_detail(frame: TrendFrame, direction: str) -> str:
+    if direction == "UP":
+        return (
+            f"close={_fmt_decimal(frame.close)} > EMA200={_fmt_decimal(frame.ema200)}, "
+            f"EMA50={_fmt_decimal(frame.ema50)} > EMA200, "
+            f"slope={_fmt_decimal(frame.ema50_slope)} > 0, "
+            f"ADX={_fmt_decimal(frame.adx)}, DI+={_fmt_decimal(frame.di_plus)} > DI-={_fmt_decimal(frame.di_minus)}"
+        )
+    return (
+        f"close={_fmt_decimal(frame.close)} < EMA200={_fmt_decimal(frame.ema200)}, "
+        f"EMA50={_fmt_decimal(frame.ema50)} < EMA200, "
+        f"slope={_fmt_decimal(frame.ema50_slope)} < 0, "
+        f"ADX={_fmt_decimal(frame.adx)}, DI-={_fmt_decimal(frame.di_minus)} > DI+={_fmt_decimal(frame.di_plus)}"
+    )
+
+
+def _near_ema50(frame: EntryFrame) -> bool:
+    return abs(frame.close - frame.ema50) <= frame.atr
+
+
+def _score_reversal_long(setup: ReversalSetup) -> Decimal:
+    raw_score = Decimal("0")
+    raw_score += Decimal("15") if setup.four_hour_stop_structure else Decimal("0")
+    raw_score += Decimal("10") if setup.four_hour_near_or_above_ema50 else Decimal("0")
+    raw_score += Decimal("10") if setup.one_hour_close_above_ema50 else Decimal("0")
+    raw_score += Decimal("15") if setup.one_hour_close_above_ema200 else Decimal("0")
+    raw_score += Decimal("10") if setup.one_hour_higher_high else Decimal("0")
+    raw_score += Decimal("10") if setup.one_hour_higher_low else Decimal("0")
+    raw_score += Decimal("10") if setup.fifteen_ema50_above_ema200 else Decimal("0")
+    raw_score += Decimal("10") if setup.fifteen_first_pullback_holds else Decimal("0")
+    raw_score += Decimal("5") if setup.fifteen_reversal_candle else Decimal("0")
+    raw_score += Decimal("5") if setup.volume_confirmed else Decimal("0")
+    raw_score += Decimal("5") if setup.di_confirmed else Decimal("0")
+    return min(raw_score, Decimal("100"))
+
+
+def _score_reversal_short(setup: ReversalSetup) -> Decimal:
+    raw_score = Decimal("0")
+    raw_score += Decimal("15") if setup.four_hour_exhaustion_structure else Decimal("0")
+    raw_score += Decimal("10") if setup.four_hour_near_or_below_ema50 else Decimal("0")
+    raw_score += Decimal("10") if setup.one_hour_close_below_ema50 else Decimal("0")
+    raw_score += Decimal("15") if setup.one_hour_close_below_ema200 else Decimal("0")
+    raw_score += Decimal("10") if setup.one_hour_lower_low else Decimal("0")
+    raw_score += Decimal("10") if setup.one_hour_lower_high else Decimal("0")
+    raw_score += Decimal("10") if setup.fifteen_ema50_below_ema200 else Decimal("0")
+    raw_score += Decimal("10") if setup.fifteen_first_rebound_rejects else Decimal("0")
+    raw_score += Decimal("5") if setup.fifteen_rejection_candle else Decimal("0")
+    raw_score += Decimal("5") if setup.volume_confirmed else Decimal("0")
+    raw_score += Decimal("5") if setup.di_confirmed else Decimal("0")
+    return min(raw_score, Decimal("100"))
+
+
+def _is_chasing_reversal_long(setup: ReversalSetup) -> bool:
+    distance = setup.entry_price - setup.ema50_15m
+    return distance > setup.atr_15m or _distance_pct(distance, setup.entry_price) > Decimal("0.012")
+
+
+def _is_chasing_reversal_short(setup: ReversalSetup) -> bool:
+    distance = setup.ema50_15m - setup.entry_price
+    return distance > setup.atr_15m or _distance_pct(distance, setup.entry_price) > Decimal("0.012")
+
+
+def _distance_pct(distance: Decimal, entry_price: Decimal) -> Decimal:
+    if entry_price == 0:
+        return Decimal("0")
+    return distance / entry_price
+
+
+def _chase_detail(distance: Decimal, setup: ReversalSetup) -> str:
+    return (
+        f"distance={_fmt_decimal(distance)} <= ATR={_fmt_decimal(setup.atr_15m)} "
+        f"and pct={_fmt_decimal(_distance_pct(distance, setup.entry_price))} <= 0.012"
+    )
+
+
+def _early_reversal_long(setup: ReversalSetup) -> bool:
+    return all(
+        [
+            setup.four_hour_no_new_low,
+            setup.one_hour_close_above_ema50,
+            setup.one_hour_near_or_above_ema200,
+            setup.fifteen_close_above_ema200,
+            setup.fifteen_ema50_slope_up,
+            setup.fifteen_breakout_high_volume,
+            setup.fifteen_first_pullback_holds,
+        ]
+    )
+
+
+def _confirmed_reversal_long(setup: ReversalSetup) -> bool:
+    return all(
+        [
+            setup.four_hour_stop_structure,
+            setup.one_hour_close_above_ema200,
+            setup.one_hour_ema50_slope_up,
+            setup.fifteen_ema50_above_ema200,
+            setup.fifteen_first_pullback_holds,
+            setup.fifteen_reversal_candle,
+            setup.volume_confirmed,
+        ]
+    )
+
+
+def _early_reversal_short(setup: ReversalSetup) -> bool:
+    return all(
+        [
+            setup.four_hour_no_new_high,
+            setup.one_hour_close_below_ema50,
+            setup.one_hour_near_or_below_ema200,
+            setup.fifteen_close_below_ema200,
+            setup.fifteen_ema50_slope_down,
+            setup.fifteen_breakdown_low_volume,
+            setup.fifteen_first_rebound_rejects,
+        ]
+    )
+
+
+def _confirmed_reversal_short(setup: ReversalSetup) -> bool:
+    return all(
+        [
+            setup.four_hour_exhaustion_structure,
+            setup.one_hour_close_below_ema200,
+            setup.one_hour_ema50_slope_down,
+            setup.fifteen_ema50_below_ema200,
+            setup.fifteen_first_rebound_rejects,
+            setup.fifteen_rejection_candle,
+            setup.volume_confirmed,
+        ]
+    )
+
+
+def _fmt_decimal(value: Decimal) -> str:
+    return format(value.quantize(Decimal("0.0001")), "f")

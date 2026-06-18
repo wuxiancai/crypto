@@ -91,6 +91,8 @@ def _signal_evaluation_from(
             interval: tuple(points)
             for interval, points in (getattr(signal, "chart_timeframes", {}) or {}).items()
         },
+        condition_statuses=tuple(getattr(signal, "condition_statuses", []) or []),
+        nearest_strategy=getattr(signal, "nearest_strategy", {}) or {},
     )
 
 

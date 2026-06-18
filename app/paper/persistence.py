@@ -132,6 +132,8 @@ def _signal_evaluation_to_payload(evaluation: PaperSignalEvaluation) -> dict[str
             interval: list(points)
             for interval, points in evaluation.chart_timeframes.items()
         },
+        "condition_statuses": list(evaluation.condition_statuses),
+        "nearest_strategy": evaluation.nearest_strategy,
     }
 
 
@@ -150,4 +152,6 @@ def _signal_evaluation_from_payload(payload: dict[str, Any]) -> PaperSignalEvalu
             interval: tuple(points)
             for interval, points in payload.get("chart_timeframes", {}).items()
         },
+        condition_statuses=tuple(payload.get("condition_statuses", [])),
+        nearest_strategy=payload.get("nearest_strategy", {}),
     )
