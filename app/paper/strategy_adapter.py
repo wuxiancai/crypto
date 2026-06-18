@@ -506,11 +506,11 @@ def _trend_down(frame: TrendFrame, config: RealtimeStrategyConfig) -> bool:
 
 
 def _bullish_structure(frame: TrendFrame) -> bool:
-    return frame.close > frame.ema50 and frame.close > frame.ema200
+    return frame.ema50 > frame.ema200
 
 
 def _bearish_structure(frame: TrendFrame) -> bool:
-    return frame.close < frame.ema50 and frame.close < frame.ema200
+    return frame.ema50 < frame.ema200
 
 
 def _bullish_momentum(frame: TrendFrame, config: RealtimeStrategyConfig) -> bool:
@@ -532,12 +532,12 @@ def _bearish_momentum(frame: TrendFrame, config: RealtimeStrategyConfig) -> bool
 def _structure_detail(frame: TrendFrame, direction: str) -> str:
     if direction == "UP":
         return (
-            f"close={_fmt_decimal(frame.close)} > EMA50={_fmt_decimal(frame.ema50)} "
-            f"and EMA200={_fmt_decimal(frame.ema200)}"
+            f"EMA50={_fmt_decimal(frame.ema50)} > EMA200={_fmt_decimal(frame.ema200)}, "
+            f"close={_fmt_decimal(frame.close)}"
         )
     return (
-        f"close={_fmt_decimal(frame.close)} < EMA50={_fmt_decimal(frame.ema50)} "
-        f"and EMA200={_fmt_decimal(frame.ema200)}"
+        f"EMA50={_fmt_decimal(frame.ema50)} < EMA200={_fmt_decimal(frame.ema200)}, "
+        f"close={_fmt_decimal(frame.close)}"
     )
 
 

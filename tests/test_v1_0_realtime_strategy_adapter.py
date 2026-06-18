@@ -207,7 +207,7 @@ def test_realtime_strategy_reports_bearish_structure_separately_from_momentum_co
     )
     one_hour = TrendFrame(
         close=Decimal("62441"),
-        ema50=Decimal("65075"),
+        ema50=Decimal("64075"),
         ema200=Decimal("64812"),
         ema50_slope=Decimal("-10"),
         di_plus=Decimal("15"),
