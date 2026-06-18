@@ -174,8 +174,10 @@ def test_realtime_strategy_reports_trigger_conditions_and_nearest_strategy():
         for condition in signal.condition_statuses
         if condition["strategy"] == "主趋势做多"
     } >= {
-        "4h 上涨趋势",
-        "1h 上涨趋势",
+        "4h 多头结构",
+        "4h 多头动能确认",
+        "1h 多头结构",
+        "1h 多头动能确认",
         "15m 回踩到 EMA50 区域",
         "15m 看涨确认",
         "止损有效",

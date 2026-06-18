@@ -337,8 +337,10 @@ def _main_long_conditions(
         else Decimal("0")
     )
     return [
-        _condition("主趋势做多", "4h 上涨趋势", _trend_up(four_hour, config), _trend_detail(four_hour, "UP")),
-        _condition("主趋势做多", "1h 上涨趋势", _trend_up(one_hour, config), _trend_detail(one_hour, "UP")),
+        _condition("主趋势做多", "4h 多头结构", _bullish_structure(four_hour), _structure_detail(four_hour, "UP")),
+        _condition("主趋势做多", "4h 多头动能确认", _bullish_momentum(four_hour, config), _momentum_detail(four_hour, config, "UP")),
+        _condition("主趋势做多", "1h 多头结构", _bullish_structure(one_hour), _structure_detail(one_hour, "UP")),
+        _condition("主趋势做多", "1h 多头动能确认", _bullish_momentum(one_hour, config), _momentum_detail(one_hour, config, "UP")),
         _condition(
             "主趋势做多",
             "15m 回踩到 EMA50 区域",
@@ -380,8 +382,10 @@ def _main_short_conditions(
         else Decimal("0")
     )
     return [
-        _condition("主趋势做空", "4h 下跌趋势", _trend_down(four_hour, config), _trend_detail(four_hour, "DOWN")),
-        _condition("主趋势做空", "1h 下跌趋势", _trend_down(one_hour, config), _trend_detail(one_hour, "DOWN")),
+        _condition("主趋势做空", "4h 空头结构", _bearish_structure(four_hour), _structure_detail(four_hour, "DOWN")),
+        _condition("主趋势做空", "4h 空头动能确认", _bearish_momentum(four_hour, config), _momentum_detail(four_hour, config, "DOWN")),
+        _condition("主趋势做空", "1h 空头结构", _bearish_structure(one_hour), _structure_detail(one_hour, "DOWN")),
+        _condition("主趋势做空", "1h 空头动能确认", _bearish_momentum(one_hour, config), _momentum_detail(one_hour, config, "DOWN")),
         _condition(
             "主趋势做空",
             "15m 反弹到 EMA50 区域",
@@ -498,6 +502,60 @@ def _trend_down(frame: TrendFrame, config: RealtimeStrategyConfig) -> bool:
         and frame.ema50_slope < 0
         and frame.adx >= config.min_adx
         and frame.di_minus > frame.di_plus
+    )
+
+
+def _bullish_structure(frame: TrendFrame) -> bool:
+    return frame.close > frame.ema50 and frame.close > frame.ema200
+
+
+def _bearish_structure(frame: TrendFrame) -> bool:
+    return frame.close < frame.ema50 and frame.close < frame.ema200
+
+
+def _bullish_momentum(frame: TrendFrame, config: RealtimeStrategyConfig) -> bool:
+    return (
+        frame.ema50_slope > 0
+        and frame.adx >= config.min_adx
+        and frame.di_plus > frame.di_minus
+    )
+
+
+def _bearish_momentum(frame: TrendFrame, config: RealtimeStrategyConfig) -> bool:
+    return (
+        frame.ema50_slope < 0
+        and frame.adx >= config.min_adx
+        and frame.di_minus > frame.di_plus
+    )
+
+
+def _structure_detail(frame: TrendFrame, direction: str) -> str:
+    if direction == "UP":
+        return (
+            f"close={_fmt_decimal(frame.close)} > EMA50={_fmt_decimal(frame.ema50)} "
+            f"and EMA200={_fmt_decimal(frame.ema200)}"
+        )
+    return (
+        f"close={_fmt_decimal(frame.close)} < EMA50={_fmt_decimal(frame.ema50)} "
+        f"and EMA200={_fmt_decimal(frame.ema200)}"
+    )
+
+
+def _momentum_detail(
+    frame: TrendFrame,
+    config: RealtimeStrategyConfig,
+    direction: str,
+) -> str:
+    if direction == "UP":
+        return (
+            f"slope={_fmt_decimal(frame.ema50_slope)} > 0, "
+            f"ADX={_fmt_decimal(frame.adx)} >= {_fmt_decimal(config.min_adx)}, "
+            f"DI+={_fmt_decimal(frame.di_plus)} > DI-={_fmt_decimal(frame.di_minus)}"
+        )
+    return (
+        f"slope={_fmt_decimal(frame.ema50_slope)} < 0, "
+        f"ADX={_fmt_decimal(frame.adx)} >= {_fmt_decimal(config.min_adx)}, "
+        f"DI-={_fmt_decimal(frame.di_minus)} > DI+={_fmt_decimal(frame.di_plus)}"
     )
 
 

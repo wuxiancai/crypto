@@ -210,8 +210,6 @@ def test_paper_status_page_shows_recent_strategy_outputs(tmp_path):
 
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
-    assert "BTCUSDT" in html
-    assert "15m" in html
     assert "最近策略输出" not in html
     assert "price not in ema50 pullback zone" not in html
 
@@ -275,9 +273,8 @@ def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp
 
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
-    assert html.count("<tr>") >= 3
-    assert "15m" in html
-    assert "5m" in html
+    assert "最近策略输出" not in html
+    assert "non-strategy interval observed" not in html
     assert "策略K线图" in html
     assert "EMA50" in html
     assert "EMA200" in html

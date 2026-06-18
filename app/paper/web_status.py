@@ -135,10 +135,6 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       {_render_fills(fills)}
     </section>
     <section style="margin-top: 16px;">
-      <h2>最近策略输出</h2>
-      {_render_signal_evaluations(payload.get("signal_evaluations", []))}
-    </section>
-    <section style="margin-top: 16px;">
       <h2>策略触发条件</h2>
       {_render_strategy_conditions(payload.get("signal_evaluations", []))}
     </section>
