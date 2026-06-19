@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+from app.paper.strategy_backtest import StrategyBacktestConfig, run_strategy_backtest
+from app.paper.web_status import (
+    build_paper_status_payload,
+    render_paper_status_html,
+    render_strategy_backtest_html,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,12 +32,22 @@ def parse_args() -> argparse.Namespace:
 def make_handler(state_path: Path, error_log_path: Path):
     class PaperStatusHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
+            parsed = urlparse(self.path)
             payload = build_paper_status_payload(state_path, error_log_path=error_log_path)
-            if self.path == "/api/status":
+            if parsed.path == "/api/status":
                 self._send_json(payload)
                 return
-            if self.path in {"/", "/index.html"}:
+            if parsed.path in {"/", "/index.html"}:
                 self._send_html(render_paper_status_html(payload))
+                return
+            if parsed.path == "/backtest":
+                result = None
+                query = parse_qs(parsed.query)
+                if query.get("run") == ["1"]:
+                    result = asyncio.run(run_strategy_backtest(_backtest_config_from_query(query)))
+                else:
+                    result = run_strategy_backtest_default_result()
+                self._send_html(render_strategy_backtest_html(result=result))
                 return
             self.send_error(404)
 
@@ -54,6 +71,45 @@ def make_handler(state_path: Path, error_log_path: Path):
             self.wfile.write(encoded)
 
     return PaperStatusHandler
+
+
+def run_strategy_backtest_default_result():
+    config = StrategyBacktestConfig()
+    from app.paper.strategy_backtest import StrategyBacktestResult
+
+    return StrategyBacktestResult(
+        config=config,
+        initial_equity="1000.00",
+        final_equity="1000.00",
+        total_trades=0,
+        wins=0,
+        losses=0,
+        net_pnl="0.00",
+        trades=[],
+        error=None,
+    )
+
+
+def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktestConfig:
+    return StrategyBacktestConfig(
+        ema_fast_period=_query_int(query, "ema_fast", 50, minimum=2, maximum=500),
+        ema_slow_period=_query_int(query, "ema_slow", 200, minimum=3, maximum=1000),
+        limit=_query_int(query, "limit", 250, minimum=50, maximum=1500),
+    )
+
+
+def _query_int(
+    query: dict[str, list[str]],
+    key: str,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    try:
+        value = int(query.get(key, [str(default)])[0])
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(maximum, value))
 
 
 def main() -> None:

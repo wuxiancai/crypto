@@ -66,8 +66,14 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .header-meta {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }}
     h1 {{ font-size: 24px; margin: 0; }}
     .badge {{ font-size: 13px; padding: 6px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; }}
+    .nav-button {{ color: #b42318; text-decoration: none; font-weight: 700; border-color: #ef4444; }}
     .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
+    .form-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; }}
+    .form-field {{ display: grid; gap: 6px; }}
+    .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
+    .form-field input {{ border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; }}
+    .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
     .label {{ color: #65748b; font-size: 12px; margin-bottom: 6px; }}
     .value {{ font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }}
     h2 {{ font-size: 16px; margin: 0 0 10px; }}
@@ -122,6 +128,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     <header>
       <h1>模拟交易看板</h1>
       <div class="header-meta">
+        <a class="badge nav-button" href="/backtest" target="_blank" rel="noopener">策略回测</a>
         <div class="badge">系统运行时间：{_format_duration(payload.get("runtime_seconds"))}</div>
         <div class="badge">{_status_label(payload.get("status"))} · 5 秒自动刷新</div>
       </div>
@@ -171,6 +178,99 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
 </html>"""
 
 
+def render_strategy_backtest_html(result: Any | None = None) -> str:
+    from app.paper.strategy_backtest import StrategyBacktestConfig
+
+    config = result.config if result is not None else StrategyBacktestConfig()
+    trades = result.trades if result is not None else []
+    error = result.error if result is not None else None
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>策略回测</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #f5f7fb;
+      color: #172033;
+    }}
+    body {{ margin: 0; }}
+    main {{ max-width: 1180px; margin: 0 auto; padding: 24px; }}
+    header {{ display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }}
+    h1 {{ font-size: 24px; margin: 0; }}
+    .badge {{ font-size: 13px; padding: 6px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; color: #344055; text-decoration: none; }}
+    .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
+    .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
+    .label {{ color: #65748b; font-size: 12px; margin-bottom: 6px; }}
+    .value {{ font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }}
+    h2 {{ font-size: 16px; margin: 0 0 10px; }}
+    .form-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; }}
+    .form-field {{ display: grid; gap: 6px; }}
+    .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
+    .form-field input {{ border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; }}
+    .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
+    table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; overflow: hidden; }}
+    th, td {{ border-bottom: 1px solid #e6ebf2; padding: 9px 10px; text-align: left; font-size: 13px; white-space: nowrap; }}
+    th {{ background: #eef3f9; color: #344055; }}
+    tr:last-child td {{ border-bottom: 0; }}
+    .empty {{ color: #65748b; padding: 14px; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; }}
+    .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
+    .profit {{ color: #0a7c52; }}
+    .loss {{ color: #b42318; }}
+    .trade-scroll {{ max-height: 252px; overflow-y: auto; border: 1px solid #d9e0ec; border-radius: 6px; }}
+    .trade-scroll table {{ border: 0; border-radius: 0; }}
+    @media (max-width: 820px) {{
+      main {{ padding: 14px; }}
+      header {{ align-items: flex-start; flex-direction: column; }}
+      .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .form-grid {{ grid-template-columns: 1fr; }}
+      .table-wrap {{ overflow-x: auto; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>策略回测</h1>
+      <a class="badge" href="/">返回模拟交易看板</a>
+    </header>
+    <section class="panel">
+      <h2>回测参数</h2>
+      <form class="form-grid" method="get" action="/backtest">
+        <div class="form-field">
+          <label for="ema_fast">EMA 快线</label>
+          <input id="ema_fast" name="ema_fast" type="number" min="2" max="500" value="{_escape(config.ema_fast_period)}">
+        </div>
+        <div class="form-field">
+          <label for="ema_slow">EMA 慢线</label>
+          <input id="ema_slow" name="ema_slow" type="number" min="3" max="1000" value="{_escape(config.ema_slow_period)}">
+        </div>
+        <div class="form-field">
+          <label for="limit">历史K线根数</label>
+          <input id="limit" name="limit" type="number" min="50" max="1500" value="{_escape(config.limit)}">
+        </div>
+        <button class="primary-button" type="submit" name="run" value="1">开始回测</button>
+      </form>
+    </section>
+    {_render_backtest_error(error)}
+    <section class="grid" style="margin-top: 16px;">
+      <div class="panel"><div class="label">初始权益 USDT</div><div class="value">{_format_decimal(getattr(result, "initial_equity", config.initial_equity), 2)}</div></div>
+      <div class="panel"><div class="label">账户权益 USDT</div><div class="value">{_format_decimal(getattr(result, "final_equity", config.initial_equity), 2)}</div></div>
+      <div class="panel"><div class="label">总交易次数</div><div class="value">{_escape(getattr(result, "total_trades", 0))}</div></div>
+      <div class="panel"><div class="label">胜 / 负</div><div class="value">{_escape(getattr(result, "wins", 0))} / {_escape(getattr(result, "losses", 0))}</div></div>
+    </section>
+    <section style="margin-top: 16px;">
+      <h2>全部回测交易记录</h2>
+      {_render_backtest_trades(trades)}
+    </section>
+  </main>
+</body>
+</html>"""
+
+
 def _render_position(position: dict[str, Any] | None) -> str:
     if position is None:
         return '<div class="empty">当前无持仓</div>'
@@ -205,6 +305,32 @@ def _render_fills(fills: list[dict[str, Any]]) -> str:
   <tbody>{rows}</tbody>
 </table>
 </div>"""
+
+
+def _render_backtest_trades(trades: list[dict[str, Any]]) -> str:
+    if not trades:
+        return '<div class="empty">暂无回测成交</div>'
+    rows = "\n".join(_render_fill_row(trade) for trade in trades)
+    return f"""<div class="table-wrap trade-scroll">
+<table>
+  <thead>
+    <tr>
+      <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间 UTC+8</th><th>平仓时间 UTC+8</th>
+      <th>开仓价</th><th>平仓价</th><th>数量</th><th>净盈亏</th><th>退出原因</th>
+    </tr>
+  </thead>
+  <tbody>{rows}</tbody>
+</table>
+</div>"""
+
+
+def _render_backtest_error(error: Any) -> str:
+    if not error:
+        return ""
+    return f"""<section class="panel" style="margin-top: 16px;">
+  <h2>错误日志</h2>
+  <div class="error-log-line">{_escape(error)}</div>
+</section>"""
 
 
 def _render_error_logs(lines: list[str]) -> str:

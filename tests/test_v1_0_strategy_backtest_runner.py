@@ -39,12 +39,12 @@ def test_strategy_backtest_fetches_history_and_runs_current_realtime_strategy(mo
         if interval == "4h":
             return [
                 _kline(symbol, interval, index, close)
-                for index, close in enumerate(["100", "104", "108", "112", "116", "120"])
+                for index, close in zip(range(-6, 0), ["100", "104", "108", "112", "116", "120"])
             ]
         if interval == "1h":
             return [
                 _kline(symbol, interval, index, close)
-                for index, close in enumerate(["108", "112", "116", "120", "124", "128"])
+                for index, close in zip(range(-6, 0), ["108", "112", "116", "120", "124", "128"])
             ]
         if interval == "15m":
             return [
