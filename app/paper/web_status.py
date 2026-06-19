@@ -1,5 +1,6 @@
 import html
 import json
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import time
@@ -79,6 +80,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
     .rule-list {{ display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; color: #344055; font-size: 13px; }}
     .condition-summary {{ display: grid; gap: 6px; margin-bottom: 12px; }}
+    .condition-cards {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }}
     .condition-title {{ color: #172033; font-size: 17px; font-weight: 700; }}
     .condition-missing {{ color: #65748b; font-size: 13px; }}
     .condition-list {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }}
@@ -101,12 +103,16 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .candle-down {{ color: #b42318; }}
     .profit {{ color: #0a7c52; }}
     .loss {{ color: #b42318; }}
+    .trade-scroll {{ max-height: 252px; overflow-y: auto; border: 1px solid #d9e0ec; border-radius: 6px; }}
+    .trade-scroll table {{ border: 0; border-radius: 0; }}
+    .compact-position th, .compact-position td {{ white-space: normal; }}
     @media (max-width: 820px) {{
       main {{ padding: 14px; }}
       header {{ align-items: flex-start; flex-direction: column; }}
       .header-meta {{ justify-content: flex-start; }}
       .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .condition-list {{ grid-template-columns: 1fr; }}
+      .condition-cards {{ grid-template-columns: 1fr; }}
       .table-wrap {{ overflow-x: auto; }}
     }}
   </style>
@@ -121,7 +127,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       </div>
     </header>
     <section class="grid">
-      <div class="panel"><div class="label">账户权益 USDT</div><div class="value">{_escape(payload.get("equity") or "-")}</div></div>
+      <div class="panel"><div class="label">账户权益 USDT</div><div class="value">{_format_decimal(payload.get("equity"), 2)}</div></div>
       <div class="panel"><div class="label">持仓情况</div><div class="value">{_position_title(position)}</div></div>
       <div class="panel"><div class="label">模拟成交次数</div><div class="value">{len(fills)}</div></div>
       <div class="panel"><div class="label" id="rejected-signals">拒绝信号</div><div class="value">{_escape(payload.get("rejected_signals"))}</div></div>
@@ -169,28 +175,31 @@ def _render_position(position: dict[str, Any] | None) -> str:
     if position is None:
         return '<div class="empty">当前无持仓</div>'
     rows = [
-        ("交易对", position.get("symbol")),
+        ("交易对", _escape(position.get("symbol"))),
         ("方向", _side_label(position.get("side"))),
-        ("使用策略", position.get("strategy_type")),
-        ("入场价", position.get("entry_price")),
-        ("止损价", position.get("stop_loss")),
-        ("止盈价", position.get("take_profit")),
-        ("持仓数量", position.get("quantity")),
+        ("使用策略", _escape(position.get("strategy_type"))),
+        ("入场 / 止损 / 止盈", " / ".join([
+            _format_decimal(position.get("entry_price"), 2),
+            _format_decimal(position.get("stop_loss"), 2),
+            _format_decimal(position.get("take_profit"), 2),
+        ])),
+        ("数量", _format_decimal(position.get("quantity"), 4)),
     ]
-    cells = "".join(f"<tr><th>{_escape(label)}</th><td>{_escape(value)}</td></tr>" for label, value in rows)
-    return f'<div class="table-wrap"><table>{cells}</table></div>'
+    headers = "".join(f"<th>{_escape(label)}</th>" for label, _value in rows)
+    values = "".join(f"<td>{value}</td>" for _label, value in rows)
+    return f'<div class="table-wrap"><table class="compact-position"><thead><tr>{headers}</tr></thead><tbody><tr>{values}</tr></tbody></table></div>'
 
 
 def _render_fills(fills: list[dict[str, Any]]) -> str:
     if not fills:
         return '<div class="empty">暂无模拟成交</div>'
     rows = "\n".join(_render_fill_row(fill) for fill in fills)
-    return f"""<div class="table-wrap">
+    return f"""<div class="table-wrap trade-scroll">
 <table>
   <thead>
     <tr>
-      <th>交易对</th><th>方向</th><th>使用策略</th><th>买入价</th><th>卖出价</th>
-      <th>数量</th><th>毛盈亏</th><th>手续费</th><th>净盈亏</th><th>退出原因</th>
+      <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间</th><th>平仓时间</th>
+      <th>开仓价</th><th>平仓价</th><th>数量</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -255,7 +264,7 @@ def _render_strategy_conditions(evaluations: list[dict[str, Any]]) -> str:
     rendered = [card for card in rendered if card]
     if not rendered:
         return '<div class="empty">暂无策略触发条件</div>'
-    return "".join(rendered)
+    return f'<div class="condition-cards">{"".join(rendered)}</div>'
 
 
 def _render_strategy_condition_card(evaluation: dict[str, Any]) -> str:
@@ -568,18 +577,17 @@ def _fmt(value: Decimal) -> str:
 def _render_fill_row(fill: dict[str, Any]) -> str:
     pnl = str(fill.get("net_pnl", "0"))
     pnl_class = "loss" if pnl.startswith("-") else "profit"
-    buy_price, sell_price = _buy_sell_prices(fill)
     return f"""<tr>
   <td>{_escape(fill.get("symbol"))}</td>
   <td>{_side_label(fill.get("side"))}</td>
   <td>{_escape(fill.get("strategy_type"))}</td>
-  <td>{_escape(buy_price)}</td>
-  <td>{_escape(sell_price)}</td>
-  <td>{_escape(fill.get("quantity"))}</td>
-  <td>{_escape(fill.get("gross_pnl"))}</td>
-  <td>{_escape(fill.get("fees"))}</td>
-  <td class="{pnl_class}">{_escape(fill.get("net_pnl"))}</td>
-  <td>{_exit_reason_label(fill.get("exit_reason"))}</td>
+  <td>{_format_time_ms(fill.get("entry_time"))}</td>
+  <td>{_format_time_ms(fill.get("exit_time"))}</td>
+  <td>{_format_decimal(fill.get("entry_price"), 2)}</td>
+  <td>{_format_decimal(fill.get("exit_price"), 2)}</td>
+  <td>{_format_decimal(fill.get("quantity"), 4)}</td>
+  <td class="{pnl_class}">{_format_decimal(fill.get("net_pnl"), 2)}</td>
+  <td>{_exit_reason_label(fill.get("exit_reason"), fill.get("exit_detail"))}</td>
 </tr>"""
 
 
@@ -587,12 +595,6 @@ def _position_title(position: dict[str, Any] | None) -> str:
     if position is None:
         return "无"
     return f"{_escape(position.get('symbol'))} {_side_label(position.get('side'))}"
-
-
-def _buy_sell_prices(fill: dict[str, Any]) -> tuple[Any, Any]:
-    if fill.get("side") == "SHORT":
-        return fill.get("exit_price"), fill.get("entry_price")
-    return fill.get("entry_price"), fill.get("exit_price")
 
 
 def _side_label(side: Any) -> str:
@@ -603,14 +605,43 @@ def _side_label(side: Any) -> str:
     return _escape(side)
 
 
-def _exit_reason_label(reason: Any) -> str:
+def _exit_reason_label(reason: Any, detail: Any = None) -> str:
+    detail_text = _format_exit_detail(detail)
     if reason == "TAKE_PROFIT":
-        return "止盈"
+        return detail_text or "止盈"
     if reason == "STOP_LOSS":
-        return "止损"
+        return detail_text or "止损"
     if reason == "LIQUIDATION":
         return "强平"
     return _escape(reason)
+
+
+def _format_exit_detail(detail: Any) -> str:
+    if not detail:
+        return ""
+    return _format_numbers_in_text(str(detail))
+
+
+def _format_numbers_in_text(value: str) -> str:
+    parts = value.split(" ")
+    return " ".join(_format_decimal(part, 2) if _to_decimal(part) is not None else _escape(part) for part in parts)
+
+
+def _format_decimal(value: Any, places: int = 2) -> str:
+    decimal_value = _to_decimal(value)
+    if decimal_value is None:
+        return _escape(value if value is not None else "-")
+    quant = Decimal("1").scaleb(-places)
+    return format(decimal_value.quantize(quant), "f")
+
+
+def _format_time_ms(value: Any) -> str:
+    try:
+        milliseconds = int(value)
+    except (TypeError, ValueError):
+        return "-"
+    formatted = datetime.fromtimestamp(milliseconds / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+    return f'<span title="{milliseconds:,}">{formatted}</span>'
 
 
 def _action_label(action: Any) -> str:

@@ -97,6 +97,7 @@ def _fill_to_payload(fill: PaperFill) -> dict[str, Any]:
         "fees": str(fill.fees),
         "net_pnl": str(fill.net_pnl),
         "exit_reason": fill.exit_reason,
+        "exit_detail": fill.exit_detail,
     }
 
 
@@ -114,6 +115,7 @@ def _fill_from_payload(payload: dict[str, Any]) -> PaperFill:
         fees=Decimal(payload["fees"]),
         net_pnl=Decimal(payload["net_pnl"]),
         exit_reason=payload["exit_reason"],
+        exit_detail=payload.get("exit_detail", ""),
     )
 
 

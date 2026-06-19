@@ -42,6 +42,7 @@ class PaperFill:
     fees: Decimal
     net_pnl: Decimal
     exit_reason: str
+    exit_detail: str = ""
 
 
 @dataclass(frozen=True)
@@ -156,14 +157,38 @@ class PaperTradingEngine:
     def _maybe_close_position(self, position: PaperPosition, kline: Kline) -> PaperFill | None:
         if position.side == "LONG":
             if kline.low <= position.stop_loss:
-                return self._close_position(position, kline, position.stop_loss, "STOP_LOSS")
+                return self._close_position(
+                    position,
+                    kline,
+                    position.stop_loss,
+                    "STOP_LOSS",
+                    f"做多止损：最低价触达止损价 {position.stop_loss}",
+                )
             if kline.high >= position.take_profit:
-                return self._close_position(position, kline, position.take_profit, "TAKE_PROFIT")
+                return self._close_position(
+                    position,
+                    kline,
+                    position.take_profit,
+                    "TAKE_PROFIT",
+                    f"做多止盈：最高价触达止盈价 {position.take_profit}",
+                )
             return None
         if kline.high >= position.stop_loss:
-            return self._close_position(position, kline, position.stop_loss, "STOP_LOSS")
+            return self._close_position(
+                position,
+                kline,
+                position.stop_loss,
+                "STOP_LOSS",
+                f"做空止损：最高价触达止损价 {position.stop_loss}",
+            )
         if kline.low <= position.take_profit:
-            return self._close_position(position, kline, position.take_profit, "TAKE_PROFIT")
+            return self._close_position(
+                position,
+                kline,
+                position.take_profit,
+                "TAKE_PROFIT",
+                f"做空止盈：最低价触达止盈价 {position.take_profit}",
+            )
         return None
 
     def _close_position(
@@ -172,6 +197,7 @@ class PaperTradingEngine:
         kline: Kline,
         raw_exit_price: Decimal,
         exit_reason: str,
+        exit_detail: str,
     ) -> PaperFill:
         exit_price = _apply_exit_slippage(raw_exit_price, position.side, self._config.slippage_pct)
         if position.side == "LONG":
@@ -194,6 +220,7 @@ class PaperTradingEngine:
             fees=fees,
             net_pnl=net_pnl,
             exit_reason=exit_reason,
+            exit_detail=exit_detail,
         )
 
 

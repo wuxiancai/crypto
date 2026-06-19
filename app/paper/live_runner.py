@@ -8,6 +8,7 @@ from app.data.binance import BinanceDataError, fetch_klines
 from app.data.quality import Kline
 from app.paper.binance_stream import iter_binance_multi_interval_websocket_klines
 from app.paper.multitimeframe import MultiTimeframeKlineCache
+from app.paper.persistence import load_paper_snapshot
 from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
 from app.paper.stream import SignalFn, run_persistent_paper_kline_stream
 from app.paper.trading import PaperConfig, PaperSnapshot
@@ -44,6 +45,13 @@ async def run_real_market_paper(
     historical_klines = warmup_klines
     if historical_klines is None and source is None and config.historical_warmup_enabled:
         historical_klines = await fetch_realtime_warmup_klines(config)
+    catchup_klines = (
+        _missing_klines_since_last_update(config.state_path, historical_klines or [])
+        if source is None
+        else []
+    )
+    if catchup_klines:
+        kline_source = _chain_klines(catchup_klines, kline_source)
     return await run_persistent_paper_kline_stream(
         config=PaperConfig(
             initial_equity=config.initial_equity,
@@ -106,6 +114,27 @@ def build_default_realtime_signal_fn(
         return build_realtime_strategy_signal(frame, config=config)
 
     return signal_fn
+
+
+async def _chain_klines(
+    first: list[Kline],
+    second: AsyncIterable[Kline],
+) -> AsyncIterable[Kline]:
+    for kline in first:
+        yield kline
+    async for kline in second:
+        yield kline
+
+
+def _missing_klines_since_last_update(state_path: Path, historical_klines: list[Kline]) -> list[Kline]:
+    snapshot = load_paper_snapshot(state_path)
+    if snapshot is None or snapshot.last_update_at_ms is None:
+        return []
+    return [
+        kline
+        for kline in sorted(historical_klines, key=lambda item: item.close_time)
+        if kline.close_time > snapshot.last_update_at_ms
+    ]
 
 
 def _required_history_limit(config: RealtimeStrategyConfig) -> int:

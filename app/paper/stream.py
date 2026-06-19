@@ -12,6 +12,7 @@ from app.paper.trading import (
     PaperTradingEngine,
     SignalLike,
 )
+from app.strategy.signal_router import StrategySignal
 
 
 SignalFn = Callable[[Kline, bool], SignalLike]
@@ -23,7 +24,9 @@ async def run_paper_kline_stream(
     signal_fn: SignalFn,
 ) -> PaperSnapshot:
     async for kline in source:
-        engine.on_kline(kline)
+        closed_fill = engine.on_kline(kline)
+        if closed_fill is not None:
+            continue
         snapshot = engine.snapshot()
         signal = signal_fn(kline, snapshot.open_position is not None)
         engine.on_signal(kline=kline, signal=signal)
@@ -50,10 +53,17 @@ async def run_persistent_paper_kline_stream(
     signal_evaluations = list(restored_snapshot.signal_evaluations or []) if restored_snapshot is not None else []
     latest_snapshot = engine.snapshot()
     async for kline in source:
-        engine.on_kline(kline)
+        closed_fill = engine.on_kline(kline)
         snapshot = engine.snapshot()
-        signal = signal_fn(kline, snapshot.open_position is not None)
-        engine.on_signal(kline=kline, signal=signal)
+        if closed_fill is None:
+            signal = signal_fn(kline, snapshot.open_position is not None)
+            engine.on_signal(kline=kline, signal=signal)
+        else:
+            signal = StrategySignal(
+                action="WAIT",
+                strategy_type="SYSTEM",
+                reason=["position closed on current kline"],
+            )
         signal_evaluations = _append_signal_evaluation(
             signal_evaluations,
             _signal_evaluation_from(kline=kline, signal=signal, evaluated_at_ms=_now_ms()),
