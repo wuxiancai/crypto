@@ -86,6 +86,8 @@ def test_strategy_backtest_fetches_history_and_runs_current_realtime_strategy(mo
                 limit=6,
                 history_start_time_ms=-6 * 4 * 60 * 60 * 1000,
                 history_end_time_ms=6 * 15 * 60 * 1000 - 1,
+                maker_fee_rate=Decimal("0"),
+                taker_fee_rate=Decimal("0"),
             )
         )
     )
@@ -99,6 +101,18 @@ def test_strategy_backtest_fetches_history_and_runs_current_realtime_strategy(mo
     assert result.total_trades == 1
     assert result.final_equity == "1010.00"
     assert result.trades[0]["strategy_type"] == "TREND_PULLBACK"
+
+
+def test_strategy_backtest_defaults_to_perpetual_contract_costs():
+    from app.paper.strategy_backtest import StrategyBacktestConfig
+
+    config = StrategyBacktestConfig()
+
+    assert config.maker_fee_rate == Decimal("0.0002")
+    assert config.taker_fee_rate == Decimal("0.0005")
+    assert config.leverage == Decimal("10")
+    assert config.funding_rate == Decimal("0")
+    assert config.funding_interval_ms == 8 * 60 * 60 * 1000
 
 
 def test_strategy_backtest_returns_error_when_historical_fetch_fails(monkeypatch):

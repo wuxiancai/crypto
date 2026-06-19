@@ -57,9 +57,6 @@ def test_real_market_paper_runner_wires_source_to_persistent_stream(tmp_path):
                 state_path=state_path,
                 initial_equity=Decimal("10000"),
                 risk_per_trade_pct=Decimal("0.005"),
-                maker_fee_rate=Decimal("0.0002"),
-                taker_fee_rate=Decimal("0.0004"),
-                slippage_pct=Decimal("0.0005"),
             ),
             source=source(),
         )
@@ -71,6 +68,24 @@ def test_real_market_paper_runner_wires_source_to_persistent_stream(tmp_path):
     assert snapshot.open_position is None
     assert snapshot.rejected_signals == 0
     assert persisted == snapshot
+
+
+def test_real_market_paper_config_defaults_to_perpetual_costs_and_10x_leverage(tmp_path):
+    from app.paper.live_runner import RealMarketPaperConfig
+
+    config = RealMarketPaperConfig(
+        symbols=("BTCUSDT",),
+        intervals=("15m", "1h", "4h"),
+        websocket_base_url="wss://fstream.binance.com",
+        state_path=tmp_path / "paper-state.json",
+        initial_equity=Decimal("1000"),
+        risk_per_trade_pct=Decimal("0.005"),
+    )
+
+    assert config.maker_fee_rate == Decimal("0.0002")
+    assert config.taker_fee_rate == Decimal("0.0005")
+    assert config.leverage == Decimal("10")
+    assert config.funding_interval_ms == 8 * 60 * 60 * 1000
 
 
 def test_real_market_paper_runner_uses_injected_strategy_signal(tmp_path):

@@ -8,9 +8,12 @@ from app.data.quality import Kline
 class PaperConfig:
     initial_equity: Decimal
     risk_per_trade_pct: Decimal
-    maker_fee_rate: Decimal
-    taker_fee_rate: Decimal
     slippage_pct: Decimal
+    maker_fee_rate: Decimal = Decimal("0.0002")
+    taker_fee_rate: Decimal = Decimal("0.0005")
+    leverage: Decimal = Decimal("10")
+    funding_rate: Decimal = Decimal("0")
+    funding_interval_ms: int = 8 * 60 * 60 * 1000
     default_stop_distance_pct: Decimal = Decimal("0.02")
     default_take_profit_risk_reward: Decimal = Decimal("2")
 
@@ -42,6 +45,7 @@ class PaperFill:
     fees: Decimal
     net_pnl: Decimal
     exit_reason: str
+    funding_fee: Decimal = Decimal("0")
     exit_detail: str = ""
 
 
@@ -140,7 +144,9 @@ class PaperTradingEngine:
         if stop_distance <= 0:
             raise ValueError("stop distance must be positive")
         risk_pct = getattr(signal, "risk_pct", None) or self._config.risk_per_trade_pct
-        quantity = self._equity * risk_pct / stop_distance
+        risk_quantity = self._equity * risk_pct / stop_distance
+        max_notional_quantity = self._equity * self._config.leverage / entry_price
+        quantity = min(risk_quantity, max_notional_quantity)
         entry_fee = entry_price * quantity * self._config.taker_fee_rate
         return PaperPosition(
             symbol=kline.symbol,
@@ -206,7 +212,8 @@ class PaperTradingEngine:
             gross_pnl = (position.entry_price - exit_price) * position.quantity
         exit_fee_rate = self._config.maker_fee_rate if exit_reason == "TAKE_PROFIT" else self._config.taker_fee_rate
         fees = position.entry_fee + exit_price * position.quantity * exit_fee_rate
-        net_pnl = gross_pnl - fees
+        funding_fee = _funding_fee(position, kline.close_time, self._config)
+        net_pnl = gross_pnl - fees - funding_fee
         return PaperFill(
             symbol=position.symbol,
             side=position.side,
@@ -218,6 +225,7 @@ class PaperTradingEngine:
             quantity=position.quantity,
             gross_pnl=gross_pnl,
             fees=fees,
+            funding_fee=funding_fee,
             net_pnl=net_pnl,
             exit_reason=exit_reason,
             exit_detail=exit_detail,
@@ -255,3 +263,19 @@ def _default_take_profit(entry_price: Decimal, stop_loss: Decimal, side: str, co
     if side == "LONG":
         return entry_price + risk * config.default_take_profit_risk_reward
     return entry_price - risk * config.default_take_profit_risk_reward
+
+
+def _funding_fee(position: PaperPosition, exit_time: int, config: PaperConfig) -> Decimal:
+    if config.funding_rate == 0 or config.funding_interval_ms <= 0:
+        return Decimal("0")
+    settlements = _funding_settlement_count(position.entry_time, exit_time, config.funding_interval_ms)
+    if settlements <= 0:
+        return Decimal("0")
+    signed_fee = position.entry_price * position.quantity * config.funding_rate * Decimal(settlements)
+    return signed_fee if position.side == "LONG" else -signed_fee
+
+
+def _funding_settlement_count(entry_time: int, exit_time: int, interval_ms: int) -> int:
+    first = entry_time // interval_ms + 1
+    last = exit_time // interval_ms
+    return max(0, last - first + 1)

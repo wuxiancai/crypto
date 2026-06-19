@@ -23,9 +23,12 @@ class RealMarketPaperConfig:
     state_path: Path
     initial_equity: Decimal
     risk_per_trade_pct: Decimal
-    maker_fee_rate: Decimal
-    taker_fee_rate: Decimal
-    slippage_pct: Decimal
+    maker_fee_rate: Decimal = Decimal("0.0002")
+    taker_fee_rate: Decimal = Decimal("0.0005")
+    slippage_pct: Decimal = Decimal("0.0005")
+    leverage: Decimal = Decimal("10")
+    funding_rate: Decimal = Decimal("0")
+    funding_interval_ms: int = 8 * 60 * 60 * 1000
     strategy_config: RealtimeStrategyConfig = field(default_factory=RealtimeStrategyConfig)
     historical_warmup_enabled: bool = True
     historical_warmup_limit: int = 250
@@ -59,6 +62,9 @@ async def run_real_market_paper(
             maker_fee_rate=config.maker_fee_rate,
             taker_fee_rate=config.taker_fee_rate,
             slippage_pct=config.slippage_pct,
+            leverage=config.leverage,
+            funding_rate=config.funding_rate,
+            funding_interval_ms=config.funding_interval_ms,
         ),
         source=kline_source,
         signal_fn=signal_fn

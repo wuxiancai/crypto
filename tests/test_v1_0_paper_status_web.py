@@ -81,6 +81,8 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "平仓时间 UTC+8" in html
     assert "开仓价" in html
     assert "平仓价" in html
+    assert "手续费" in html
+    assert "资金费" in html
     assert "使用策略" in html
     assert "ETHUSDT" in html
     assert "做空" in html
@@ -109,6 +111,7 @@ def test_status_page_formats_numbers_times_and_compact_trade_list(tmp_path):
                 "quantity": "0.04380682621021708124083866467",
                 "gross_pnl": "-4.936880370682350317766298657",
                 "fees": "1.653851521264327346788839261",
+                "funding_fee": "0.200000",
                 "net_pnl": "-6.590731891946677664555137918",
                 "exit_reason": "STOP_LOSS",
                 "exit_detail": "做空止损：最高价触达止损价 62959.704400",
@@ -144,6 +147,8 @@ def test_status_page_formats_numbers_times_and_compact_trade_list(tmp_path):
     assert "62847.01" in html
     assert "62959.70" in html
     assert "-6.59" in html
+    assert "1.65" in html
+    assert "0.20" in html
     assert "做空止损：最高价触达止损价 62959.70" in html
     assert "1970-01-01 08:30" in html
     assert "1970-01-01 08:45" in html

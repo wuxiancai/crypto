@@ -30,7 +30,7 @@ def test_builds_order_plan_with_default_execution_constraints():
 
     assert plan.position_mode == "ONE_WAY"
     assert plan.margin_type == "ISOLATED"
-    assert plan.leverage == Decimal("3")
+    assert plan.leverage == Decimal("10")
     assert plan.reduce_only is False
     assert plan.client_order_id == "REVERSAL_PROBE-sig-001-LONG"
     assert plan.take_profit_levels[0].price == Decimal("105")
@@ -55,8 +55,8 @@ def test_rejects_order_plan_when_requested_leverage_exceeds_max():
             config_snapshot_id="cfg-001",
             estimated_liquidation_price=Decimal("70"),
             liquidation_buffer_pct=Decimal("0.01"),
-            leverage=Decimal("8"),
-            max_leverage=Decimal("5"),
+            leverage=Decimal("12"),
+            max_leverage=Decimal("10"),
         )
     except ValueError as exc:
         assert str(exc) == "leverage exceeds max_leverage"

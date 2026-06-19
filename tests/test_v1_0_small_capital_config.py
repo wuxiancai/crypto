@@ -10,7 +10,7 @@ def test_small_capital_config_accepts_conservative_live_profile():
             account_equity_cap=Decimal("1000"),
             risk_per_trade_pct=Decimal("0.005"),
             max_daily_loss_pct=Decimal("0.015"),
-            max_leverage=3,
+            max_leverage=10,
             allowed_symbols=("BTCUSDT", "ETHUSDT"),
             position_mode="ONE_WAY",
             margin_type="ISOLATED",
@@ -41,7 +41,7 @@ def test_small_capital_config_rejects_aggressive_risk_and_leverage():
             account_equity_cap=Decimal("5000"),
             risk_per_trade_pct=Decimal("0.02"),
             max_daily_loss_pct=Decimal("0.05"),
-            max_leverage=6,
+            max_leverage=12,
         )
     )
 

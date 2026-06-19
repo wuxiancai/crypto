@@ -26,9 +26,12 @@ class StrategyBacktestConfig:
     history_end_time_ms: int | None = None
     initial_equity: Decimal = Decimal("1000")
     risk_per_trade_pct: Decimal = Decimal("0.005")
-    maker_fee_rate: Decimal = Decimal("0")
-    taker_fee_rate: Decimal = Decimal("0")
+    maker_fee_rate: Decimal = Decimal("0.0002")
+    taker_fee_rate: Decimal = Decimal("0.0005")
     slippage_pct: Decimal = Decimal("0")
+    leverage: Decimal = Decimal("10")
+    funding_rate: Decimal = Decimal("0")
+    funding_interval_ms: int = 8 * 60 * 60 * 1000
 
 
 @dataclass(frozen=True)
@@ -65,6 +68,9 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
             maker_fee_rate=backtest_config.maker_fee_rate,
             taker_fee_rate=backtest_config.taker_fee_rate,
             slippage_pct=backtest_config.slippage_pct,
+            leverage=backtest_config.leverage,
+            funding_rate=backtest_config.funding_rate,
+            funding_interval_ms=backtest_config.funding_interval_ms,
         )
     )
     signal_fn = build_default_realtime_signal_fn(strategy_config, warmup_klines=())

@@ -83,9 +83,9 @@
 
 - 当前已实现最小事件驱动回测内核：按 K 线 open_time 顺序推进、单仓位、按风险预算开仓、止盈/止损退出、输出 trade 与 final_equity。
 - 当前已支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE` 信号；趋势转换信号会使用自身 `risk_pct` 风险上限。
-- 当前已实现 maker/taker 手续费：入场按 taker，止损按 taker，止盈按 maker。
+- 当前已实现永续合约默认成本：maker 挂单手续费 0.02%，taker 吃单手续费 0.05%；入场按 taker，止损按 taker，止盈按 maker。
 - 当前已输出整体指标与按 `strategy_type` 拆分的交易次数、胜负、gross_pnl、fees、net_pnl。
-- 当前已实现资金费率模拟，资金费进入 trade 与整体指标。
+- 当前已实现 8 小时资金费率模拟，资金费进入 trade 与整体指标；当前资金费率为可配置参数，默认 0，尚未自动接入 Binance 实时 funding rate。
 - 当前已实现交易所 `quantity_step`、`min_qty`、`min_notional` 过滤；价格精度仍待进一步细化为不同订单类型的 tick 方向。
 - 当前已实现止损专用滑点与跳空越过止损时的极端成交价。
 - 当前已实现限价未触达不成交、限价部分成交比例和 partial_fills 统计。
@@ -108,6 +108,7 @@
 说明：
 
 - 当前已实现 Paper Trading 最小内核：接收策略信号、单仓位撮合、止盈/止损退出、权益更新、fills 记录和 rejected_signals 计数。
+- 当前 Paper Trading 默认按永续合约模拟：初始资金 1000 USDT、默认 10X 杠杆、maker 0.02%、taker 0.05%、资金费每 8 小时结算一次；资金费率当前默认 0，可通过启动参数配置。
 - Paper 当前支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE`，趋势转换信号同样使用自身 `risk_pct`。
 - 当前已实现稳定的 Paper CLI 状态格式化输出。
 - 当前已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。
@@ -135,7 +136,7 @@
 - 当前已实现止损候选选择：LONG 只接受低于入场价的止损，SHORT 只接受高于入场价的止损，并在最大止损距离内选择距离入场价最近的候选。
 - 当前已实现趋势转换分批止盈计划：TP1 = 1R 平 30%，TP2 = 前高/前低平 30%，TP3 = 4h EMA200 或方向校验后的 3R/结构位平 40%，TP1 后移动止损到保本。
 - 当前已实现 OrderPlan 合约：包含 symbol、side、strategy_type、order_type、entry_price、quantity、stop_loss、take_profit_levels、leverage、margin_type、position_mode、estimated_liquidation_price、liquidation_buffer_pct、reduce_only、client_order_id、strategy_version、config_snapshot_id。
-- 当前已实现 MVP 执行约束：默认 leverage = 3，最大 leverage = 5，且只允许 ONE_WAY + ISOLATED。
+- 当前已实现 MVP 执行约束：默认 leverage = 10，最大 leverage = 10，且只允许 ONE_WAY + ISOLATED。
 - 当前已实现 Stop Order Guard 判定层：校验真实持仓是否存在 symbol 匹配、退出方向正确、数量覆盖、reduceOnly、状态 NEW、触发价方向正确的有效止损单；缺失时输出补挂止损动作。
 - 当前已实现 Liquidation Guard 判定层：多单要求 liquidation_price < stop_loss < entry_price，空单要求 entry_price < stop_loss < liquidation_price，且止损价与强平价安全距离不低于 liquidation_buffer_pct。
 - 当前已实现 Kill Switch 状态转移：触发后禁止新开仓，可标记是否平仓，并记录操作者、原因、触发时间和解除操作者。
@@ -169,7 +170,7 @@
 
 - 当前已实现 Live 启动前自检纯校验层：任一失败项都会禁止启动 Live，并一次性返回所有 failed_checks。
 - 自检已覆盖：API 不允许提现、IP 白名单、USDⓈ-M Futures API 可用性、服务器时间偏差、database migration、缓存可用或降级、交易所规则同步、ONE_WAY、ISOLATED、leverage <= max_leverage、未知持仓、缺失止损持仓、Stop Order Guard、Liquidation Guard、数据延迟、Kill Switch、通知通道、小资金配置、`LIVE_TRADING_CONFIRM=I_UNDERSTAND_THE_RISK`。
-- 当前已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 3，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
+- 当前已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 10，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
 - 当前阶段没有 Binance API Key，不做真实或测试网下单；先用真实行情驱动 Paper Trading，验证策略、风控、状态机和连续运行稳定性。
 - 当前已实现 Paper Trading 连续运行健康检查：检测 WebSocket 连接、行情延迟、Paper 回撤、拒单数量和运行时错误；该模块用于后续“连续 2 周无重大错误”的自动化验收。
 - 当前已实现 Paper Trading 状态持久化/恢复入口：PaperSnapshot 可无损序列化为 JSON payload，并支持保存到本地状态文件和从状态文件恢复；Decimal 金额以字符串保存，避免浮点误差。

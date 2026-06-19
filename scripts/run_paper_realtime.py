@@ -23,8 +23,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--initial-equity", default="1000")
     parser.add_argument("--risk-per-trade-pct", default="0.005")
     parser.add_argument("--maker-fee-rate", default="0.0002")
-    parser.add_argument("--taker-fee-rate", default="0.0004")
+    parser.add_argument("--taker-fee-rate", default="0.0005")
     parser.add_argument("--slippage-pct", default="0.0005")
+    parser.add_argument("--leverage", default="10")
+    parser.add_argument("--funding-rate", default="0")
     return parser.parse_args()
 
 
@@ -42,6 +44,8 @@ def main() -> None:
                 maker_fee_rate=Decimal(args.maker_fee_rate),
                 taker_fee_rate=Decimal(args.taker_fee_rate),
                 slippage_pct=Decimal(args.slippage_pct),
+                leverage=Decimal(args.leverage),
+                funding_rate=Decimal(args.funding_rate),
             )
         )
     )

@@ -21,7 +21,7 @@ class SmallCapitalLiveConfig:
             "account_equity_cap": Decimal("1000"),
             "risk_per_trade_pct": Decimal("0.005"),
             "max_daily_loss_pct": Decimal("0.015"),
-            "max_leverage": 3,
+            "max_leverage": 10,
             "allowed_symbols": ("BTCUSDT", "ETHUSDT"),
             "position_mode": "ONE_WAY",
             "margin_type": "ISOLATED",
@@ -53,7 +53,7 @@ def validate_small_capital_config(
         errors.append("risk_per_trade_pct_too_large")
     if config.max_daily_loss_pct > Decimal("0.015"):
         errors.append("max_daily_loss_pct_too_large")
-    if config.max_leverage > 3:
+    if config.max_leverage > 10:
         errors.append("max_leverage_too_large")
     if any(symbol not in allowed_symbol_universe for symbol in config.allowed_symbols):
         errors.append("unsupported_symbols")

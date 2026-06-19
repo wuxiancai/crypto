@@ -57,10 +57,10 @@
 - 实现 V0.2 信号统一编排入口：数据同步阻断优先，其次退出信号，其次风控阻断，新开仓按主趋势优先、趋势转换次之。
 - 实现 V0.3 最小事件驱动回测引擎：按 K 线顺序推进、单仓位、风险预算开仓、止盈/止损退出、统一费率手续费与基础滑点。
 - V0.3 回测已支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE`，趋势转换信号使用自身 `risk_pct` 风险上限。
-- V0.3 回测已支持 maker/taker 手续费：入场 taker，止损 taker，止盈 maker。
+- V0.3 回测已支持永续合约默认成本：maker 挂单手续费 0.02%，taker 吃单手续费 0.05%；入场 taker，止损 taker，止盈 maker。
 - V0.3 回测已输出整体指标与按 `strategy_type` 拆分指标。
 - V0.3 回测已支持 `quantity_step`、`min_qty`、`min_notional` 交易所过滤，并记录 rejected_entries。
-- V0.3 回测已支持资金费率模拟，funding_fee 会进入 trade 与 metrics。
+- V0.3 回测已支持 8 小时资金费率模拟，funding_fee 会进入 trade 与 metrics；资金费率当前为可配置参数，默认 0，尚未自动接入 Binance 实时 funding rate。
 - V0.3 回测已支持止损专用滑点，且跳空越过止损时按更差的开盘价作为极端成交基准。
 - V0.3 回测已支持限价未触达不成交、限价部分成交比例和 partial_fills 统计。
 - V0.3 回测已支持价格 tick 方向细化：买入向上取 tick，卖出向下取 tick。
@@ -68,6 +68,7 @@
 - V0.3 已新增 `backtest_runs`、`backtest_trades` 表，并复用 `config_snapshots` 归档配置 hash。
 - V0.3 已新增 `archive_backtest_result()` repository 写入入口。
 - V0.4 已实现 Paper Trading 最小内核：信号入场、单仓位撮合、止盈/止损退出、权益更新、fills 记录、rejected_signals 计数。
+- V0.4 Paper Trading 默认按永续合约模拟：初始资金 1000 USDT、默认 10X 杠杆、maker 0.02%、taker 0.05%、资金费每 8 小时结算一次；资金费率当前默认 0，可通过启动参数配置。
 - V0.4 Paper 已支持主趋势和趋势转换信号，趋势转换同样使用自身 `risk_pct`。
 - V0.4 已实现 Paper CLI 状态格式化输出。
 - V0.4 已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。
@@ -79,7 +80,7 @@
 - V0.5 已实现止损候选选择：LONG 只接受低于入场价的止损，SHORT 只接受高于入场价的止损，并在最大止损距离内选择距离入场价最近的候选。
 - V0.5 已实现趋势转换分批止盈计划：TP1 = 1R 平 30%，TP2 = 前高/前低平 30%，TP3 = 4h EMA200 或方向校验后的 3R/结构位平 40%，TP1 后移动止损到保本。
 - V0.5 已实现 OrderPlan 合约：包含订单计划核心字段、分批止盈、强平估算、强平缓冲、client_order_id、策略版本和配置快照。
-- V0.5 已实现 MVP 执行约束：默认 leverage = 3，最大 leverage = 5，且只允许 ONE_WAY + ISOLATED。
+- V0.5 已实现 MVP 执行约束：默认 leverage = 10，最大 leverage = 10，且只允许 ONE_WAY + ISOLATED。
 - V0.5 已实现 Stop Order Guard 判定层：校验真实持仓是否存在 symbol 匹配、退出方向正确、数量覆盖、reduceOnly、状态 NEW、触发价方向正确的有效止损单；缺失时输出补挂止损动作。
 - V0.5 已实现 Liquidation Guard 判定层：多单要求 liquidation_price < stop_loss < entry_price，空单要求 entry_price < stop_loss < liquidation_price，且止损价与强平价安全距离不低于 liquidation_buffer_pct。
 - V0.5 已实现 Kill Switch 状态转移：触发后禁止新开仓，可标记是否平仓，并记录操作者、原因、触发时间和解除操作者。
@@ -89,7 +90,7 @@
 - V0.6 已实现 AI filter 日志 entry：记录输入 payload、输出 payload、fallback_reason、provider 和 evaluated_at，真实 LLM 仍未接入且默认关闭。
 - V1.0 已实现 Live 启动前自检纯校验层：任一失败项都会禁止启动 Live，并一次性返回所有 failed_checks。
 - Live 自检已覆盖：API 不允许提现、IP 白名单、USDⓈ-M Futures API 可用性、服务器时间偏差、database migration、缓存可用或降级、交易所规则同步、ONE_WAY、ISOLATED、leverage <= max_leverage、未知持仓、缺失止损持仓、Stop Order Guard、Liquidation Guard、数据延迟、Kill Switch、通知通道、小资金配置、`LIVE_TRADING_CONFIRM=I_UNDERSTAND_THE_RISK`。
-- V1.0 已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 3，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
+- V1.0 已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 10，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
 - 当前阶段不接入 Binance API 下单；先以真实行情驱动 Paper Trading，验证策略表现、风控和连续运行稳定性。测试网完整下单闭环等待 API Key 可用后再实现。
 - 已实现 Paper Trading 连续运行健康检查：检测 WebSocket 连接、行情延迟、Paper 回撤、拒单数量和运行时错误；该模块用于后续“连续 2 周无重大错误”的自动化验收。
 - 已实现 Paper Trading 状态持久化/恢复入口：PaperSnapshot 可无损序列化为 JSON payload，并支持保存到本地状态文件和从状态文件恢复；Decimal 金额以字符串保存，避免浮点误差。
@@ -205,7 +206,7 @@
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
 3. 下一步继续真实行情 Paper Trading：把实时 Paper 的每次信号、拒绝原因、成交、持仓快照持久化到数据库表，便于连续 2 周稳定性验证和复盘统计。
-4. 使用 `/backtest` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；当前回测用于策略参数快速筛选，手续费/滑点默认设为 0，后续如需真实成本评估可再加入手续费和滑点输入。
+4. 使用 `/backtest` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
 5. 下一步可继续增强 `/backtest`：输出最大回撤、胜率、盈亏比、按交易对统计和参数组合对比表。
 6. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 

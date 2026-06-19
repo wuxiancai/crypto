@@ -323,7 +323,7 @@ def _render_fills(fills: list[dict[str, Any]]) -> str:
   <thead>
     <tr>
       <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间 UTC+8</th><th>平仓时间 UTC+8</th>
-      <th>开仓价</th><th>平仓价</th><th>数量</th><th>净盈亏</th><th>退出原因</th>
+      <th>开仓价</th><th>平仓价</th><th>数量</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -340,7 +340,7 @@ def _render_backtest_trades(trades: list[dict[str, Any]]) -> str:
   <thead>
     <tr>
       <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间 UTC+8</th><th>平仓时间 UTC+8</th>
-      <th>开仓价</th><th>平仓价</th><th>数量</th><th>净盈亏</th><th>退出原因</th>
+      <th>开仓价</th><th>平仓价</th><th>数量</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -736,6 +736,8 @@ def _render_fill_row(fill: dict[str, Any]) -> str:
   <td>{_format_decimal(fill.get("entry_price"), 2)}</td>
   <td>{_format_decimal(fill.get("exit_price"), 2)}</td>
   <td>{_format_decimal(fill.get("quantity"), 4)}</td>
+  <td>{_format_decimal(fill.get("fees"), 2)}</td>
+  <td>{_format_decimal(fill.get("funding_fee"), 2)}</td>
   <td class="{pnl_class}">{_format_decimal(fill.get("net_pnl"), 2)}</td>
   <td>{_exit_reason_label(fill.get("exit_reason"), fill.get("exit_detail"))}</td>
 </tr>"""
