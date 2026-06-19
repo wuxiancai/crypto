@@ -469,10 +469,15 @@ def _nearest_strategy(conditions: list[dict[str, object]]) -> dict[str, object]:
         groups.setdefault(str(condition["strategy"]), []).append(condition)
     if not groups:
         return {}
-    name, items = max(
-        groups.items(),
-        key=lambda item: (sum(1 for condition in item[1] if condition["passed"]), -len(item[1])),
-    )
+    primary_name = _primary_structure_strategy(groups)
+    if primary_name is not None:
+        name = primary_name
+        items = groups[primary_name]
+    else:
+        name, items = max(
+            groups.items(),
+            key=lambda item: (sum(1 for condition in item[1] if condition["passed"]), -len(item[1])),
+        )
     action_by_name = {
         "主趋势做多": "LONG_ENTRY",
         "主趋势做空": "SHORT_ENTRY",
@@ -486,6 +491,18 @@ def _nearest_strategy(conditions: list[dict[str, object]]) -> dict[str, object]:
         "total": len(items),
         "action": action_by_name.get(name, "WAIT"),
     }
+
+
+def _primary_structure_strategy(groups: dict[str, list[dict[str, object]]]) -> str | None:
+    if _condition_passed(groups.get("主趋势做空", []), "4h 空头结构"):
+        return "主趋势做空"
+    if _condition_passed(groups.get("主趋势做多", []), "4h 多头结构"):
+        return "主趋势做多"
+    return None
+
+
+def _condition_passed(conditions: list[dict[str, object]], text: str) -> bool:
+    return any(condition.get("text") == text and bool(condition.get("passed")) for condition in conditions)
 
 
 def _trend_up(frame: TrendFrame, config: RealtimeStrategyConfig) -> bool:

@@ -243,3 +243,32 @@ def test_realtime_strategy_reports_bearish_structure_separately_from_momentum_co
     assert by_text["4h 空头动能确认"]["passed"] is False
     assert by_text["1h 空头结构"]["passed"] is True
     assert by_text["1h 空头动能确认"]["passed"] is True
+
+
+def test_nearest_strategy_prioritizes_primary_four_hour_structure_over_match_count():
+    from app.paper.strategy_adapter import _nearest_strategy
+
+    conditions = [
+        {"strategy": "主趋势做多", "text": "4h 多头结构", "passed": False, "detail": ""},
+        {"strategy": "主趋势做多", "text": "4h 多头动能确认", "passed": False, "detail": ""},
+        {"strategy": "主趋势做多", "text": "1h 多头结构", "passed": True, "detail": ""},
+        {"strategy": "主趋势做多", "text": "1h 多头动能确认", "passed": False, "detail": ""},
+        {"strategy": "主趋势做多", "text": "15m 回踩到 EMA50 区域", "passed": True, "detail": ""},
+        {"strategy": "主趋势做多", "text": "15m 看涨确认", "passed": True, "detail": ""},
+        {"strategy": "主趋势做多", "text": "止损有效", "passed": True, "detail": ""},
+        {"strategy": "主趋势做多", "text": "风险收益比达标", "passed": True, "detail": ""},
+        {"strategy": "主趋势做空", "text": "4h 空头结构", "passed": True, "detail": ""},
+        {"strategy": "主趋势做空", "text": "4h 空头动能确认", "passed": False, "detail": ""},
+        {"strategy": "主趋势做空", "text": "1h 空头结构", "passed": True, "detail": ""},
+        {"strategy": "主趋势做空", "text": "1h 空头动能确认", "passed": False, "detail": ""},
+        {"strategy": "主趋势做空", "text": "15m 反弹到 EMA50 区域", "passed": False, "detail": ""},
+        {"strategy": "主趋势做空", "text": "15m 看跌确认", "passed": False, "detail": ""},
+        {"strategy": "主趋势做空", "text": "止损有效", "passed": True, "detail": ""},
+        {"strategy": "主趋势做空", "text": "风险收益比达标", "passed": True, "detail": ""},
+    ]
+
+    nearest = _nearest_strategy(conditions)
+
+    assert nearest["name"] == "主趋势做空"
+    assert nearest["matched"] == 4
+    assert nearest["total"] == 8
