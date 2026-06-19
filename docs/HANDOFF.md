@@ -116,6 +116,9 @@
 - Web 状态页已新增精简版“策略触发条件”：状态文件仍持久化每次策略评估的完整条件明细，但页面只展示当前最接近触发的策略方向，例如主趋势做空时隐藏主趋势做多和不相关趋势转换组；页面顶部显示交易对，例如 `当前趋势：BTCUSDT 主趋势做空 · 已满足 4/8` 和 `还差：...`。主趋势诊断已拆分为“空头/多头结构”和“动能确认”；空头/多头结构只按 EMA50/EMA200 排列判断，价格是否已经低于/高于 EMA50 不再混入结构条件。
 - Web 状态页的“策略触发条件”已按交易对分组展示：BTCUSDT 和 ETHUSDT 会各自显示最新条件卡。此前页面只取全局最新一条策略评估，容易出现页面显示 ETHUSDT、用户拿 BTCUSDT Binance 图对照的误判。
 - 已修复主趋势回踩/反弹策略过于依赖 15m 收盘价导致长期错过交易的问题：此前“15m 反弹/回踩到 EMA50 区域”只用 `abs(close - EMA50) <= ATR` 判断，导致价格影线触达 EMA50 区域并收出确认 K 线时，因为 close 已经离开 EMA50 区域而不会触发。现在主趋势做空使用 `high >= EMA50 - ATR` 且 `close <= EMA50 + ATR` 判断反弹触达，并用 `close < open` 判断看跌确认；主趋势做多对称使用 `low <= EMA50 + ATR` 且 `close >= EMA50 - ATR` 判断回踩触达，并用 `close > open` 判断看涨确认。页面策略触发条件同步显示 high/low/open 计算明细。
+- 已修复 Paper stream 在同一根已收盘 K 线上“先退出、再立刻重新入场”的问题：如果当前 K 线已经触发止盈/止损平仓，则本根 K 线只记录退出和 WAIT 评估，不再生成新开仓信号，避免出现近似重复成交记录。
+- Web 状态页已压缩模拟交易展示：金额默认 2 位小数、数量 4 位小数；持仓表由多行压缩为表头 + 一行值；交易记录增加开仓时间、平仓时间、退出触发明细，默认显示约 5 条高度并用滚动条查看更多，最新成交在最上方；BTCUSDT / ETHUSDT 策略触发条件卡改为桌面端并列显示。
+- 已增加重启缺口补齐：真实行情 Paper runner 启动时仍拉取历史 K 线预热策略缓存；如果本地状态文件存在 `last_update_at_ms`，会把历史 K 线中晚于该时间的已收盘 K 线先回放给 Paper 引擎，再进入 WebSocket 实时流。这样服务器关机维护后，重启会优先补跑缺失期间的止盈/止损和策略状态。
 
 ## 验证结果
 
@@ -164,6 +167,10 @@
 - `.venv/bin/python -m pytest tests/test_v0_2_pullback_strategy.py tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_paper_status_web.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_real_market_paper_runner.py -q`：32 passed。
 - `.venv/bin/python -m py_compile app/strategy/pullback_strategy.py app/paper/strategy_adapter.py`：通过。
 - `.venv/bin/python -m pytest -q`：137 passed。
+- `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py::test_status_page_formats_numbers_times_and_compact_trade_list tests/test_v1_0_paper_status_web.py::test_paper_status_page_shows_strategy_conditions_for_each_symbol tests/test_v1_0_persistent_paper_stream.py::test_persistent_paper_stream_does_not_reenter_on_same_kline_after_exit tests/test_v1_0_paper_persistence.py::test_serializes_and_restores_paper_snapshot_with_open_position_and_fills tests/test_v1_0_real_market_paper_runner.py::test_real_market_paper_runner_replays_missing_historical_klines_after_restart -q`：先失败，确认旧实现没有紧凑展示、退出明细、同 K 线重入保护和重启缺口回放。
+- `.venv/bin/python -m pytest tests/test_v0_4_paper_trading.py tests/test_v0_4_realtime_stream.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_paper_status_web.py tests/test_v1_0_real_market_paper_runner.py -q`：29 passed。
+- `.venv/bin/python -m py_compile app/paper/trading.py app/paper/persistence.py app/paper/stream.py app/paper/live_runner.py app/paper/web_status.py`：通过。
+- `.venv/bin/python -m pytest -q`：139 passed。
 - 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
 - 真实行情源验证：`wss://fstream.binancefuture.com` 可收到 BTCUSDT / ETHUSDT Binance Futures K 线推送；`runtime/paper-state.json` 已在收到已收盘 K 线后创建。
 - 2026-06-17 已启动 Web 状态页：`.venv/bin/python scripts/run_paper_status_web.py --host 127.0.0.1 --port 8765 --state-path runtime/paper-state.json`，访问地址 `http://127.0.0.1:8765`。
