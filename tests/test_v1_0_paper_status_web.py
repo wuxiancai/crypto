@@ -297,6 +297,60 @@ def test_paper_status_page_shows_recent_strategy_outputs(tmp_path):
     assert "price not in ema50 pullback zone" not in html
 
 
+def test_paper_status_page_explains_missing_strategy_data_and_shows_price_ticker(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1144.17",
+                "open_position": {
+                    "symbol": "BTCUSDT",
+                    "side": "SHORT",
+                    "strategy_type": "TREND_PULLBACK",
+                    "entry_time": 1_000,
+                    "entry_price": "62594.79",
+                    "stop_loss": "62896.80",
+                    "take_profit": "62084.70",
+                    "quantity": "0.0189",
+                    "entry_fee": "0",
+                },
+                "fills": [
+                    {
+                        "symbol": "ETHUSDT",
+                        "side": "SHORT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "entry_time": 1,
+                        "exit_time": 2,
+                        "entry_price": "1705.20",
+                        "exit_price": "1688.40",
+                        "quantity": "0.1",
+                        "gross_pnl": "1.68",
+                        "fees": "0.1",
+                        "funding_fee": "0",
+                        "net_pnl": "1.58",
+                        "exit_reason": "TAKE_PROFIT",
+                    }
+                ],
+                "rejected_signals": 0,
+                "signal_evaluations": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "永续最新价" in html
+    assert "BTCUSDT" in html
+    assert "62594.79" in html
+    assert "ETHUSDT" in html
+    assert "1688.40" in html
+    assert "暂无策略触发条件：等待实时策略评估更新" in html
+    assert "暂无K线图数据：等待实时策略评估更新" in html
+
+
 def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 

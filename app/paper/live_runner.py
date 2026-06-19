@@ -86,7 +86,7 @@ async def fetch_realtime_warmup_klines(config: RealMarketPaperConfig) -> list[Kl
         for interval in dict.fromkeys((*config.strategy_config.trend_intervals, config.strategy_config.entry_interval)):
             try:
                 klines = await fetch_klines(symbol=symbol, interval=interval, limit=limit)
-            except BinanceDataError as exc:
+            except Exception as exc:
                 print(f"Historical warmup skipped for {symbol} {interval}: {exc}")
                 continue
             warmup.extend(kline for kline in klines if kline.close_time < now_ms)

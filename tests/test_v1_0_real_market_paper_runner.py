@@ -441,6 +441,31 @@ def test_realtime_warmup_fetches_250_closed_klines_by_default(monkeypatch, tmp_p
     assert set(requested_limits) == {250}
 
 
+def test_realtime_warmup_skips_network_timeouts_without_crashing(monkeypatch, tmp_path):
+    from app.paper import live_runner
+    from app.paper.live_runner import RealMarketPaperConfig, fetch_realtime_warmup_klines
+
+    async def fake_fetch_klines(symbol: str, interval: str, limit: int, settings=None):
+        raise TimeoutError("connect timed out")
+
+    monkeypatch.setattr(live_runner, "fetch_klines", fake_fetch_klines)
+
+    warmup = asyncio.run(
+        fetch_realtime_warmup_klines(
+            RealMarketPaperConfig(
+                symbols=("BTCUSDT",),
+                intervals=("15m", "1h", "4h"),
+                websocket_base_url="wss://fstream.binance.com",
+                state_path=tmp_path / "paper-state.json",
+                initial_equity=Decimal("10000"),
+                risk_per_trade_pct=Decimal("0.005"),
+            )
+        )
+    )
+
+    assert warmup == []
+
+
 def test_real_market_paper_runner_replays_missing_historical_klines_after_restart(monkeypatch, tmp_path):
     from app.data.quality import INTERVAL_MS, Kline
     from app.paper import live_runner

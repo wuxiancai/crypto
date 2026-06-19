@@ -25,21 +25,30 @@ def build_paper_status_payload(
             "last_update_at_ms": None,
             "error_logs": _read_error_logs(error_log_path),
             "signal_evaluations": [],
+            "market_prices": {},
         }
 
     payload = json.loads(state_path.read_text(encoding="utf-8"))
     started_at = payload.get("runtime_started_at_ms")
+    signal_evaluations = payload.get("signal_evaluations", [])
+    fills = payload.get("fills", [])
+    open_position = payload.get("open_position")
     return {
         "status": "RUNNING",
         "state_path": str(state_path),
         "equity": payload.get("equity"),
-        "open_position": payload.get("open_position"),
-        "fills": payload.get("fills", []),
+        "open_position": open_position,
+        "fills": fills,
         "rejected_signals": payload.get("rejected_signals", 0),
         "runtime_seconds": _runtime_seconds(started_at, now_ms),
         "last_update_at_ms": payload.get("last_update_at_ms"),
         "error_logs": _read_error_logs(error_log_path),
-        "signal_evaluations": payload.get("signal_evaluations", []),
+        "signal_evaluations": signal_evaluations,
+        "market_prices": _latest_market_prices(
+            evaluations=signal_evaluations,
+            open_position=open_position,
+            fills=fills,
+        ),
     }
 
 
@@ -66,6 +75,10 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     h1 {{ font-size: 24px; margin: 0; }}
     .badge {{ font-size: 13px; padding: 6px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; }}
     .nav-button {{ color: #b42318; text-decoration: none; font-weight: 700; border-color: #ef4444; }}
+    .ticker-strip {{ flex: 1; min-width: 280px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }}
+    .ticker-item {{ display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 10px; border: 1px solid #d9e0ec; border-radius: 4px; background: #fff; }}
+    .ticker-symbol {{ color: #65748b; font-size: 12px; font-weight: 700; }}
+    .ticker-price {{ color: #172033; font-size: 16px; font-weight: 700; }}
     .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
     .form-grid {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: end; }}
@@ -116,6 +129,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       main {{ padding: 14px; }}
       header {{ align-items: flex-start; flex-direction: column; }}
       .header-meta {{ justify-content: flex-start; }}
+      .ticker-strip {{ justify-content: flex-start; width: 100%; }}
       .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .condition-list {{ grid-template-columns: 1fr; }}
       .condition-cards {{ grid-template-columns: 1fr; }}
@@ -127,6 +141,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
   <main>
     <header>
       <h1>模拟交易看板</h1>
+      {_render_market_prices(payload.get("market_prices", {}))}
       <div class="header-meta">
         <a class="badge nav-button" href="/backtest" target="_blank" rel="noopener">策略回测</a>
         <div class="badge">系统运行时间：{_format_duration(payload.get("runtime_seconds"))}</div>
@@ -430,6 +445,18 @@ def _render_error_logs(lines: list[str]) -> str:
     return f'<div class="error-log-box">{rendered}</div>'
 
 
+def _render_market_prices(prices: dict[str, Any]) -> str:
+    symbols = ("BTCUSDT", "ETHUSDT")
+    items = "".join(
+        f"""<div class="ticker-item">
+  <span class="ticker-symbol">{symbol} 永续最新价</span>
+  <span class="ticker-price">{_format_decimal(prices.get(symbol), 2)}</span>
+</div>"""
+        for symbol in symbols
+    )
+    return f'<div class="ticker-strip">{items}</div>'
+
+
 def _render_signal_evaluations(evaluations: list[dict[str, Any]]) -> str:
     latest = _latest_evaluations_by_symbol_interval(evaluations)
     if not latest:
@@ -458,6 +485,61 @@ def _latest_evaluations_by_symbol_interval(evaluations: list[dict[str, Any]]) ->
     )
 
 
+def _latest_market_prices(
+    evaluations: Any,
+    open_position: Any,
+    fills: Any,
+) -> dict[str, Any]:
+    prices: dict[str, Any] = {}
+    timestamps: dict[str, int] = {}
+    for fill in fills if isinstance(fills, list) else []:
+        if not isinstance(fill, dict):
+            continue
+        symbol = str(fill.get("symbol") or "")
+        if not symbol:
+            continue
+        exit_time = int(fill.get("exit_time") or 0)
+        if exit_time >= timestamps.get(symbol, -1):
+            prices[symbol] = fill.get("exit_price")
+            timestamps[symbol] = exit_time
+    if isinstance(open_position, dict):
+        symbol = str(open_position.get("symbol") or "")
+        if symbol:
+            prices[symbol] = open_position.get("entry_price")
+            timestamps[symbol] = int(open_position.get("entry_time") or 0)
+    for evaluation in evaluations if isinstance(evaluations, list) else []:
+        if not isinstance(evaluation, dict):
+            continue
+        symbol = str(evaluation.get("symbol") or "")
+        if not symbol:
+            continue
+        evaluated_at = int(evaluation.get("evaluated_at_ms") or 0)
+        price = _evaluation_latest_price(evaluation)
+        if price is not None and evaluated_at >= timestamps.get(symbol, -1):
+            prices[symbol] = price
+            timestamps[symbol] = evaluated_at
+    return prices
+
+
+def _evaluation_latest_price(evaluation: dict[str, Any]) -> Any:
+    if evaluation.get("close") is not None:
+        return evaluation.get("close")
+    raw_timeframes = evaluation.get("chart_timeframes")
+    if isinstance(raw_timeframes, dict):
+        for interval in ("15m", "1h", "4h"):
+            raw_points = raw_timeframes.get(interval)
+            if isinstance(raw_points, list) and raw_points:
+                last_point = raw_points[-1]
+                if isinstance(last_point, dict) and last_point.get("close") is not None:
+                    return last_point.get("close")
+    raw_points = evaluation.get("chart_points")
+    if isinstance(raw_points, list) and raw_points:
+        last_point = raw_points[-1]
+        if isinstance(last_point, dict):
+            return last_point.get("close")
+    return None
+
+
 def _render_signal_evaluation_row(evaluation: dict[str, Any]) -> str:
     return f"""<tr>
   <td>{_escape(evaluation.get("symbol"))}</td>
@@ -472,14 +554,14 @@ def _render_signal_evaluation_row(evaluation: dict[str, Any]) -> str:
 def _render_strategy_conditions(evaluations: list[dict[str, Any]]) -> str:
     latest = _latest_condition_evaluations_by_symbol(evaluations)
     if not latest:
-        return '<div class="empty">暂无策略触发条件</div>'
+        return '<div class="empty">暂无策略触发条件：等待实时策略评估更新</div>'
     rendered = [
         _render_strategy_condition_card(evaluation)
         for evaluation in latest
     ]
     rendered = [card for card in rendered if card]
     if not rendered:
-        return '<div class="empty">暂无策略触发条件</div>'
+        return '<div class="empty">暂无策略触发条件：等待实时策略评估更新</div>'
     return f'<div class="condition-cards">{"".join(rendered)}</div>'
 
 
@@ -574,7 +656,7 @@ def _missing_conditions_summary(conditions: list[dict[str, Any]]) -> str:
 def _render_strategy_chart(evaluations: list[dict[str, Any]]) -> str:
     evaluations_by_symbol = _latest_chart_evaluations_by_symbol(evaluations)
     if not evaluations_by_symbol:
-        return '<div class="empty">暂无K线图数据</div>'
+        return '<div class="empty">暂无K线图数据：等待实时策略评估更新</div>'
     if len(evaluations_by_symbol) == 1:
         evaluation = evaluations_by_symbol[0]
         rules = _render_core_rules(evaluation.get("core_rules", []))
