@@ -1,5 +1,6 @@
 import hashlib
 import json
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.backtest.engine import BacktestResult
 from app.data.quality import Kline
 from app.database.models import BacktestRun, BacktestTradeRecord, ConfigSnapshot, KlineRecord
+from app.paper.strategy_backtest import StrategyBacktestResult
 
 
 def upsert_klines(session: Session, rows: list[Kline]) -> int:
@@ -96,6 +98,72 @@ def archive_backtest_result(
                 funding_fee=trade.funding_fee,
                 net_pnl=trade.net_pnl,
                 exit_reason=trade.exit_reason,
+            )
+        )
+    session.commit()
+    return run.id
+
+
+def archive_strategy_backtest_result(
+    session: Session,
+    result: StrategyBacktestResult,
+) -> int:
+    config = result.config
+    config_payload = {
+        "symbols": ",".join(config.symbols),
+        "ema_fast_period": str(config.ema_fast_period),
+        "ema_slow_period": str(config.ema_slow_period),
+        "atr_period": str(config.atr_period),
+        "dmi_period": str(config.dmi_period),
+        "swing_lookback": str(config.swing_lookback),
+        "limit": str(config.limit),
+        "history_period": str(config.history_period),
+        "initial_equity": str(config.initial_equity),
+        "risk_per_trade_pct": str(config.risk_per_trade_pct),
+        "maker_fee_rate": str(config.maker_fee_rate),
+        "taker_fee_rate": str(config.taker_fee_rate),
+        "leverage": str(config.leverage),
+        "trend_pullback_take_profit_mode": str(config.trend_pullback_take_profit_mode),
+    }
+    config_content = json.dumps(config_payload, sort_keys=True)
+    config_snapshot = ConfigSnapshot(
+        name="strategy_backtest",
+        version="v1",
+        content_hash=hashlib.sha256(config_content.encode("utf-8")).hexdigest(),
+    )
+    session.add(config_snapshot)
+    session.flush()
+
+    run = BacktestRun(
+        name="web_strategy_backtest",
+        config_snapshot_id=config_snapshot.id,
+        initial_equity=Decimal(result.initial_equity),
+        final_equity=Decimal(result.final_equity),
+        total_trades=result.total_trades,
+        wins=result.wins,
+        losses=result.losses,
+        net_pnl=Decimal(result.net_pnl),
+    )
+    session.add(run)
+    session.flush()
+
+    for trade in result.trades:
+        session.add(
+            BacktestTradeRecord(
+                backtest_run_id=run.id,
+                symbol=str(trade.get("symbol", "")),
+                side=str(trade.get("side", "")),
+                strategy_type=str(trade.get("strategy_type", "")),
+                entry_time=int(trade.get("entry_time", "0")),
+                exit_time=int(trade.get("exit_time", "0")),
+                entry_price=Decimal(trade.get("entry_price", "0")),
+                exit_price=Decimal(trade.get("exit_price", "0")),
+                quantity=Decimal(trade.get("quantity", "0")),
+                gross_pnl=Decimal(trade.get("gross_pnl", "0")),
+                fees=Decimal(trade.get("fees", "0")),
+                funding_fee=Decimal(trade.get("funding_fee", "0")),
+                net_pnl=Decimal(trade.get("net_pnl", "0")),
+                exit_reason=str(trade.get("exit_reason", "")),
             )
         )
     session.commit()

@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 
 
 def test_status_page_links_to_strategy_backtest(tmp_path):
@@ -114,6 +115,56 @@ def test_strategy_backtest_query_uses_selected_single_symbol():
     config = _backtest_config_from_query({"symbol": ["ETHUSDT"], "run": ["1"]})
 
     assert config.symbols == ("ETHUSDT",)
+
+
+def test_strategy_backtest_web_helper_archives_successful_result():
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import Session, sessionmaker
+
+    from app.database.models import BacktestRun, BacktestTradeRecord, Base
+    from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
+    from scripts.run_paper_status_web import _archive_strategy_backtest_result
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    result = StrategyBacktestResult(
+        config=StrategyBacktestConfig(symbols=("BTCUSDT",), ema_fast_period=30, ema_slow_period=120),
+        initial_equity="1000.00",
+        final_equity="1019.00",
+        total_trades=1,
+        wins=1,
+        losses=0,
+        net_pnl="19.00",
+        trades=[
+            {
+                "symbol": "BTCUSDT",
+                "side": "SHORT",
+                "strategy_type": "TREND_PULLBACK",
+                "entry_time": "1",
+                "exit_time": "2",
+                "entry_price": "64000",
+                "exit_price": "62000",
+                "quantity": "0.01",
+                "gross_pnl": "20",
+                "fees": "1",
+                "funding_fee": "0",
+                "net_pnl": "19",
+                "exit_reason": "TAKE_PROFIT",
+            }
+        ],
+        error=None,
+    )
+
+    archived = _archive_strategy_backtest_result(result, session_factory=session_factory)
+
+    with Session(engine) as session:
+        saved_run = session.execute(select(BacktestRun)).scalar_one()
+        saved_trade = session.execute(select(BacktestTradeRecord)).scalar_one()
+
+    assert archived.error is None
+    assert saved_run.final_equity == Decimal("1019.00")
+    assert saved_trade.net_pnl == Decimal("19")
 
 
 def test_strategy_backtest_page_supports_long_history_periods():

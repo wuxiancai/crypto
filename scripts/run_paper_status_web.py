@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from dataclasses import replace
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -45,6 +46,7 @@ def make_handler(state_path: Path, error_log_path: Path):
                 query = parse_qs(parsed.query)
                 if query.get("run") == ["1"]:
                     result = asyncio.run(run_strategy_backtest(_backtest_config_from_query(query)))
+                    result = _archive_strategy_backtest_result(result)
                 else:
                     result = run_strategy_backtest_default_result()
                 self._send_html(render_strategy_backtest_html(result=result))
@@ -99,6 +101,22 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
         limit=_query_int(query, "limit", 1500, minimum=50, maximum=1500),
         history_period=_query_choice(query, "history_period", "3m", {"3m", "6m", "1y", "2y"}),
     )
+
+
+def _archive_strategy_backtest_result(result, session_factory=None):
+    if result.error:
+        return result
+    try:
+        from app.config.settings import Settings
+        from app.database.db import build_session_factory
+        from app.database.repositories import archive_strategy_backtest_result
+
+        factory = session_factory or build_session_factory(Settings())
+        with factory() as session:
+            archive_strategy_backtest_result(session, result)
+    except Exception as exc:
+        return replace(result, error=f"回测结果写入数据库失败：{exc}")
+    return result
 
 
 def _query_int(

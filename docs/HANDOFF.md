@@ -130,6 +130,7 @@
 - Web 状态页已新增“策略回测”入口：主看板右上角按钮会以新标签页打开 `/backtest`。回测页复用当前实时策略适配器和 PaperTradingEngine，按 Binance REST 历史 K 线回放 4h / 1h / 15m 多周期策略，不展示持仓和策略 K 线图，只展示参数、权益和回测交易记录。
 - 策略回测页默认使用 BTCUSDT、EMA50 / EMA200、单页历史 K 线 1500 根、初始资金 1000 USDT；页面允许用户选择 BTC / ETH，输入 EMA 快线、EMA 慢线、单页 K 线根数和回测周期，用于快速比较 EMA50/EMA200、EMA30/EMA120 等参数组合。回测后端一次只拉取所选交易对，避免 BTC 和 ETH 成交记录串在同一张表里；参数栏已改为一行紧凑展示。
 - 策略回测已支持分页历史回测：用户可选择最近 3个月 / 6个月 / 1年 / 2年，后端按 Binance 单次 1500 根限制自动分页拉取 4h / 1h / 15m 历史 K 线，再复用当前实时策略和 PaperTradingEngine 回放。历史 K 线会按交易对和周期缓存到 `runtime/backtest-klines/`，例如先回测 BTC 2 年，再回测 BTC 1 年或 EMA30/EMA120，会直接复用已缓存 K 线；只有缓存缺少所需时间段时才补拉缺口数据。
+- 2026-06-19 已通过 SSH 核查 Ubuntu 服务器 `/home/wuxiancai/crypto`：当前 migration 为 `0002_backtest_archive`，`backtest_runs` / `backtest_trades` 表存在，但历史 Web 回测没有写入数据库，二者行数均为 0。已修复 `/backtest` 页面：成功完成的策略回测会写入 `backtest_runs`、`backtest_trades` 和 `config_snapshots`；如果写库失败，页面会显示“回测结果写入数据库失败：...”而不是静默丢失。
 
 ## 验证结果
 
@@ -191,6 +192,9 @@
 - `.venv/bin/python -m py_compile app/paper/strategy_backtest.py app/paper/web_status.py scripts/run_paper_status_web.py`：通过。
 - `.venv/bin/python -m pytest -q`：145 passed。
 - `.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py tests/test_v1_0_strategy_backtest_runner.py -q`：8 passed。
+- `.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py tests/test_v1_0_strategy_backtest_runner.py`：14 passed，覆盖 Web 回测页面渲染、分页历史 K 线回测、K 线缓存和回测结果数据库归档。
+- `.venv/bin/python -m py_compile scripts/run_paper_status_web.py app/database/repositories.py`：通过。
+- `.venv/bin/python -m pytest`：163 passed。
 - `.venv/bin/python -m pytest tests/test_v1_0_realtime_strategy_adapter.py::test_nearest_strategy_prioritizes_primary_four_hour_structure_over_match_count -q`：先失败，确认旧逻辑会在 4h 空头结构成立时按满足数量误选主趋势做多；修复后通过。
 - `.venv/bin/python -m pytest tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_paper_status_web.py -q`：17 passed。
 - `.venv/bin/python -m pytest tests/test_v0_4_paper_trading.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_paper_status_web.py -q`：38 passed，覆盖主趋势 2R 阶梯移动止盈、持久化和页面状态。

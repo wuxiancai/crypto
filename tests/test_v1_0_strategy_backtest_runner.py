@@ -253,3 +253,64 @@ def test_strategy_backtest_reuses_cached_klines_and_fetches_only_missing_tail(mo
     )
     assert len(requests) == first_run_requests + 2
     assert requests[-1] == (4 * INTERVAL_MS["15m"], 5 * INTERVAL_MS["15m"] - 1)
+
+
+def test_archives_strategy_backtest_result_to_database():
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import Session
+
+    from app.database.models import BacktestRun, BacktestTradeRecord, Base, ConfigSnapshot
+    from app.database.repositories import archive_strategy_backtest_result
+    from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    result = StrategyBacktestResult(
+        config=StrategyBacktestConfig(
+            symbols=("BTCUSDT",),
+            ema_fast_period=30,
+            ema_slow_period=120,
+            limit=1500,
+            history_period="1y",
+        ),
+        initial_equity="1000.00",
+        final_equity="1297.09",
+        total_trades=1,
+        wins=1,
+        losses=0,
+        net_pnl="297.09",
+        trades=[
+            {
+                "symbol": "BTCUSDT",
+                "side": "SHORT",
+                "strategy_type": "TREND_PULLBACK",
+                "entry_time": "1",
+                "exit_time": "2",
+                "entry_price": "64000",
+                "exit_price": "62000",
+                "quantity": "0.01",
+                "gross_pnl": "20",
+                "fees": "1",
+                "funding_fee": "0",
+                "net_pnl": "19",
+                "exit_reason": "TAKE_PROFIT",
+            }
+        ],
+        error=None,
+    )
+
+    with Session(engine) as session:
+        run_id = archive_strategy_backtest_result(session, result)
+        saved_run = session.get(BacktestRun, run_id)
+        saved_config = session.execute(select(ConfigSnapshot)).scalar_one()
+        saved_trade = session.execute(select(BacktestTradeRecord)).scalar_one()
+
+    assert saved_run is not None
+    assert saved_run.name == "web_strategy_backtest"
+    assert saved_run.config_snapshot_id == saved_config.id
+    assert saved_run.final_equity == Decimal("1297.09")
+    assert saved_run.total_trades == 1
+    assert saved_config.name == "strategy_backtest"
+    assert saved_trade.backtest_run_id == run_id
+    assert saved_trade.symbol == "BTCUSDT"
+    assert saved_trade.net_pnl == Decimal("19")
