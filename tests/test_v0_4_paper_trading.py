@@ -297,6 +297,91 @@ def test_paper_trading_blocks_second_position_until_first_closes():
     assert engine.snapshot().rejected_signals == 1
 
 
+def test_paper_trading_ignores_exit_klines_from_other_symbols_and_timeframes():
+    from app.data.quality import Kline
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.pullback_strategy import TradeSignal
+
+    engine = PaperTradingEngine(
+        config=PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            trend_pullback_take_profit_mode="FIXED",
+        )
+    )
+    opened = engine.on_signal(
+        kline=Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        signal=TradeSignal(
+            action="LONG_ENTRY",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("100"),
+            stop_loss=Decimal("95"),
+            take_profit=Decimal("110"),
+            risk_reward=Decimal("2"),
+            reason=["paper long"],
+        ),
+    )
+
+    assert opened is not None
+    assert engine.on_kline(
+        Kline(
+            symbol="ETHUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("100"),
+            high=Decimal("200"),
+            low=Decimal("50"),
+            close=Decimal("150"),
+            volume=Decimal("10"),
+        )
+    ) is None
+    assert engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="1h",
+            open_time=900_000,
+            close_time=4_499_999,
+            open=Decimal("100"),
+            high=Decimal("200"),
+            low=Decimal("50"),
+            close=Decimal("150"),
+            volume=Decimal("10"),
+        )
+    ) is None
+    assert engine.snapshot().open_position is not None
+
+    fill = engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=1_800_000,
+            close_time=2_699_999,
+            open=Decimal("100"),
+            high=Decimal("111"),
+            low=Decimal("99"),
+            close=Decimal("110"),
+            volume=Decimal("10"),
+        )
+    )
+
+    assert fill is not None
+    assert fill.exit_reason == "TAKE_PROFIT"
+
+
 def test_paper_trading_accepts_reversal_signal_with_signal_risk_cap():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine

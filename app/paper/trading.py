@@ -32,6 +32,7 @@ class PaperPosition:
     entry_fee: Decimal
     initial_stop_loss: Decimal | None = None
     trailing_active: bool = False
+    interval: str = "15m"
 
     def __post_init__(self) -> None:
         if self.initial_stop_loss is None:
@@ -120,6 +121,8 @@ class PaperTradingEngine:
     def on_kline(self, kline: Kline) -> PaperFill | None:
         if self._position is None:
             return None
+        if self._position.symbol != kline.symbol or self._position.interval != kline.interval:
+            return None
         fill = self._maybe_close_position(self._position, kline)
         if fill is None:
             return None
@@ -166,6 +169,7 @@ class PaperTradingEngine:
             quantity=quantity,
             entry_fee=entry_fee,
             initial_stop_loss=stop_loss,
+            interval=kline.interval,
         )
 
     def _maybe_close_position(self, position: PaperPosition, kline: Kline) -> PaperFill | None:

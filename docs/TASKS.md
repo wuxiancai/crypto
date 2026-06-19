@@ -110,6 +110,7 @@
 - 当前已实现 Paper Trading 最小内核：接收策略信号、单仓位撮合、止盈/止损退出、权益更新、fills 记录和 rejected_signals 计数。
 - 当前 Paper Trading 默认按永续合约模拟：初始资金 1000 USDT、默认 10X 杠杆、maker 0.02%、taker 0.05%、资金费每 8 小时结算一次；资金费率当前默认 0，可通过启动参数配置。
 - 当前 Paper Trading 的 `TREND_PULLBACK` 默认使用 2R 阶梯移动止盈：价格触达 2R 目标后进入“移动止盈中”，把 2R 价作为移动止盈价；价格继续顺势每推进一个 2R 阶梯，移动止盈价同步推进；回撤触达当前移动止盈价才平仓。可通过 `--trend-pullback-take-profit-mode FIXED` 回退固定止盈。
+- 当前已修复回测/Paper 出场撮合的关键未来函数问题：持仓会记录入场交易对和入场周期，只有同一交易对、同一周期的 K 线才能触发止盈/止损，避免 BTC 持仓被 ETH K 线平仓，或 15m 入场被同一时间的 1h/4h 高低点提前平仓。
 - Paper 当前支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE`，趋势转换信号同样使用自身 `risk_pct`。
 - 当前已实现稳定的 Paper CLI 状态格式化输出。
 - 当前已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。

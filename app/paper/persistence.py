@@ -56,6 +56,7 @@ def _position_to_payload(position: PaperPosition | None) -> dict[str, Any] | Non
         return None
     return {
         "symbol": position.symbol,
+        "interval": position.interval,
         "side": position.side,
         "strategy_type": position.strategy_type,
         "entry_time": position.entry_time,
@@ -74,6 +75,7 @@ def _position_from_payload(payload: dict[str, Any] | None) -> PaperPosition | No
         return None
     return PaperPosition(
         symbol=payload["symbol"],
+        interval=payload.get("interval", "15m"),
         side=payload["side"],
         strategy_type=payload["strategy_type"],
         entry_time=int(payload["entry_time"]),
