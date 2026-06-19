@@ -64,6 +64,7 @@ def archive_backtest_result(
         name=config_name,
         version=config_version,
         content_hash=hashlib.sha256(config_content.encode("utf-8")).hexdigest(),
+        content=config_content,
     )
     session.add(config_snapshot)
     session.flush()
@@ -124,12 +125,14 @@ def archive_strategy_backtest_result(
         "taker_fee_rate": str(config.taker_fee_rate),
         "leverage": str(config.leverage),
         "trend_pullback_take_profit_mode": str(config.trend_pullback_take_profit_mode),
+        "max_fee_to_risk_ratio": str(config.max_fee_to_risk_ratio),
     }
     config_content = json.dumps(config_payload, sort_keys=True)
     config_snapshot = ConfigSnapshot(
         name="strategy_backtest",
         version="v1",
         content_hash=hashlib.sha256(config_content.encode("utf-8")).hexdigest(),
+        content=config_content,
     )
     session.add(config_snapshot)
     session.flush()

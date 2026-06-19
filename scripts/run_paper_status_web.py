@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from dataclasses import replace
+from decimal import Decimal
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -100,6 +101,13 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
         ema_slow_period=_query_int(query, "ema_slow", 200, minimum=3, maximum=1000),
         limit=_query_int(query, "limit", 1500, minimum=50, maximum=1500),
         history_period=_query_choice(query, "history_period", "3m", {"3m", "6m", "1y", "2y"}),
+        max_fee_to_risk_ratio=_query_decimal(
+            query,
+            "max_fee_to_risk_ratio",
+            Decimal("0.25"),
+            minimum=Decimal("0"),
+            maximum=Decimal("2"),
+        ),
     )
 
 
@@ -149,6 +157,20 @@ def _query_choice(
 ) -> str:
     value = query.get(key, [default])[0]
     return value if value in allowed else default
+
+
+def _query_decimal(
+    query: dict[str, list[str]],
+    key: str,
+    default: Decimal,
+    minimum: Decimal,
+    maximum: Decimal,
+) -> Decimal:
+    try:
+        value = Decimal(query.get(key, [str(default)])[0])
+    except Exception:
+        return default
+    return max(minimum, min(maximum, value))
 
 
 def main() -> None:

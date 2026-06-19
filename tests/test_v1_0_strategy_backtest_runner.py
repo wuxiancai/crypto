@@ -1,4 +1,5 @@
 import asyncio
+import json
 from decimal import Decimal
 
 
@@ -116,6 +117,7 @@ def test_strategy_backtest_defaults_to_perpetual_contract_costs():
     assert config.funding_rate == Decimal("0")
     assert config.funding_interval_ms == 8 * 60 * 60 * 1000
     assert config.trend_pullback_take_profit_mode == "TRAILING"
+    assert config.max_fee_to_risk_ratio == Decimal("0.25")
 
 
 def test_strategy_backtest_returns_error_when_historical_fetch_fails(monkeypatch):
@@ -135,7 +137,7 @@ def test_strategy_backtest_returns_error_when_historical_fetch_fails(monkeypatch
 
     monkeypatch.setattr(strategy_backtest, "fetch_klines", fake_fetch_klines)
 
-    result = asyncio.run(run_strategy_backtest(StrategyBacktestConfig(symbols=("BTCUSDT",))))
+    result = asyncio.run(run_strategy_backtest(StrategyBacktestConfig(symbols=("BTCUSDT",), history_cache_dir=None)))
 
     assert result.error == "HTTP 451"
     assert result.total_trades == 0
@@ -311,6 +313,10 @@ def test_archives_strategy_backtest_result_to_database():
     assert saved_run.final_equity == Decimal("1297.09")
     assert saved_run.total_trades == 1
     assert saved_config.name == "strategy_backtest"
+    assert saved_config.content is not None
+    config_payload = json.loads(saved_config.content)
+    assert config_payload["ema_fast_period"] == "30"
+    assert config_payload["max_fee_to_risk_ratio"] == "0.25"
     assert saved_trade.backtest_run_id == run_id
     assert saved_trade.symbol == "BTCUSDT"
     assert saved_trade.net_pnl == Decimal("19")

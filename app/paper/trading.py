@@ -17,6 +17,7 @@ class PaperConfig:
     default_stop_distance_pct: Decimal = Decimal("0.02")
     default_take_profit_risk_reward: Decimal = Decimal("2")
     trend_pullback_take_profit_mode: str = "TRAILING"
+    max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
 
 
 @dataclass(frozen=True)
@@ -115,7 +116,11 @@ class PaperTradingEngine:
         if self._position is not None:
             self._rejected_signals += 1
             return None
-        self._position = self._open_position(kline, signal)
+        position = self._open_position(kline, signal)
+        if position is None:
+            self._rejected_signals += 1
+            return None
+        self._position = position
         return self._position
 
     def on_kline(self, kline: Kline) -> PaperFill | None:
@@ -139,7 +144,7 @@ class PaperTradingEngine:
             rejected_signals=self._rejected_signals,
         )
 
-    def _open_position(self, kline: Kline, signal: SignalLike) -> PaperPosition:
+    def _open_position(self, kline: Kline, signal: SignalLike) -> PaperPosition | None:
         side = _side_from_action(signal.action)
         raw_entry_price = getattr(signal, "entry_price", None) or kline.close
         stop_loss = getattr(signal, "stop_loss", None) or _default_stop_loss(raw_entry_price, side, self._config)
@@ -158,6 +163,14 @@ class PaperTradingEngine:
         max_notional_quantity = self._equity * self._config.leverage / entry_price
         quantity = min(risk_quantity, max_notional_quantity)
         entry_fee = entry_price * quantity * self._config.taker_fee_rate
+        estimated_stop_fee = stop_loss * quantity * self._config.taker_fee_rate
+        planned_risk = stop_distance * quantity
+        if _fees_too_high_for_planned_risk(
+            fees=entry_fee + estimated_stop_fee,
+            planned_risk=planned_risk,
+            max_ratio=self._config.max_fee_to_risk_ratio,
+        ):
+            return None
         return PaperPosition(
             symbol=kline.symbol,
             side=side,
@@ -293,6 +306,16 @@ def _funding_settlement_count(entry_time: int, exit_time: int, interval_ms: int)
     first = entry_time // interval_ms + 1
     last = exit_time // interval_ms
     return max(0, last - first + 1)
+
+
+def _fees_too_high_for_planned_risk(
+    fees: Decimal,
+    planned_risk: Decimal,
+    max_ratio: Decimal | None,
+) -> bool:
+    if max_ratio is None or max_ratio <= 0 or planned_risk <= 0:
+        return False
+    return fees / planned_risk > max_ratio
 
 
 def _uses_trailing_take_profit(position: PaperPosition, config: PaperConfig) -> bool:

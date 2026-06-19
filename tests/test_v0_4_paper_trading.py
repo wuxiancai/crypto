@@ -476,6 +476,52 @@ def test_paper_trading_defaults_to_perpetual_contract_costs_and_10x_leverage():
     assert opened.entry_fee == Decimal("5.0000")
 
 
+def test_paper_trading_rejects_entry_when_estimated_fees_are_too_high_for_planned_risk():
+    from app.data.quality import Kline
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.pullback_strategy import TradeSignal
+
+    engine = PaperTradingEngine(
+        config=PaperConfig(
+            initial_equity=Decimal("1000"),
+            risk_per_trade_pct=Decimal("0.005"),
+            maker_fee_rate=Decimal("0.0002"),
+            taker_fee_rate=Decimal("0.0005"),
+            slippage_pct=Decimal("0"),
+            max_fee_to_risk_ratio=Decimal("0.4"),
+        )
+    )
+    kline = Kline(
+        symbol="BTCUSDT",
+        interval="15m",
+        open_time=0,
+        close_time=899_999,
+        open=Decimal("100000"),
+        high=Decimal("100000"),
+        low=Decimal("100000"),
+        close=Decimal("100000"),
+        volume=Decimal("10"),
+    )
+
+    opened = engine.on_signal(
+        kline=kline,
+        signal=TradeSignal(
+            action="LONG_ENTRY",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("100000"),
+            stop_loss=Decimal("99950"),
+            take_profit=Decimal("100100"),
+            risk_reward=Decimal("2"),
+            reason=["too tight after fees"],
+        ),
+    )
+
+    assert opened is None
+    snapshot = engine.snapshot()
+    assert snapshot.open_position is None
+    assert snapshot.rejected_signals == 1
+
+
 def test_paper_trading_applies_funding_every_eight_hours():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine

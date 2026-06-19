@@ -64,6 +64,9 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     assert 'name="ema_slow"' in html
     assert 'value="120"' in html
     assert "历史K线根数" in html
+    assert "手续费/风险上限" in html
+    assert 'name="max_fee_to_risk_ratio"' in html
+    assert 'value="0.25"' in html
     assert "账户权益 USDT" in html
     assert "1030.25" in html
     assert "总交易次数" in html
@@ -106,22 +109,25 @@ def test_strategy_backtest_page_selects_one_symbol_and_uses_compact_form():
     assert 'name="symbol"' in html
     assert '<option value="BTCUSDT">BTC</option>' in html
     assert '<option value="ETHUSDT" selected>ETH</option>' in html
-    assert "grid-template-columns: 120px 120px 120px 140px 160px 140px" in html
+    assert "grid-template-columns: 110px 105px 105px 130px 145px 145px 130px" in html
 
 
 def test_strategy_backtest_query_uses_selected_single_symbol():
     from scripts.run_paper_status_web import _backtest_config_from_query
 
-    config = _backtest_config_from_query({"symbol": ["ETHUSDT"], "run": ["1"]})
+    config = _backtest_config_from_query(
+        {"symbol": ["ETHUSDT"], "run": ["1"], "max_fee_to_risk_ratio": ["0.25"]}
+    )
 
     assert config.symbols == ("ETHUSDT",)
+    assert config.max_fee_to_risk_ratio == Decimal("0.25")
 
 
 def test_strategy_backtest_web_helper_archives_successful_result():
     from sqlalchemy import create_engine, select
     from sqlalchemy.orm import Session, sessionmaker
 
-    from app.database.models import BacktestRun, BacktestTradeRecord, Base
+    from app.database.models import BacktestRun, BacktestTradeRecord, Base, ConfigSnapshot
     from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
     from scripts.run_paper_status_web import _archive_strategy_backtest_result
 
@@ -161,10 +167,12 @@ def test_strategy_backtest_web_helper_archives_successful_result():
     with Session(engine) as session:
         saved_run = session.execute(select(BacktestRun)).scalar_one()
         saved_trade = session.execute(select(BacktestTradeRecord)).scalar_one()
+        saved_config = session.execute(select(ConfigSnapshot)).scalar_one()
 
     assert archived.error is None
     assert saved_run.final_equity == Decimal("1019.00")
     assert saved_trade.net_pnl == Decimal("19")
+    assert saved_config.name == "strategy_backtest"
 
 
 def test_strategy_backtest_web_helper_reports_runner_errors(monkeypatch):

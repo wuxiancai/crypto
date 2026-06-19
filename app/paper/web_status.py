@@ -267,7 +267,7 @@ def render_strategy_backtest_html(result: Any | None = None) -> str:
     .label {{ color: #65748b; font-size: 12px; margin-bottom: 6px; }}
     .value {{ font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }}
     h2 {{ font-size: 16px; margin: 0 0 10px; }}
-    .form-grid {{ display: grid; grid-template-columns: 120px 120px 120px 140px 160px 140px; gap: 12px; align-items: end; }}
+    .form-grid {{ display: grid; grid-template-columns: 110px 105px 105px 130px 145px 145px 130px; gap: 12px; align-items: end; }}
     .form-field {{ display: grid; gap: 6px; }}
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
     .form-field input, .form-field select {{ width: 100%; box-sizing: border-box; border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
@@ -323,6 +323,10 @@ def render_strategy_backtest_html(result: Any | None = None) -> str:
           <select id="history_period" name="history_period">
             {_render_history_period_options(getattr(config, "history_period", "3m"))}
           </select>
+        </div>
+        <div class="form-field">
+          <label for="max_fee_to_risk_ratio">手续费/风险上限</label>
+          <input id="max_fee_to_risk_ratio" name="max_fee_to_risk_ratio" type="number" min="0" max="2" step="0.05" value="{_escape(config.max_fee_to_risk_ratio)}">
         </div>
         <button class="primary-button" type="submit" name="run" value="1">开始回测</button>
       </form>

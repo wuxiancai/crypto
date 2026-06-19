@@ -24,6 +24,12 @@
   - Ubuntu `.env.ports.generated` 默认 `BINANCE_WEBSOCKET_BASE_URL` 已从测试网 `wss://fstream.binancefuture.com` 改为主网 `wss://fstream.binance.com/market`，避免主网 REST 与测试网 WebSocket 混跑。
   - WebSocket 默认连接参数已按官方 ping/pong 规则放宽为 `ping_interval=180`、`ping_timeout=600`，并在连接异常、keepalive timeout 或 24 小时断开后自动指数退避重连。
   - Binance REST K 线拉取新增短退避重试：连接超时/网络错误、HTTP 408/429/503 默认最多 3 次；HTTP 451 继续直接提示当前网络/地区受限。
+- 2026-06-20 回测策略成本过滤优化：
+  - 用户提供根目录截图 `15-60.png`、`30-120.png`、`50-200.png`；SSH 到 `192.168.0.102` 因认证失败未通，改用只读直连 PostgreSQL `192.168.0.102:55432/crypto_quant` 查询真实回测归档，不在 Ubuntu 上开发。
+  - 真实 DB 归档显示：run 2 = `50/200`，285 笔，110/175，净亏 `-63.61`；run 3 = `30/120`，252 笔，111/141，净赚 `297.09`；run 4 = `15/60`，170 笔，76/94，净赚 `276.80`。
+  - 关键原因不是单纯胜率低，而是部分窄止损交易手续费过高。例如 `50/200` 中高成本止损单手续费可超过计划 gross loss，说明入场前缺少交易成本/计划风险比过滤。
+  - 已新增 `max_fee_to_risk_ratio`，默认 `0.25`：入场前估算 `开仓 taker fee + 止损 taker fee`，超过计划止损风险 25% 时拒绝入场。本机一年 BTC `50/200` 复现从优化前约 `930.96` 提升到 `1075.06`，交易数从 286 降到 211。
+  - Web 回测页新增“手续费/风险上限”输入；`config_snapshots` 新增 nullable `content` JSON 字段，后续回测归档能直接查参数正文，不再只靠 hash 反推。
 - 统一 AI fallback：移除 `BLOCK_NEW_ENTRIES`，统一使用 `BLOCK`。
 - 主趋势做多/做空也必须使用 DI_PLUS / DI_MINUS 判断方向。
 - 趋势转换早期试仓风险固定为 0.2%，确认试仓风险固定为 0.3%。
@@ -145,6 +151,9 @@
 - `.venv/bin/python -m pytest tests/test_v0_4_binance_stream.py tests/test_deploy_ports.py tests/test_v0_1_database_and_binance.py -q`：17 passed，覆盖官方 `/market` WebSocket URL、部署主网默认值、WebSocket 重连和 REST 退避重试。
 - `.venv/bin/python -m pytest tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_paper_status_web.py tests/test_deploy_script.py -q`：37 passed。
 - `.venv/bin/python -m py_compile app/paper/binance_stream.py app/paper/live_runner.py app/data/binance.py app/deploy/ports.py scripts/run_paper_realtime.py`：通过。
+- `.venv/bin/python -m pytest tests/test_v0_4_paper_trading.py tests/test_v1_0_strategy_backtest_page.py tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_real_market_paper_runner.py -q`：34 passed，覆盖手续费/风险过滤、页面参数、回测配置和真实行情 runner。
+- `.venv/bin/python -m pytest tests/test_v0_1_database_and_binance.py tests/test_v0_3_backtest_archive.py tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_strategy_backtest_page.py -q`：20 passed。
+- `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0003_config_snapshot_content`。
 - `.venv/bin/python -m pytest -q`：110 passed。
 - `bash -n scripts/start_ubuntu.sh && bash -n scripts/deploy_ubuntu.sh`：通过。
 - `.venv/bin/python -m pytest tests/test_deploy_ports.py -q`：3 passed。

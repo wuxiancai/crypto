@@ -17,7 +17,9 @@ def test_database_metadata_contains_v0_1_tables():
     }.issubset(table_names)
 
     indicator_columns = set(Base.metadata.tables["indicator_snapshots"].columns.keys())
+    config_columns = set(Base.metadata.tables["config_snapshots"].columns.keys())
     assert {"di_plus", "di_minus"}.issubset(indicator_columns)
+    assert "content" in config_columns
     assert isinstance(Base.metadata.tables["klines"].columns["open_time"].type, BigInteger)
     assert isinstance(Base.metadata.tables["klines"].columns["close_time"].type, BigInteger)
     assert isinstance(Base.metadata.tables["indicator_snapshots"].columns["open_time"].type, BigInteger)
