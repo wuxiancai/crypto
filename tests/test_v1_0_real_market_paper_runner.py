@@ -219,6 +219,42 @@ def test_real_market_paper_runner_uses_default_realtime_strategy(tmp_path):
     assert snapshot.fills[0].strategy_type == "TREND_PULLBACK"
 
 
+def test_default_realtime_strategy_does_not_reuse_latest_15m_signal_on_non_entry_interval():
+    from app.paper.live_runner import build_default_realtime_signal_fn
+    from app.paper.strategy_adapter import RealtimeStrategyConfig
+
+    warmup_klines = [
+        *[
+            _kline("BTCUSDT", "4h", index, close)
+            for index, close in enumerate(["100", "104", "108", "112", "116", "120"])
+        ],
+        *[
+            _kline("BTCUSDT", "1h", index, close)
+            for index, close in enumerate(["108", "112", "116", "120", "124", "128"])
+        ],
+        *[
+            _kline("BTCUSDT", "15m", index, close)
+            for index, close in enumerate(["120", "124", "128", "124"])
+        ],
+        _kline("BTCUSDT", "15m", 4, "126", open_price="125"),
+    ]
+    signal_fn = build_default_realtime_signal_fn(
+        RealtimeStrategyConfig(
+            ema_fast_period=3,
+            ema_slow_period=5,
+            atr_period=3,
+            dmi_period=3,
+            swing_lookback=5,
+        ),
+        warmup_klines=warmup_klines,
+    )
+
+    signal = signal_fn(_kline("BTCUSDT", "5m", 99, "126"), has_position=False)
+
+    assert signal.action == "WAIT"
+    assert signal.reason == ["non-entry interval observed"]
+
+
 def test_real_market_paper_runner_uses_default_reversal_strategy(tmp_path):
     from app.data.quality import INTERVAL_MS, Kline
     from app.paper.live_runner import RealMarketPaperConfig, run_real_market_paper

@@ -77,8 +77,8 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "账户权益" in html
     assert "持仓情况" in html
     assert "全部模拟交易记录" in html
-    assert "开仓时间" in html
-    assert "平仓时间" in html
+    assert "开仓时间 UTC+8" in html
+    assert "平仓时间 UTC+8" in html
     assert "开仓价" in html
     assert "平仓价" in html
     assert "使用策略" in html
@@ -145,6 +145,8 @@ def test_status_page_formats_numbers_times_and_compact_trade_list(tmp_path):
     assert "62959.70" in html
     assert "-6.59" in html
     assert "做空止损：最高价触达止损价 62959.70" in html
+    assert "1970-01-01 08:30" in html
+    assert "1970-01-01 08:45" in html
     assert "trade-scroll" in html
     assert html.find("2,700,005") < html.find("2,700,000")
 

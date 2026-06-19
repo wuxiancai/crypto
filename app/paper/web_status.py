@@ -1,6 +1,6 @@
 import html
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import time
@@ -198,7 +198,7 @@ def _render_fills(fills: list[dict[str, Any]]) -> str:
 <table>
   <thead>
     <tr>
-      <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间</th><th>平仓时间</th>
+      <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间 UTC+8</th><th>平仓时间 UTC+8</th>
       <th>开仓价</th><th>平仓价</th><th>数量</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
@@ -640,7 +640,8 @@ def _format_time_ms(value: Any) -> str:
         milliseconds = int(value)
     except (TypeError, ValueError):
         return "-"
-    formatted = datetime.fromtimestamp(milliseconds / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+    utc_plus_8 = timezone(timedelta(hours=8))
+    formatted = datetime.fromtimestamp(milliseconds / 1000, tz=utc_plus_8).strftime("%Y-%m-%d %H:%M")
     return f'<span title="{milliseconds:,}">{formatted}</span>'
 
 

@@ -119,6 +119,8 @@
 - 已修复 Paper stream 在同一根已收盘 K 线上“先退出、再立刻重新入场”的问题：如果当前 K 线已经触发止盈/止损平仓，则本根 K 线只记录退出和 WAIT 评估，不再生成新开仓信号，避免出现近似重复成交记录。
 - Web 状态页已压缩模拟交易展示：金额默认 2 位小数、数量 4 位小数；持仓表由多行压缩为表头 + 一行值；交易记录增加开仓时间、平仓时间、退出触发明细，默认显示约 5 条高度并用滚动条查看更多，最新成交在最上方；BTCUSDT / ETHUSDT 策略触发条件卡改为桌面端并列显示。
 - 已增加重启缺口补齐：真实行情 Paper runner 启动时仍拉取历史 K 线预热策略缓存；如果本地状态文件存在 `last_update_at_ms`，会把历史 K 线中晚于该时间的已收盘 K 线先回放给 Paper 引擎，再进入 WebSocket 实时流。这样服务器关机维护后，重启会优先补跑缺失期间的止盈/止损和策略状态。
+- 已修复非入场周期重复触发问题：Ubuntu 启动脚本可订阅 5m/15m/1h/4h，但真实交易信号只允许在 `entry_interval=15m` 已收盘 K 线到达时生成；5m、1h、4h 推送只更新缓存并输出 WAIT，避免同一个 15m 信号在后续 5m 推送里重复开仓。
+- Web 交易记录时间改为 UTC+8 展示，并在表头标明 `开仓时间 UTC+8` / `平仓时间 UTC+8`。内部策略、K 线对齐和持久化仍使用 Binance 毫秒时间戳 / UTC，不影响策略计算。
 
 ## 验证结果
 
@@ -171,6 +173,10 @@
 - `.venv/bin/python -m pytest tests/test_v0_4_paper_trading.py tests/test_v0_4_realtime_stream.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_paper_status_web.py tests/test_v1_0_real_market_paper_runner.py -q`：29 passed。
 - `.venv/bin/python -m py_compile app/paper/trading.py app/paper/persistence.py app/paper/stream.py app/paper/live_runner.py app/paper/web_status.py`：通过。
 - `.venv/bin/python -m pytest -q`：139 passed。
+- `.venv/bin/python -m pytest tests/test_v1_0_real_market_paper_runner.py::test_default_realtime_strategy_does_not_reuse_latest_15m_signal_on_non_entry_interval tests/test_v1_0_paper_status_web.py::test_status_page_formats_numbers_times_and_compact_trade_list -q`：先失败，确认旧实现会在 5m 上复用 15m 信号，且页面时间仍为 UTC+0。
+- `.venv/bin/python -m pytest tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_paper_status_web.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_realtime_strategy_adapter.py -q`：28 passed。
+- `.venv/bin/python -m py_compile app/paper/live_runner.py app/paper/web_status.py`：通过。
+- `.venv/bin/python -m pytest -q`：140 passed。
 - 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
 - 真实行情源验证：`wss://fstream.binancefuture.com` 可收到 BTCUSDT / ETHUSDT Binance Futures K 线推送；`runtime/paper-state.json` 已在收到已收盘 K 线后创建。
 - 2026-06-17 已启动 Web 状态页：`.venv/bin/python scripts/run_paper_status_web.py --host 127.0.0.1 --port 8765 --state-path runtime/paper-state.json`，访问地址 `http://127.0.0.1:8765`。

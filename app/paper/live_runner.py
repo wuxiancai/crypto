@@ -105,6 +105,12 @@ def build_default_realtime_signal_fn(
                 strategy_type="SYSTEM",
                 reason=["waiting for required realtime timeframes"],
             )
+        if kline.interval != config.entry_interval:
+            return StrategySignal(
+                action="WAIT",
+                strategy_type="SYSTEM",
+                reason=["non-entry interval observed"],
+            )
         if has_position:
             return StrategySignal(
                 action="WAIT",
