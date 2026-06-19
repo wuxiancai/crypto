@@ -238,12 +238,13 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
 </html>"""
 
 
-def render_strategy_backtest_html(result: Any | None = None) -> str:
+def render_strategy_backtest_html(result: Any | None = None, recent_results: list[Any] | None = None) -> str:
     from app.paper.strategy_backtest import StrategyBacktestConfig
 
     config = result.config if result is not None else StrategyBacktestConfig()
     trades = result.trades if result is not None else []
     error = result.error if result is not None else None
+    recent = _sort_recent_backtest_results(recent_results or [])
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -267,7 +268,7 @@ def render_strategy_backtest_html(result: Any | None = None) -> str:
     .label {{ color: #65748b; font-size: 12px; margin-bottom: 6px; }}
     .value {{ font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }}
     h2 {{ font-size: 16px; margin: 0 0 10px; }}
-    .form-grid {{ display: grid; grid-template-columns: 110px 105px 105px 130px 145px 145px 130px; gap: 12px; align-items: end; }}
+    .form-grid {{ display: grid; grid-template-columns: 100px 95px 95px 95px 130px 145px 145px 130px; gap: 12px; align-items: end; }}
     .form-field {{ display: grid; gap: 6px; }}
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
     .form-field input, .form-field select {{ width: 100%; box-sizing: border-box; border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
@@ -282,6 +283,8 @@ def render_strategy_backtest_html(result: Any | None = None) -> str:
     .loss {{ color: #b42318; }}
     .trade-scroll {{ max-height: 252px; overflow-y: auto; border: 1px solid #d9e0ec; border-radius: 6px; }}
     .trade-scroll table {{ border: 0; border-radius: 0; }}
+    .recent-results-scroll {{ max-height: 410px; overflow-y: auto; border: 1px solid #d9e0ec; border-radius: 6px; }}
+    .recent-results-scroll table {{ border: 0; border-radius: 0; }}
     @media (max-width: 820px) {{
       main {{ padding: 14px; }}
       header {{ align-items: flex-start; flex-direction: column; }}
@@ -307,11 +310,23 @@ def render_strategy_backtest_html(result: Any | None = None) -> str:
           </select>
         </div>
         <div class="form-field">
-          <label for="ema_fast">EMA 快线</label>
+          <label for="fast_ma_type">快线类型</label>
+          <select id="fast_ma_type" name="fast_ma_type">
+            {_render_average_type_options(getattr(config, "fast_ma_type", "EMA"))}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="ema_fast">快线周期</label>
           <input id="ema_fast" name="ema_fast" type="number" min="2" max="500" value="{_escape(config.ema_fast_period)}">
         </div>
         <div class="form-field">
-          <label for="ema_slow">EMA 慢线</label>
+          <label for="slow_ma_type">慢线类型</label>
+          <select id="slow_ma_type" name="slow_ma_type">
+            {_render_average_type_options(getattr(config, "slow_ma_type", "EMA"))}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="ema_slow">慢线周期</label>
           <input id="ema_slow" name="ema_slow" type="number" min="3" max="1000" value="{_escape(config.ema_slow_period)}">
         </div>
         <div class="form-field">
@@ -336,7 +351,11 @@ def render_strategy_backtest_html(result: Any | None = None) -> str:
       <div class="panel"><div class="label">初始权益 USDT</div><div class="value">{_format_decimal(getattr(result, "initial_equity", config.initial_equity), 2)}</div></div>
       <div class="panel"><div class="label">账户权益 USDT</div><div class="value">{_format_decimal(getattr(result, "final_equity", config.initial_equity), 2)}</div></div>
       <div class="panel"><div class="label">总交易次数</div><div class="value">{_escape(getattr(result, "total_trades", 0))}</div></div>
-      <div class="panel"><div class="label">胜 / 负</div><div class="value">{_escape(getattr(result, "wins", 0))} / {_escape(getattr(result, "losses", 0))}</div></div>
+      <div class="panel"><div class="label">胜 / 负 / 胜率</div><div class="value">{_escape(getattr(result, "wins", 0))} / {_escape(getattr(result, "losses", 0))} / 胜率 {_format_win_rate(getattr(result, "wins", 0), getattr(result, "losses", 0))}</div></div>
+    </section>
+    <section style="margin-top: 16px;">
+      <h2>最近回测结果</h2>
+      {_render_recent_backtest_results(recent)}
     </section>
     <section style="margin-top: 16px;">
       <h2>全部回测交易记录</h2>
@@ -378,6 +397,15 @@ def _render_history_period_options(selected: Any) -> str:
     return "".join(
         f'<option value="{_escape(value)}"{_selected_attr(value == selected_value)}>{_escape(label)}</option>'
         for value, label in options
+    )
+
+
+def _render_average_type_options(selected: Any) -> str:
+    selected_value = str(selected or "EMA").upper()
+    options = ("EMA", "MA")
+    return "".join(
+        f'<option value="{_escape(value)}"{_selected_attr(value == selected_value)}>{_escape(value)}</option>'
+        for value in options
     )
 
 
@@ -431,6 +459,75 @@ def _render_backtest_trades(trades: list[dict[str, Any]]) -> str:
   <tbody>{rows}</tbody>
 </table>
 </div>"""
+
+
+def _render_recent_backtest_results(results: list[Any]) -> str:
+    if not results:
+        return '<div class="empty">暂无历史回测结果</div>'
+    rows = "\n".join(_render_recent_backtest_result_row(result) for result in results)
+    return f"""<div class="table-wrap recent-results-scroll">
+<table>
+  <thead>
+    <tr>
+      <th>回测时间 UTC+8</th><th>交易对</th><th>均线组合</th><th>周期</th>
+      <th>初始权益</th><th>账户权益</th><th>总交易次数</th><th>胜 / 负 / 胜率</th><th>净盈亏</th>
+    </tr>
+  </thead>
+  <tbody>{rows}</tbody>
+</table>
+</div>"""
+
+
+def _render_recent_backtest_result_row(result: Any) -> str:
+    net_pnl = getattr(result, "net_pnl", "0")
+    pnl_class = _pnl_class(net_pnl)
+    wins = getattr(result, "wins", 0)
+    losses = getattr(result, "losses", 0)
+    return f"""<tr>
+  <td>{_escape(_format_datetime(getattr(result, "created_at", None)))}</td>
+  <td>{_escape(getattr(result, "symbol", "-"))}</td>
+  <td>{_escape(_average_combo_label(result))}</td>
+  <td>{_escape(_history_period_label(getattr(result, "history_period", "")))}</td>
+  <td>{_format_decimal(getattr(result, "initial_equity", "0"), 2)}</td>
+  <td>{_format_decimal(getattr(result, "final_equity", "0"), 2)}</td>
+  <td>{_escape(getattr(result, "total_trades", 0))}</td>
+  <td>{_escape(wins)} / {_escape(losses)} / 胜率 {_format_win_rate(wins, losses)}</td>
+  <td class="{pnl_class}">{_format_decimal(net_pnl, 2)}</td>
+</tr>"""
+
+
+def _average_combo_label(result: Any) -> str:
+    fast_type = str(getattr(result, "fast_ma_type", "EMA") or "EMA").upper()
+    slow_type = str(getattr(result, "slow_ma_type", "EMA") or "EMA").upper()
+    fast_period = getattr(result, "fast_period", 50)
+    slow_period = getattr(result, "slow_period", 200)
+    return f"{fast_type}{fast_period} / {slow_type}{slow_period}"
+
+
+def _sort_recent_backtest_results(results: list[Any]) -> list[Any]:
+    return sorted(
+        results,
+        key=lambda item: _datetime_sort_key(getattr(item, "created_at", None)),
+        reverse=True,
+    )
+
+
+def _datetime_sort_key(value: Any) -> datetime:
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    return datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _history_period_label(value: Any) -> str:
+    labels = {
+        "3m": "最近3个月",
+        "6m": "最近6个月",
+        "1y": "最近1年",
+        "2y": "最近2年",
+    }
+    return labels.get(str(value), str(value or "-"))
 
 
 def _render_backtest_error(error: Any) -> str:
@@ -1010,6 +1107,34 @@ def _format_decimal(value: Any, places: int = 2) -> str:
         return _escape(value if value is not None else "-")
     quant = Decimal("1").scaleb(-places)
     return format(decimal_value.quantize(quant), "f")
+
+
+def _format_win_rate(wins: Any, losses: Any) -> str:
+    try:
+        win_count = int(wins)
+        loss_count = int(losses)
+    except (TypeError, ValueError):
+        return "0%"
+    total = win_count + loss_count
+    if total <= 0:
+        return "0%"
+    return f"{round(win_count * 100 / total)}%"
+
+
+def _format_datetime(value: Any) -> str:
+    if not isinstance(value, datetime):
+        return "-"
+    utc_plus_8 = timezone(timedelta(hours=8))
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(utc_plus_8).strftime("%Y-%m-%d %H:%M")
+
+
+def _pnl_class(value: Any) -> str:
+    decimal_value = _to_decimal(value)
+    if decimal_value is not None and decimal_value < 0:
+        return "loss"
+    return "profit"
 
 
 def _format_time_ms(value: Any) -> str:

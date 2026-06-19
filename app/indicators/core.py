@@ -34,6 +34,19 @@ def ema(values: list[Decimal], period: int) -> list[Decimal | None]:
     return result
 
 
+def ma(values: list[Decimal], period: int) -> list[Decimal | None]:
+    if period <= 0:
+        raise ValueError("period must be positive")
+    result: list[Decimal | None] = []
+    for index in range(len(values)):
+        if index + 1 < period:
+            result.append(None)
+            continue
+        window = values[index + 1 - period : index + 1]
+        result.append(sum(window) / Decimal(period))
+    return result
+
+
 def true_ranges(highs: list[Decimal], lows: list[Decimal], closes: list[Decimal]) -> list[Decimal]:
     _ensure_same_length(highs, lows, closes)
     ranges: list[Decimal] = []

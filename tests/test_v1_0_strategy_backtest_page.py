@@ -31,7 +31,13 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
 
     html = render_strategy_backtest_html(
         result=StrategyBacktestResult(
-            config=StrategyBacktestConfig(ema_fast_period=30, ema_slow_period=120, limit=300),
+            config=StrategyBacktestConfig(
+                fast_ma_type="EMA",
+                slow_ma_type="MA",
+                ema_fast_period=30,
+                ema_slow_period=120,
+                limit=300,
+            ),
             initial_equity="1000",
             final_equity="1030.25",
             total_trades=2,
@@ -57,10 +63,16 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     )
 
     assert "策略回测" in html
-    assert "EMA 快线" in html
+    assert "快线类型" in html
+    assert 'name="fast_ma_type"' in html
+    assert '<option value="EMA" selected>EMA</option>' in html
+    assert "快线周期" in html
     assert 'name="ema_fast"' in html
     assert 'value="30"' in html
-    assert "EMA 慢线" in html
+    assert "慢线类型" in html
+    assert 'name="slow_ma_type"' in html
+    assert '<option value="MA" selected>MA</option>' in html
+    assert "慢线周期" in html
     assert 'name="ema_slow"' in html
     assert 'value="120"' in html
     assert "历史K线根数" in html
@@ -70,6 +82,8 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     assert "账户权益 USDT" in html
     assert "1030.25" in html
     assert "总交易次数" in html
+    assert "胜 / 负 / 胜率" in html
+    assert "1 / 1 / 胜率 50%" in html
     assert "BTCUSDT" in html
     assert "策略K线图" not in html
     assert "持仓情况" not in html
@@ -109,17 +123,25 @@ def test_strategy_backtest_page_selects_one_symbol_and_uses_compact_form():
     assert 'name="symbol"' in html
     assert '<option value="BTCUSDT">BTC</option>' in html
     assert '<option value="ETHUSDT" selected>ETH</option>' in html
-    assert "grid-template-columns: 110px 105px 105px 130px 145px 145px 130px" in html
+    assert "grid-template-columns: 100px 95px 95px 95px 130px 145px 145px 130px" in html
 
 
-def test_strategy_backtest_query_uses_selected_single_symbol():
+def test_strategy_backtest_query_uses_selected_single_symbol_and_ma_types():
     from scripts.run_paper_status_web import _backtest_config_from_query
 
     config = _backtest_config_from_query(
-        {"symbol": ["ETHUSDT"], "run": ["1"], "max_fee_to_risk_ratio": ["0.25"]}
+        {
+            "symbol": ["ETHUSDT"],
+            "run": ["1"],
+            "fast_ma_type": ["EMA"],
+            "slow_ma_type": ["MA"],
+            "max_fee_to_risk_ratio": ["0.25"],
+        }
     )
 
     assert config.symbols == ("ETHUSDT",)
+    assert config.fast_ma_type == "EMA"
+    assert config.slow_ma_type == "MA"
     assert config.max_fee_to_risk_ratio == Decimal("0.25")
 
 
@@ -128,6 +150,7 @@ def test_strategy_backtest_web_helper_archives_successful_result():
     from sqlalchemy.orm import Session, sessionmaker
 
     from app.database.models import BacktestRun, BacktestTradeRecord, Base, ConfigSnapshot
+    from app.database.repositories import list_strategy_backtest_summaries
     from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
     from scripts.run_paper_status_web import _archive_strategy_backtest_result
 
@@ -135,7 +158,13 @@ def test_strategy_backtest_web_helper_archives_successful_result():
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     result = StrategyBacktestResult(
-        config=StrategyBacktestConfig(symbols=("BTCUSDT",), ema_fast_period=30, ema_slow_period=120),
+        config=StrategyBacktestConfig(
+            symbols=("BTCUSDT",),
+            fast_ma_type="EMA",
+            slow_ma_type="MA",
+            ema_fast_period=30,
+            ema_slow_period=120,
+        ),
         initial_equity="1000.00",
         final_equity="1019.00",
         total_trades=1,
@@ -168,11 +197,67 @@ def test_strategy_backtest_web_helper_archives_successful_result():
         saved_run = session.execute(select(BacktestRun)).scalar_one()
         saved_trade = session.execute(select(BacktestTradeRecord)).scalar_one()
         saved_config = session.execute(select(ConfigSnapshot)).scalar_one()
+        summaries = list_strategy_backtest_summaries(session)
 
     assert archived.error is None
     assert saved_run.final_equity == Decimal("1019.00")
     assert saved_trade.net_pnl == Decimal("19")
     assert saved_config.name == "strategy_backtest"
+    config_payload = json.loads(saved_config.content)
+    assert config_payload["fast_ma_type"] == "EMA"
+    assert config_payload["slow_ma_type"] == "MA"
+    assert summaries[0].symbol == "BTCUSDT"
+    assert summaries[0].fast_ma_type == "EMA"
+    assert summaries[0].slow_ma_type == "MA"
+    assert summaries[0].final_equity == "1019.00"
+
+
+def test_strategy_backtest_page_shows_recent_results_newest_first():
+    from datetime import datetime, timezone
+
+    from app.paper.strategy_backtest import StrategyBacktestRunSummary
+    from app.paper.web_status import render_strategy_backtest_html
+
+    html = render_strategy_backtest_html(
+        recent_results=[
+            StrategyBacktestRunSummary(
+                created_at=datetime(2026, 6, 20, 9, 0, tzinfo=timezone.utc),
+                symbol="ETHUSDT",
+                fast_ma_type="MA",
+                fast_period=30,
+                slow_ma_type="EMA",
+                slow_period=120,
+                history_period="6m",
+                initial_equity="1000.00",
+                final_equity="980.00",
+                total_trades=10,
+                wins=4,
+                losses=6,
+                net_pnl="-20.00",
+            ),
+            StrategyBacktestRunSummary(
+                created_at=datetime(2026, 6, 20, 10, 0, tzinfo=timezone.utc),
+                symbol="BTCUSDT",
+                fast_ma_type="EMA",
+                fast_period=50,
+                slow_ma_type="MA",
+                slow_period=200,
+                history_period="1y",
+                initial_equity="1000.00",
+                final_equity="1044.00",
+                total_trades=25,
+                wins=11,
+                losses=14,
+                net_pnl="44.00",
+            ),
+        ]
+    )
+
+    assert "最近回测结果" in html
+    assert "recent-results-scroll" in html
+    assert "EMA50 / MA200" in html
+    assert "11 / 14 / 胜率 44%" in html
+    assert html.index("BTCUSDT") < html.index("ETHUSDT")
 
 
 def test_strategy_backtest_web_helper_reports_runner_errors(monkeypatch):

@@ -50,7 +50,8 @@ def make_handler(state_path: Path, error_log_path: Path):
                     result = _archive_strategy_backtest_result(result)
                 else:
                     result = run_strategy_backtest_default_result()
-                self._send_html(render_strategy_backtest_html(result=result))
+                recent_results = _load_recent_strategy_backtest_results()
+                self._send_html(render_strategy_backtest_html(result=result, recent_results=recent_results))
                 return
             self.send_error(404)
 
@@ -97,6 +98,8 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
     symbol = _query_choice(query, "symbol", "BTCUSDT", {"BTCUSDT", "ETHUSDT"})
     return StrategyBacktestConfig(
         symbols=(symbol,),
+        fast_ma_type=_query_choice(query, "fast_ma_type", "EMA", {"EMA", "MA"}),
+        slow_ma_type=_query_choice(query, "slow_ma_type", "EMA", {"EMA", "MA"}),
         ema_fast_period=_query_int(query, "ema_fast", 50, minimum=2, maximum=500),
         ema_slow_period=_query_int(query, "ema_slow", 200, minimum=3, maximum=1000),
         limit=_query_int(query, "limit", 1500, minimum=50, maximum=1500),
@@ -133,6 +136,19 @@ def _archive_strategy_backtest_result(result, session_factory=None):
     except Exception as exc:
         return replace(result, error=f"回测结果写入数据库失败：{exc}")
     return result
+
+
+def _load_recent_strategy_backtest_results(session_factory=None):
+    try:
+        from app.config.settings import Settings
+        from app.database.db import build_session_factory
+        from app.database.repositories import list_strategy_backtest_summaries
+
+        factory = session_factory or build_session_factory(Settings())
+        with factory() as session:
+            return list_strategy_backtest_summaries(session, limit=100)
+    except Exception:
+        return []
 
 
 def _query_int(

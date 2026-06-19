@@ -202,6 +202,45 @@ def test_realtime_strategy_reports_trigger_conditions_and_nearest_strategy():
     )
 
 
+def test_realtime_strategy_can_use_ma_for_slow_average_in_diagnostics():
+    from app.paper.multitimeframe import MultiTimeframeFrame
+    from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
+
+    frame = MultiTimeframeFrame(
+        symbol="BTCUSDT",
+        klines_by_interval={
+            "4h": tuple(
+                _kline("BTCUSDT", "4h", index, close)
+                for index, close in enumerate(["100", "104", "108", "112", "116", "120"])
+            ),
+            "1h": tuple(
+                _kline("BTCUSDT", "1h", index, close)
+                for index, close in enumerate(["108", "112", "116", "120", "124", "128"])
+            ),
+            "15m": (
+                *_klines("BTCUSDT", "15m", ["120", "124", "128", "124"]),
+                _kline("BTCUSDT", "15m", 4, "126", open_price="125"),
+            ),
+        },
+    )
+
+    signal = build_realtime_strategy_signal(
+        frame,
+        config=RealtimeStrategyConfig(
+            fast_ma_type="EMA",
+            slow_ma_type="MA",
+            ema_fast_period=3,
+            ema_slow_period=5,
+            atr_period=3,
+            dmi_period=3,
+            swing_lookback=5,
+        ),
+    )
+
+    assert any("EMA3 > MA5" in rule for rule in signal.core_rules)
+    assert signal.chart_timeframes["15m"][-1]["ema200"] == "124.4"
+
+
 def test_realtime_strategy_reports_bearish_structure_separately_from_momentum_confirmation():
     from app.paper.strategy_adapter import RealtimeStrategyConfig, _main_short_conditions
     from app.strategy.pullback_strategy import EntryFrame

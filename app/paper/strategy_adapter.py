@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from app.data.quality import Kline
-from app.indicators.core import atr, directional_movement_index, ema
+from app.indicators.core import atr, directional_movement_index, ema, ma
 from app.paper.multitimeframe import MultiTimeframeFrame
 from app.strategy.pullback_strategy import EntryFrame, TradeSignal, build_pullback_signal
 from app.strategy.reversal_strategy import ReversalSetup, build_reversal_signal
@@ -12,6 +12,8 @@ from app.strategy.trend_detector import TrendFrame, detect_trend
 
 @dataclass(frozen=True)
 class RealtimeStrategyConfig:
+    fast_ma_type: str = "EMA"
+    slow_ma_type: str = "EMA"
     ema_fast_period: int = 50
     ema_slow_period: int = 200
     atr_period: int = 14
@@ -78,6 +80,20 @@ def _has_required_history(frame: MultiTimeframeFrame, config: RealtimeStrategyCo
     return len(frame.history(config.entry_interval)) >= min_entry_bars
 
 
+def _moving_average(values: list[Decimal], period: int, average_type: str) -> list[Decimal | None]:
+    if _normalise_average_type(average_type) == "MA":
+        return ma(values, period)
+    return ema(values, period)
+
+
+def _average_label(average_type: str, period: int) -> str:
+    return f"{_normalise_average_type(average_type)}{period}"
+
+
+def _normalise_average_type(average_type: str) -> str:
+    return average_type.upper() if average_type.upper() in {"EMA", "MA"} else "EMA"
+
+
 def _build_trend_frame(
     klines: tuple[Kline, ...],
     config: RealtimeStrategyConfig,
@@ -85,8 +101,8 @@ def _build_trend_frame(
     closes = [kline.close for kline in klines]
     highs = [kline.high for kline in klines]
     lows = [kline.low for kline in klines]
-    fast_ema = ema(closes, config.ema_fast_period)
-    slow_ema = ema(closes, config.ema_slow_period)
+    fast_ema = _moving_average(closes, config.ema_fast_period, config.fast_ma_type)
+    slow_ema = _moving_average(closes, config.ema_slow_period, config.slow_ma_type)
     movement = directional_movement_index(highs, lows, closes, config.dmi_period)
     latest_fast = fast_ema[-1]
     previous_fast = fast_ema[-2]
@@ -117,7 +133,7 @@ def _build_entry_frame(
     closes = [kline.close for kline in klines]
     highs = [kline.high for kline in klines]
     lows = [kline.low for kline in klines]
-    fast_ema = ema(closes, config.ema_fast_period)
+    fast_ema = _moving_average(closes, config.ema_fast_period, config.fast_ma_type)
     atr_values = atr(highs, lows, closes, config.atr_period)
     latest_ema = fast_ema[-1]
     latest_atr = atr_values[-1]
@@ -243,17 +259,21 @@ def _core_rules(frame: MultiTimeframeFrame, config: RealtimeStrategyConfig) -> l
         closes = [kline.close for kline in klines]
         if not closes:
             continue
-        fast = ema(closes, config.ema_fast_period)[-1]
-        slow = ema(closes, config.ema_slow_period)[-1]
+        fast = _moving_average(closes, config.ema_fast_period, config.fast_ma_type)[-1]
+        slow = _moving_average(closes, config.ema_slow_period, config.slow_ma_type)[-1]
         if fast is None or slow is None:
             continue
+        fast_label = _average_label(config.fast_ma_type, config.ema_fast_period)
+        slow_label = _average_label(config.slow_ma_type, config.ema_slow_period)
         if fast > slow:
-            rules.append(f"{interval} EMA50 > EMA200：多头基础")
+            rules.append(f"{interval} {fast_label} > {slow_label}：多头基础")
         elif slow > fast:
-            rules.append(f"{interval} EMA200 > EMA50：空头基础")
+            rules.append(f"{interval} {slow_label} > {fast_label}：空头基础")
         else:
-            rules.append(f"{interval} EMA50 = EMA200：方向不明")
-    rules.append("主策略：4h/1h 同向趋势 + 15m 回踩/反弹 EMA50 区域 + 确认 K 线")
+            rules.append(f"{interval} {fast_label} = {slow_label}：方向不明")
+    rules.append(
+        f"主策略：4h/1h 同向趋势 + 15m 回踩/反弹 {_average_label(config.fast_ma_type, config.ema_fast_period)} 区域 + 确认 K 线"
+    )
     rules.append("趋势转换：4h/1h 冲突时评估 REVERSAL_PROBE 试仓")
     return rules
 
@@ -266,8 +286,8 @@ def _chart_points(
     if not klines:
         return []
     closes = [kline.close for kline in klines]
-    ema50_values = ema(closes, config.ema_fast_period)
-    ema200_values = ema(closes, config.ema_slow_period)
+    ema50_values = _moving_average(closes, config.ema_fast_period, config.fast_ma_type)
+    ema200_values = _moving_average(closes, config.ema_slow_period, config.slow_ma_type)
     start = max(0, len(klines) - max_points)
     points: list[dict[str, str]] = []
     for kline, ema50_value, ema200_value in zip(

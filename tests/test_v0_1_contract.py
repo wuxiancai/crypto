@@ -69,11 +69,12 @@ def test_multi_timeframe_context_uses_only_closed_klines():
 
 
 def test_indicators_compute_expected_values_for_simple_series():
-    from app.indicators.core import atr, bollinger_bands, ema
+    from app.indicators.core import atr, bollinger_bands, ema, ma
 
     closes = [Decimal(value) for value in ["10", "11", "12", "13", "14"]]
 
     assert ema(closes, period=3)[-1].quantize(Decimal("0.0001")) == Decimal("13.0625")
+    assert ma(closes, period=3) == [None, None, Decimal("11"), Decimal("12"), Decimal("13")]
 
     bands = bollinger_bands(closes, period=5, stddev=Decimal("2"))
     assert bands[-1].middle == Decimal("12")

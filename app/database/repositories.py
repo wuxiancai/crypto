@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.backtest.engine import BacktestResult
 from app.data.quality import Kline
 from app.database.models import BacktestRun, BacktestTradeRecord, ConfigSnapshot, KlineRecord
-from app.paper.strategy_backtest import StrategyBacktestResult
+from app.paper.strategy_backtest import StrategyBacktestResult, StrategyBacktestRunSummary
 
 
 def upsert_klines(session: Session, rows: list[Kline]) -> int:
@@ -112,6 +112,8 @@ def archive_strategy_backtest_result(
     config = result.config
     config_payload = {
         "symbols": ",".join(config.symbols),
+        "fast_ma_type": str(config.fast_ma_type),
+        "slow_ma_type": str(config.slow_ma_type),
         "ema_fast_period": str(config.ema_fast_period),
         "ema_slow_period": str(config.ema_slow_period),
         "atr_period": str(config.atr_period),
@@ -171,3 +173,68 @@ def archive_strategy_backtest_result(
         )
     session.commit()
     return run.id
+
+
+def list_strategy_backtest_summaries(
+    session: Session,
+    limit: int = 100,
+) -> list[StrategyBacktestRunSummary]:
+    rows = session.execute(
+        select(BacktestRun, ConfigSnapshot)
+        .join(ConfigSnapshot, BacktestRun.config_snapshot_id == ConfigSnapshot.id)
+        .where(BacktestRun.name == "web_strategy_backtest")
+        .where(ConfigSnapshot.name == "strategy_backtest")
+        .order_by(BacktestRun.created_at.desc(), BacktestRun.id.desc())
+        .limit(max(1, limit))
+    ).all()
+    return [_strategy_backtest_summary(run, snapshot) for run, snapshot in rows]
+
+
+def _strategy_backtest_summary(
+    run: BacktestRun,
+    snapshot: ConfigSnapshot,
+) -> StrategyBacktestRunSummary:
+    payload = _decode_config_content(snapshot.content)
+    symbols = str(payload.get("symbols") or "UNKNOWN")
+    symbol = symbols.split(",", 1)[0] if symbols else "UNKNOWN"
+    return StrategyBacktestRunSummary(
+        created_at=run.created_at,
+        symbol=symbol,
+        fast_ma_type=_average_type_from_payload(payload, "fast_ma_type"),
+        fast_period=_int_from_payload(payload, "ema_fast_period", 50),
+        slow_ma_type=_average_type_from_payload(payload, "slow_ma_type"),
+        slow_period=_int_from_payload(payload, "ema_slow_period", 200),
+        history_period=str(payload.get("history_period") or "unknown"),
+        initial_equity=_money_string(run.initial_equity),
+        final_equity=_money_string(run.final_equity),
+        total_trades=run.total_trades,
+        wins=run.wins,
+        losses=run.losses,
+        net_pnl=_money_string(run.net_pnl),
+    )
+
+
+def _decode_config_content(content: str | None) -> dict[str, object]:
+    if not content:
+        return {}
+    try:
+        loaded = json.loads(content)
+    except json.JSONDecodeError:
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _average_type_from_payload(payload: dict[str, object], key: str) -> str:
+    value = str(payload.get(key) or "EMA").upper()
+    return value if value in {"EMA", "MA"} else "EMA"
+
+
+def _int_from_payload(payload: dict[str, object], key: str, default: int) -> int:
+    try:
+        return int(str(payload.get(key) or default))
+    except ValueError:
+        return default
+
+
+def _money_string(value: object) -> str:
+    return format(Decimal(str(value)).quantize(Decimal("0.01")), "f")

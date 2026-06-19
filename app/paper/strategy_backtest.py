@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 import json
 from pathlib import Path
@@ -17,6 +18,8 @@ from app.paper.trading import PaperConfig, PaperTradingEngine
 @dataclass(frozen=True)
 class StrategyBacktestConfig:
     symbols: tuple[str, ...] = ("BTCUSDT",)
+    fast_ma_type: str = "EMA"
+    slow_ma_type: str = "EMA"
     ema_fast_period: int = 50
     ema_slow_period: int = 200
     atr_period: int = 14
@@ -52,6 +55,23 @@ class StrategyBacktestResult:
     error: str | None = None
 
 
+@dataclass(frozen=True)
+class StrategyBacktestRunSummary:
+    created_at: datetime
+    symbol: str
+    fast_ma_type: str
+    fast_period: int
+    slow_ma_type: str
+    slow_period: int
+    history_period: str
+    initial_equity: str
+    final_equity: str
+    total_trades: int
+    wins: int
+    losses: int
+    net_pnl: str
+
+
 async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) -> StrategyBacktestResult:
     backtest_config = config or StrategyBacktestConfig()
     try:
@@ -60,6 +80,8 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         return _empty_result(backtest_config, error=str(exc))
 
     strategy_config = RealtimeStrategyConfig(
+        fast_ma_type=backtest_config.fast_ma_type,
+        slow_ma_type=backtest_config.slow_ma_type,
         ema_fast_period=backtest_config.ema_fast_period,
         ema_slow_period=backtest_config.ema_slow_period,
         atr_period=backtest_config.atr_period,
