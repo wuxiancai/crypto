@@ -51,7 +51,6 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="5">
   <title>模拟交易看板</title>
   <style>
     :root {{
@@ -163,8 +162,14 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
   </main>
   <script>
     const chartItemsInGroup = (selector, group) => Array.from(document.querySelectorAll(selector)).filter((item) => (item.getAttribute("data-chart-group") || "default") === group);
-    document.querySelectorAll("[data-chart-target]").forEach((button) => {{
-      button.addEventListener("click", () => {{
+    function bindChartTabs() {{
+      document.querySelectorAll("[data-chart-target]").forEach((button) => {{
+        button.addEventListener("click", () => {{
+          activateChart(button);
+        }});
+      }});
+    }}
+    function activateChart(button) {{
         const target = button.getAttribute("data-chart-target");
         const group = button.getAttribute("data-chart-group") || "default";
         chartItemsInGroup("[data-chart-target]", group).forEach((item) => item.classList.remove("active"));
@@ -174,8 +179,45 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
         if (panel) {{
           panel.classList.add("active");
         }}
+    }}
+    function snapshotActiveCharts() {{
+      const active = {{}};
+      document.querySelectorAll("[data-chart-target].active").forEach((button) => {{
+        active[button.getAttribute("data-chart-group") || "default"] = button.getAttribute("data-chart-target");
       }});
-    }});
+      return active;
+    }}
+    function restoreActiveCharts(active) {{
+      Object.entries(active).forEach(([group, target]) => {{
+        const button = chartItemsInGroup("[data-chart-target]", group).find((item) => item.getAttribute("data-chart-target") === target);
+        if (button) {{
+          activateChart(button);
+        }}
+      }});
+    }}
+    async function refreshDashboard() {{
+      const activeCharts = snapshotActiveCharts();
+      try {{
+        const response = await fetch(window.location.href, {{ cache: "no-store" }});
+        if (!response.ok) {{
+          return;
+        }}
+        const html = await response.text();
+        const nextDocument = new DOMParser().parseFromString(html, "text/html");
+        const nextMain = nextDocument.querySelector("main");
+        const currentMain = document.querySelector("main");
+        if (!nextMain || !currentMain) {{
+          return;
+        }}
+        currentMain.innerHTML = nextMain.innerHTML;
+        bindChartTabs();
+        restoreActiveCharts(activeCharts);
+      }} catch (_error) {{
+        return;
+      }}
+    }}
+    bindChartTabs();
+    setInterval(refreshDashboard, 5000);
   </script>
 </body>
 </html>"""

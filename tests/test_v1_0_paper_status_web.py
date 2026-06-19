@@ -158,6 +158,32 @@ def test_status_page_formats_numbers_times_and_compact_trade_list(tmp_path):
     assert html.find("2,700,005") < html.find("2,700,000")
 
 
+def test_status_page_uses_soft_refresh_without_full_page_meta_reload(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert '<meta http-equiv="refresh"' not in html
+    assert "5 秒自动刷新" in html
+    assert "setInterval(refreshDashboard, 5000)" in html
+    assert "fetch(window.location.href" in html
+    assert "snapshotActiveCharts" in html
+    assert "restoreActiveCharts" in html
+
+
 def test_paper_status_page_shows_only_error_log_lines_in_red(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 
