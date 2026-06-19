@@ -84,7 +84,8 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .empty {{ color: #65748b; padding: 14px; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; }}
     .error-log-box {{ display: grid; gap: 8px; }}
     .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
-    .rule-list {{ display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; color: #344055; font-size: 13px; }}
+    .rule-list {{ display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 0 0 12px; padding: 0; list-style: none; color: #344055; font-size: 13px; }}
+    .rule-list li {{ white-space: nowrap; }}
     .condition-summary {{ display: grid; gap: 6px; margin-bottom: 12px; }}
     .condition-cards {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }}
     .condition-title {{ color: #172033; font-size: 17px; font-weight: 700; }}
@@ -161,13 +162,15 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     </section>
   </main>
   <script>
+    const chartItemsInGroup = (selector, group) => Array.from(document.querySelectorAll(selector)).filter((item) => (item.getAttribute("data-chart-group") || "default") === group);
     document.querySelectorAll("[data-chart-target]").forEach((button) => {{
       button.addEventListener("click", () => {{
         const target = button.getAttribute("data-chart-target");
-        document.querySelectorAll("[data-chart-target]").forEach((item) => item.classList.remove("active"));
-        document.querySelectorAll("[data-chart-panel]").forEach((item) => item.classList.remove("active"));
+        const group = button.getAttribute("data-chart-group") || "default";
+        chartItemsInGroup("[data-chart-target]", group).forEach((item) => item.classList.remove("active"));
+        chartItemsInGroup("[data-chart-panel]", group).forEach((item) => item.classList.remove("active"));
         button.classList.add("active");
-        const panel = document.querySelector(`[data-chart-panel="${{target}}"]`);
+        const panel = chartItemsInGroup("[data-chart-panel]", group).find((item) => item.getAttribute("data-chart-panel") === target);
         if (panel) {{
           panel.classList.add("active");
         }}
@@ -527,13 +530,54 @@ def _missing_conditions_summary(conditions: list[dict[str, Any]]) -> str:
 
 
 def _render_strategy_chart(evaluations: list[dict[str, Any]]) -> str:
-    evaluation = _latest_chart_evaluation(evaluations)
-    if evaluation is None:
+    evaluations_by_symbol = _latest_chart_evaluations_by_symbol(evaluations)
+    if not evaluations_by_symbol:
         return '<div class="empty">暂无K线图数据</div>'
+    if len(evaluations_by_symbol) == 1:
+        evaluation = evaluations_by_symbol[0]
+        rules = _render_core_rules(evaluation.get("core_rules", []))
+        chart_timeframes = _chart_timeframes_from_evaluation(evaluation)
+        if not chart_timeframes:
+            return f'{rules}<div class="empty">K线图数据不足</div>'
+        return f"""{rules}
+<div class="chart-wrap">
+  {_render_chart_controls_and_panels(evaluation=evaluation, chart_timeframes=chart_timeframes, symbol_scoped=False)}
+</div>"""
+
+    symbol_tabs = "".join(
+        _render_chart_symbol_tab(symbol=str(evaluation.get("symbol") or "UNKNOWN"), active=index == 0)
+        for index, evaluation in enumerate(evaluations_by_symbol)
+    )
+    symbol_panels = "".join(
+        _render_chart_symbol_panel(evaluation=evaluation, active=index == 0)
+        for index, evaluation in enumerate(evaluations_by_symbol)
+    )
+    return f"""<div class="chart-wrap">
+  <div class="chart-tabs">{symbol_tabs}</div>
+  {symbol_panels}
+</div>"""
+
+
+def _render_chart_symbol_panel(evaluation: dict[str, Any], active: bool) -> str:
     rules = _render_core_rules(evaluation.get("core_rules", []))
     chart_timeframes = _chart_timeframes_from_evaluation(evaluation)
     if not chart_timeframes:
         return f'{rules}<div class="empty">K线图数据不足</div>'
+    active_class = " active" if active else ""
+    symbol = str(evaluation.get("symbol") or "UNKNOWN")
+    group = f"chart-{_safe_chart_key(symbol)}"
+    return f"""<div class="chart-panel{active_class}" data-chart-panel="{_symbol_panel_id(symbol)}" data-chart-group="chart-symbols">
+  {rules}
+  {_render_chart_controls_and_panels(evaluation=evaluation, chart_timeframes=chart_timeframes, symbol_scoped=True, group=group)}
+</div>"""
+
+
+def _render_chart_controls_and_panels(
+    evaluation: dict[str, Any],
+    chart_timeframes: dict[str, list[dict[str, Decimal]]],
+    symbol_scoped: bool,
+    group: str = "default",
+) -> str:
     preferred_order = ("4h", "1h", "15m")
     intervals = [
         interval
@@ -544,24 +588,24 @@ def _render_strategy_chart(evaluations: list[dict[str, Any]]) -> str:
         for interval in chart_timeframes
         if interval not in preferred_order
     ]
+    symbol = str(evaluation.get("symbol") or "UNKNOWN")
     tabs = "".join(
-        _render_chart_tab(interval=interval, active=index == 0)
+        _render_chart_tab(interval=interval, active=index == 0, symbol=symbol if symbol_scoped else None, group=group)
         for index, interval in enumerate(intervals)
     )
     panels = "".join(
         _render_chart_panel(
             interval=interval,
             points=chart_timeframes[interval],
-            symbol=evaluation.get("symbol"),
+            symbol=symbol,
             active=index == 0,
+            symbol_scoped=symbol_scoped,
+            group=group,
         )
         for index, interval in enumerate(intervals)
     )
-    return f"""{rules}
-<div class="chart-wrap">
-  <div class="chart-tabs">{tabs}</div>
-  {panels}
-</div>"""
+    return f"""<div class="chart-tabs">{tabs}</div>
+  {panels}"""
 
 
 def _chart_timeframes_from_evaluation(evaluation: dict[str, Any]) -> dict[str, list[dict[str, Decimal]]]:
@@ -580,10 +624,15 @@ def _chart_timeframes_from_evaluation(evaluation: dict[str, Any]) -> dict[str, l
     return {str(evaluation.get("interval") or "15m"): fallback_points}
 
 
-def _render_chart_tab(interval: str, active: bool) -> str:
+def _render_chart_tab(interval: str, active: bool, symbol: str | None = None, group: str = "default") -> str:
     active_class = " active" if active else ""
-    chart_id = _chart_id(interval)
-    return f'<button class="chart-tab{active_class}" type="button" data-chart-target="{chart_id}">{_escape(interval)}</button>'
+    chart_id = _chart_id(interval, symbol=symbol)
+    return f'<button class="chart-tab{active_class}" type="button" data-chart-target="{chart_id}" data-chart-group="{_escape(group)}">{_escape(interval)}</button>'
+
+
+def _render_chart_symbol_tab(symbol: str, active: bool) -> str:
+    active_class = " active" if active else ""
+    return f'<button class="chart-tab{active_class}" type="button" data-chart-target="{_symbol_panel_id(symbol)}" data-chart-group="chart-symbols">{_escape(symbol)}</button>'
 
 
 def _render_chart_panel(
@@ -591,10 +640,12 @@ def _render_chart_panel(
     points: list[dict[str, Decimal]],
     symbol: Any,
     active: bool,
+    symbol_scoped: bool = False,
+    group: str = "default",
 ) -> str:
     active_class = " active" if active else ""
-    chart_id = _chart_id(interval)
-    return f"""<div class="chart-panel{active_class}" data-chart-panel="{chart_id}">
+    chart_id = _chart_id(interval, symbol=str(symbol) if symbol_scoped else None)
+    return f"""<div class="chart-panel{active_class}" data-chart-panel="{chart_id}" data-chart-group="{_escape(group)}">
   <div class="legend">
     <span class="legend-item"><span class="legend-swatch" style="background:#0a7c52"></span>K线</span>
     <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span>EMA50</span>
@@ -605,8 +656,19 @@ def _render_chart_panel(
 </div>"""
 
 
-def _chart_id(interval: str) -> str:
-    return f"chart-{''.join(char for char in interval if char.isalnum())}"
+def _chart_id(interval: str, symbol: str | None = None) -> str:
+    interval_key = _safe_chart_key(interval)
+    if symbol is None:
+        return f"chart-{interval_key}"
+    return f"chart-{_safe_chart_key(symbol)}-{interval_key}"
+
+
+def _symbol_panel_id(symbol: str) -> str:
+    return f"symbol-{_safe_chart_key(symbol)}"
+
+
+def _safe_chart_key(value: str) -> str:
+    return "".join(char for char in value if char.isalnum())
 
 
 def _latest_chart_evaluation(evaluations: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -618,6 +680,18 @@ def _latest_chart_evaluation(evaluations: list[dict[str, Any]]) -> dict[str, Any
     if not chartable:
         return None
     return max(chartable, key=lambda item: int(item.get("evaluated_at_ms") or 0))
+
+
+def _latest_chart_evaluations_by_symbol(evaluations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for evaluation in evaluations:
+        if not (evaluation.get("chart_timeframes") or evaluation.get("chart_points")):
+            continue
+        symbol = str(evaluation.get("symbol") or "UNKNOWN")
+        current = latest.get(symbol)
+        if current is None or int(evaluation.get("evaluated_at_ms") or 0) >= int(current.get("evaluated_at_ms") or 0):
+            latest[symbol] = evaluation
+    return [latest[symbol] for symbol in sorted(latest)]
 
 
 def _render_core_rules(rules: Any) -> str:

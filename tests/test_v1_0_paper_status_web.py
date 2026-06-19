@@ -386,6 +386,76 @@ def test_paper_status_page_can_switch_strategy_chart_timeframes(tmp_path):
     assert ">15m<" in html
 
 
+def test_paper_status_page_can_switch_strategy_chart_symbols_and_compacts_rules(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    point = {
+        "open_time": 1,
+        "open": "100",
+        "high": "110",
+        "low": "95",
+        "close": "105",
+        "ema50": "103",
+        "ema200": "101",
+    }
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "105",
+                        "action": "WAIT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "reason": ["no actionable signal"],
+                        "core_rules": ["4h EMA200 > EMA50：空头基础", "1h EMA200 > EMA50：空头基础"],
+                        "chart_timeframes": {
+                            "4h": [point, {**point, "open_time": 2, "close": "106"}],
+                            "1h": [point, {**point, "open_time": 2, "close": "104"}],
+                            "15m": [point, {**point, "open_time": 2, "close": "103"}],
+                        },
+                    },
+                    {
+                        "evaluated_at_ms": 2,
+                        "symbol": "ETHUSDT",
+                        "interval": "15m",
+                        "close": "205",
+                        "action": "WAIT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "reason": ["no actionable signal"],
+                        "core_rules": ["4h EMA200 > EMA50：空头基础", "1h EMA50 > EMA200：多头基础"],
+                        "chart_timeframes": {
+                            "4h": [point, {**point, "open_time": 2, "close": "206"}],
+                            "1h": [point, {**point, "open_time": 2, "close": "204"}],
+                            "15m": [point, {**point, "open_time": 2, "close": "203"}],
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert ".rule-list { display: flex;" in html
+    assert 'data-chart-target="symbol-BTCUSDT"' in html
+    assert 'data-chart-target="symbol-ETHUSDT"' in html
+    assert 'data-chart-panel="symbol-BTCUSDT"' in html
+    assert 'data-chart-panel="symbol-ETHUSDT"' in html
+    assert 'data-chart-panel="chart-BTCUSDT-4h"' in html
+    assert 'data-chart-panel="chart-ETHUSDT-4h"' in html
+    assert "BTCUSDT · 4h" in html
+    assert "ETHUSDT · 4h" in html
+
+
 def test_paper_status_page_shows_strategy_trigger_conditions(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 
