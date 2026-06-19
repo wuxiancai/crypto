@@ -989,8 +989,33 @@ def _read_error_logs(path: Path | None, max_lines: int = 50) -> list[str]:
     if path is None or not path.exists():
         return []
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    matched = [line for line in lines if _is_error_log_line(line)]
+    matched = []
+    for line in lines:
+        summary = _summarize_error_log_line(line)
+        if summary and summary not in matched:
+            matched.append(summary)
     return matched[-max_lines:]
+
+
+def _summarize_error_log_line(line: str) -> str | None:
+    lowered = line.lower()
+    if "connecttimeout" in lowered or "connect timeout" in lowered or "timed out" in lowered:
+        return "Binance REST 连接超时：历史数据预热或回测可能无法完成，请检查服务器网络是否能访问 Binance。"
+    if "historical warmup skipped" in lowered:
+        return f"历史数据预热失败：{line}"
+    if (
+        "traceback" in lowered
+        or "the above exception" in lowered
+        or "map_exception" in lowered
+        or line.lstrip().startswith("File ")
+        or line.lstrip().startswith("with ")
+    ):
+        return None
+    if "websocket" in lowered and ("error" in lowered or "failed" in lowered or "disconnected" in lowered):
+        return f"WebSocket 连接异常：{line}"
+    if _is_error_log_line(line):
+        return line
+    return None
 
 
 def _is_error_log_line(line: str) -> bool:

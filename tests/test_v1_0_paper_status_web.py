@@ -223,6 +223,47 @@ def test_paper_status_page_shows_only_error_log_lines_in_red(tmp_path):
     assert "color: #b42318" in html
 
 
+def test_paper_status_page_summarizes_tracebacks_in_error_log(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    log_path = tmp_path / "paper-realtime.log"
+    log_path.write_text(
+        "\n".join(
+            [
+                "Traceback (most recent call last):",
+                '  File "/home/wuxiancai/crypto/.venv/lib/python3.12/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions',
+                "    with map_exceptions(exc_map):",
+                "httpcore.ConnectTimeout",
+                "The above exception was the direct cause of the following exception:",
+                "Traceback (most recent call last):",
+                "httpx.ConnectTimeout",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(
+        build_paper_status_payload(state_path, error_log_path=log_path)
+    )
+
+    assert "Binance REST 连接超时" in html
+    assert "Traceback" not in html
+    assert "map_httpcore_exceptions" not in html
+    assert "The above exception" not in html
+
+
 def test_paper_status_page_shows_recent_strategy_outputs(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 
