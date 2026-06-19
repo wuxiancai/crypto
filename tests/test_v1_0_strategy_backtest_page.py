@@ -71,6 +71,17 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     assert "持仓情况" not in html
 
 
+def test_strategy_backtest_defaults_to_binance_single_request_limit():
+    from app.paper.strategy_backtest import StrategyBacktestConfig
+    from app.paper.web_status import render_strategy_backtest_html
+
+    html = render_strategy_backtest_html()
+
+    assert StrategyBacktestConfig().limit == 1500
+    assert 'name="limit"' in html
+    assert 'value="1500"' in html
+
+
 def test_strategy_backtest_page_can_show_error_without_results():
     from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
     from app.paper.web_status import render_strategy_backtest_html

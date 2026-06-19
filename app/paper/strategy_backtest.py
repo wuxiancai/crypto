@@ -19,7 +19,7 @@ class StrategyBacktestConfig:
     atr_period: int = 14
     dmi_period: int = 14
     swing_lookback: int = 20
-    limit: int = 250
+    limit: int = 1500
     initial_equity: Decimal = Decimal("1000")
     risk_per_trade_pct: Decimal = Decimal("0.005")
     maker_fee_rate: Decimal = Decimal("0")

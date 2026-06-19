@@ -94,7 +94,7 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
     return StrategyBacktestConfig(
         ema_fast_period=_query_int(query, "ema_fast", 50, minimum=2, maximum=500),
         ema_slow_period=_query_int(query, "ema_slow", 200, minimum=3, maximum=1000),
-        limit=_query_int(query, "limit", 250, minimum=50, maximum=1500),
+        limit=_query_int(query, "limit", 1500, minimum=50, maximum=1500),
     )
 
 
