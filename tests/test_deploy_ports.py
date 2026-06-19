@@ -30,7 +30,7 @@ def test_write_env_file_contains_database_url_and_selected_ports(tmp_path):
     assert "POSTGRES_PORT=55434" in content
     assert "PAPER_WEB_PORT=8766" in content
     assert "DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55434/crypto_quant" in content
-    assert "BINANCE_WEBSOCKET_BASE_URL=wss://fstream.binancefuture.com" in content
+    assert "BINANCE_WEBSOCKET_BASE_URL=wss://fstream.binance.com/market" in content
     assert "PAPER_STATE_PATH=runtime/paper-state.json" in content
 
 

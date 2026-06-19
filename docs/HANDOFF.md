@@ -19,6 +19,11 @@
 
 ## 本轮修复
 
+- 2026-06-20 按 Binance USDⓈ-M Futures 官方文档修复连接链路：
+  - WebSocket Kline 属于 Market stream，实时 K 线 URL 现在生成 `wss://fstream.binance.com/market/stream?streams=...`，不再使用 legacy `wss://fstream.binance.com/stream?...`。
+  - Ubuntu `.env.ports.generated` 默认 `BINANCE_WEBSOCKET_BASE_URL` 已从测试网 `wss://fstream.binancefuture.com` 改为主网 `wss://fstream.binance.com/market`，避免主网 REST 与测试网 WebSocket 混跑。
+  - WebSocket 默认连接参数已按官方 ping/pong 规则放宽为 `ping_interval=180`、`ping_timeout=600`，并在连接异常、keepalive timeout 或 24 小时断开后自动指数退避重连。
+  - Binance REST K 线拉取新增短退避重试：连接超时/网络错误、HTTP 408/429/503 默认最多 3 次；HTTP 451 继续直接提示当前网络/地区受限。
 - 统一 AI fallback：移除 `BLOCK_NEW_ENTRIES`，统一使用 `BLOCK`。
 - 主趋势做多/做空也必须使用 DI_PLUS / DI_MINUS 判断方向。
 - 趋势转换早期试仓风险固定为 0.2%，确认试仓风险固定为 0.3%。
@@ -137,6 +142,9 @@
 
 ## 验证结果
 
+- `.venv/bin/python -m pytest tests/test_v0_4_binance_stream.py tests/test_deploy_ports.py tests/test_v0_1_database_and_binance.py -q`：17 passed，覆盖官方 `/market` WebSocket URL、部署主网默认值、WebSocket 重连和 REST 退避重试。
+- `.venv/bin/python -m pytest tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_paper_status_web.py tests/test_deploy_script.py -q`：37 passed。
+- `.venv/bin/python -m py_compile app/paper/binance_stream.py app/paper/live_runner.py app/data/binance.py app/deploy/ports.py scripts/run_paper_realtime.py`：通过。
 - `.venv/bin/python -m pytest -q`：110 passed。
 - `bash -n scripts/start_ubuntu.sh && bash -n scripts/deploy_ubuntu.sh`：通过。
 - `.venv/bin/python -m pytest tests/test_deploy_ports.py -q`：3 passed。

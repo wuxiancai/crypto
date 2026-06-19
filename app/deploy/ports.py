@@ -47,7 +47,7 @@ def write_ports_env(path: Path, ports: dict[str, int]) -> None:
                 f"POSTGRES_PORT={postgres_port}",
                 f"PAPER_WEB_PORT={paper_web_port}",
                 f"DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:{postgres_port}/crypto_quant",
-                "BINANCE_WEBSOCKET_BASE_URL=wss://fstream.binancefuture.com",
+                "BINANCE_WEBSOCKET_BASE_URL=wss://fstream.binance.com/market",
                 "PAPER_STATE_PATH=runtime/paper-state.json",
                 "",
             ]

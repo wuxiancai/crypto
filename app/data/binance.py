@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Any
+import asyncio
 
 import httpx
 
@@ -9,6 +10,9 @@ from app.data.quality import Kline
 
 class BinanceDataError(RuntimeError):
     pass
+
+
+RETRYABLE_STATUS_CODES = {408, 429, 503}
 
 
 def parse_binance_kline(symbol: str, interval: str, payload: list[Any]) -> Kline:
@@ -33,6 +37,8 @@ async def fetch_klines(
     settings: Settings | None = None,
     start_time: int | None = None,
     end_time: int | None = None,
+    max_attempts: int = 3,
+    retry_initial_delay: float = 0.2,
 ) -> list[Kline]:
     config = settings or Settings()
     params: dict[str, int | str] = {"symbol": symbol, "interval": interval, "limit": limit}
@@ -40,13 +46,19 @@ async def fetch_klines(
         params["startTime"] = start_time
     if end_time is not None:
         params["endTime"] = end_time
-    async with httpx.AsyncClient(base_url=config.binance_base_url, timeout=20.0) as client:
-        response = await client.get(
-            "/fapi/v1/klines",
-            params=params,
-        )
+    attempt = 0
+    delay = retry_initial_delay
+    while True:
+        attempt += 1
         try:
-            response.raise_for_status()
+            async with httpx.AsyncClient(base_url=config.binance_base_url, timeout=20.0) as client:
+                response = await client.get(
+                    "/fapi/v1/klines",
+                    params=params,
+                )
+                response.raise_for_status()
+                payload = response.json()
+                break
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 451:
                 raise BinanceDataError(
@@ -54,6 +66,11 @@ async def fetch_klines(
                     "The current network or region may be restricted. "
                     "Set BINANCE_BASE_URL to an accessible futures endpoint for validation."
                 ) from exc
-            raise BinanceDataError(f"Binance kline request failed: {exc.response.status_code}") from exc
-        payload = response.json()
+            if exc.response.status_code not in RETRYABLE_STATUS_CODES or attempt >= max_attempts:
+                raise BinanceDataError(f"Binance kline request failed: {exc.response.status_code}") from exc
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
+            if attempt >= max_attempts:
+                raise BinanceDataError(f"Binance kline request failed after retries: {exc}") from exc
+        await asyncio.sleep(delay)
+        delay *= 2
     return [parse_binance_kline(symbol, interval, item) for item in payload]

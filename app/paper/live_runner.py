@@ -45,6 +45,7 @@ async def run_real_market_paper(
         base_url=config.websocket_base_url,
         symbols=list(config.symbols),
         intervals=list(config.intervals),
+        reconnect=True,
     )
     historical_klines = warmup_klines
     if historical_klines is None and source is None and config.historical_warmup_enabled:

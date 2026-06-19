@@ -6,6 +6,13 @@
 
 当前 V0.6 AI/Funding 过滤纯风控层已完成，正在推进真实行情驱动的 Paper Trading 稳定性验证。当前暂无 Binance API Key，测试网/真实下单闭环延后到 API Key 可用后再做。主网真实 K 线入库仍受当前网络 Binance futures HTTP 451 限制，需要在可访问环境补验。
 
+2026-06-20 Binance 连接修复：
+
+- [x] 按 Binance USDⓈ-M Futures 官方文档将实时 K 线 WebSocket 主网入口迁移为 routed market endpoint：`wss://fstream.binance.com/market/stream?...`。
+- [x] Ubuntu 生成的 `.env.ports.generated` 默认 `BINANCE_WEBSOCKET_BASE_URL` 已从测试网 `wss://fstream.binancefuture.com` 改为主网 `wss://fstream.binance.com/market`，避免主网 REST 与测试网 WebSocket 混跑。
+- [x] WebSocket 默认连接参数已按官方 ping/pong 规则放宽：客户端 ping 间隔 180 秒，pong 超时 600 秒，并在断线、24 小时断开或 keepalive timeout 后自动指数退避重连。
+- [x] Binance REST K 线拉取已增加短退避重试：连接超时/网络错误、HTTP 408/429/503 默认最多 3 次；HTTP 451 仍直接提示当前网络/地区受限。
+
 ## Ubuntu 部署
 
 - [x] 提供 Ubuntu 一键部署脚本。
