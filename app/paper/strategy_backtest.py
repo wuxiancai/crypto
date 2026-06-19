@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+import json
+from pathlib import Path
 import time
 
 from app.data.binance import BinanceDataError, fetch_klines
@@ -24,6 +26,7 @@ class StrategyBacktestConfig:
     history_period: str = "3m"
     history_start_time_ms: int | None = None
     history_end_time_ms: int | None = None
+    history_cache_dir: Path | None = Path("runtime/backtest-klines")
     initial_equity: Decimal = Decimal("1000")
     risk_per_trade_pct: Decimal = Decimal("0.005")
     maker_fee_rate: Decimal = Decimal("0.0002")
@@ -112,11 +115,50 @@ async def _fetch_backtest_klines(config: StrategyBacktestConfig) -> list[Kline]:
     historical: list[Kline] = []
     for symbol in config.symbols:
         for interval in intervals:
-            historical.extend(await _fetch_interval_pages(symbol, interval, config.limit, start_time, end_time))
+            historical.extend(
+                await _fetch_interval_pages(
+                    symbol,
+                    interval,
+                    config.limit,
+                    start_time,
+                    end_time,
+                    config.history_cache_dir,
+                )
+            )
     return sorted(historical, key=lambda kline: (kline.open_time, kline.symbol, kline.interval))
 
 
 async def _fetch_interval_pages(
+    symbol: str,
+    interval: str,
+    limit: int,
+    start_time: int,
+    end_time: int,
+    cache_dir: Path | None = Path("runtime/backtest-klines"),
+) -> list[Kline]:
+    cached = _read_cached_klines(cache_dir, symbol, interval)
+    missing_ranges = _missing_kline_ranges(cached, interval, start_time, end_time)
+    fetched: list[Kline] = []
+    for missing_start, missing_end in missing_ranges:
+        fetched.extend(
+            await _fetch_interval_pages_from_binance(
+                symbol=symbol,
+                interval=interval,
+                limit=limit,
+                start_time=missing_start,
+                end_time=missing_end,
+            )
+        )
+    if fetched:
+        cached = _write_cached_klines(cache_dir, symbol, interval, [*cached, *fetched])
+    return [
+        kline
+        for kline in sorted(cached, key=lambda item: item.open_time)
+        if start_time <= kline.open_time <= end_time
+    ]
+
+
+async def _fetch_interval_pages_from_binance(
     symbol: str,
     interval: str,
     limit: int,
@@ -143,6 +185,78 @@ async def _fetch_interval_pages(
         next_cursor = max(kline.open_time for kline in page) + interval_ms
         cursor = max(next_cursor, page_end + 1)
     return pages
+
+
+def _read_cached_klines(cache_dir: Path | None, symbol: str, interval: str) -> list[Kline]:
+    if cache_dir is None:
+        return []
+    path = _cache_path(cache_dir, symbol, interval)
+    if not path.exists():
+        return []
+    rows: list[Kline] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = Kline.model_validate(json.loads(line))
+        if row.symbol == symbol and row.interval == interval and row.is_closed:
+            rows.append(row)
+    return sorted(rows, key=lambda item: item.open_time)
+
+
+def _write_cached_klines(cache_dir: Path | None, symbol: str, interval: str, rows: list[Kline]) -> list[Kline]:
+    filtered = {
+        row.open_time: row
+        for row in rows
+        if row.symbol == symbol and row.interval == interval and row.is_closed
+    }
+    merged = [filtered[key] for key in sorted(filtered)]
+    if cache_dir is None:
+        return merged
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    path = _cache_path(cache_dir, symbol, interval)
+    payload = "\n".join(json.dumps(row.model_dump(mode="json"), sort_keys=True) for row in merged)
+    path.write_text(f"{payload}\n" if payload else "", encoding="utf-8")
+    return merged
+
+
+def _missing_kline_ranges(
+    cached: list[Kline],
+    interval: str,
+    start_time: int,
+    end_time: int,
+) -> list[tuple[int, int]]:
+    interval_ms = INTERVAL_MS[interval]
+    first_open = _ceil_to_interval(start_time, interval_ms)
+    last_open = (end_time // interval_ms) * interval_ms
+    if first_open > last_open:
+        return []
+
+    cached_open_times = {
+        kline.open_time
+        for kline in cached
+        if start_time <= kline.open_time <= end_time
+    }
+    ranges: list[tuple[int, int]] = []
+    missing_start: int | None = None
+    cursor = first_open
+    while cursor <= last_open:
+        if cursor not in cached_open_times and missing_start is None:
+            missing_start = cursor
+        if cursor in cached_open_times and missing_start is not None:
+            ranges.append((missing_start, cursor - 1))
+            missing_start = None
+        cursor += interval_ms
+    if missing_start is not None:
+        ranges.append((missing_start, min(end_time, last_open + interval_ms - 1)))
+    return ranges
+
+
+def _ceil_to_interval(value: int, interval_ms: int) -> int:
+    return ((value + interval_ms - 1) // interval_ms) * interval_ms
+
+
+def _cache_path(cache_dir: Path, symbol: str, interval: str) -> Path:
+    return cache_dir / f"{symbol}-{interval}.jsonl"
 
 
 def _history_window_ms(period: str) -> int:

@@ -86,6 +86,7 @@ def test_strategy_backtest_fetches_history_and_runs_current_realtime_strategy(mo
                 limit=6,
                 history_start_time_ms=-6 * 4 * 60 * 60 * 1000,
                 history_end_time_ms=6 * 15 * 60 * 1000 - 1,
+                history_cache_dir=None,
                 maker_fee_rate=Decimal("0"),
                 taker_fee_rate=Decimal("0"),
                 trend_pullback_take_profit_mode="FIXED",
@@ -176,6 +177,7 @@ def test_strategy_backtest_paginates_history_window(monkeypatch):
                 symbols=("BTCUSDT",),
                 history_period="3m",
                 history_end_time_ms=90 * 24 * 60 * 60 * 1000,
+                history_cache_dir=None,
                 limit=1000,
             )
         )
@@ -185,3 +187,69 @@ def test_strategy_backtest_paginates_history_window(monkeypatch):
     first_15m = next(request for request in requests if request[1] == "15m")
     assert first_15m == ("BTCUSDT", "15m", 1000, 0, 899999999)
     assert len([request for request in requests if request[1] == "15m"]) > 1
+
+
+def test_strategy_backtest_reuses_cached_klines_and_fetches_only_missing_tail(monkeypatch, tmp_path):
+    from app.data.quality import INTERVAL_MS
+    from app.paper import strategy_backtest
+    from app.paper.strategy_backtest import StrategyBacktestConfig, run_strategy_backtest
+
+    requests: list[tuple[int | None, int | None]] = []
+
+    async def fake_fetch_klines(
+        symbol: str,
+        interval: str,
+        limit: int,
+        settings=None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ):
+        requests.append((start_time, end_time))
+        if start_time is None or end_time is None or start_time > end_time:
+            return []
+        interval_ms = INTERVAL_MS[interval]
+        start_index = start_time // interval_ms
+        end_index = end_time // interval_ms
+        return [_kline(symbol, interval, index, "100") for index in range(start_index, end_index + 1)]
+
+    monkeypatch.setattr(strategy_backtest, "fetch_klines", fake_fetch_klines)
+    base = StrategyBacktestConfig(
+        symbols=("BTCUSDT",),
+        history_start_time_ms=0,
+        history_end_time_ms=4 * INTERVAL_MS["15m"] - 1,
+        history_cache_dir=tmp_path / "backtest-klines",
+        limit=10,
+    )
+
+    asyncio.run(run_strategy_backtest(base))
+    first_run_requests = len(requests)
+    assert first_run_requests > 0
+
+    asyncio.run(
+        run_strategy_backtest(
+            StrategyBacktestConfig(
+                symbols=("BTCUSDT",),
+                ema_fast_period=30,
+                ema_slow_period=120,
+                history_start_time_ms=0,
+                history_end_time_ms=2 * INTERVAL_MS["15m"] - 1,
+                history_cache_dir=tmp_path / "backtest-klines",
+                limit=10,
+            )
+        )
+    )
+    assert len(requests) == first_run_requests
+
+    asyncio.run(
+        run_strategy_backtest(
+            StrategyBacktestConfig(
+                symbols=("BTCUSDT",),
+                history_start_time_ms=0,
+                history_end_time_ms=5 * INTERVAL_MS["15m"] - 1,
+                history_cache_dir=tmp_path / "backtest-klines",
+                limit=10,
+            )
+        )
+    )
+    assert len(requests) == first_run_requests + 2
+    assert requests[-1] == (4 * INTERVAL_MS["15m"], 5 * INTERVAL_MS["15m"] - 1)
