@@ -32,6 +32,7 @@ def test_serializes_and_restores_paper_snapshot_with_open_position_and_fills():
                 fees=Decimal("0.03"),
                 net_pnl=Decimal("1.97"),
                 exit_reason="TAKE_PROFIT",
+                exit_detail="做空止盈：最低价触达止盈价 190",
             )
         ],
         rejected_signals=2,
@@ -43,6 +44,7 @@ def test_serializes_and_restores_paper_snapshot_with_open_position_and_fills():
     assert payload["equity"] == "10025.50"
     assert payload["open_position"]["entry_price"] == "100"
     assert payload["fills"][0]["net_pnl"] == "1.97"
+    assert payload["fills"][0]["exit_detail"] == "做空止盈：最低价触达止盈价 190"
     assert restored == snapshot
 
 

@@ -77,8 +77,10 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "账户权益" in html
     assert "持仓情况" in html
     assert "全部模拟交易记录" in html
-    assert "买入价" in html
-    assert "卖出价" in html
+    assert "开仓时间" in html
+    assert "平仓时间" in html
+    assert "开仓价" in html
+    assert "平仓价" in html
     assert "使用策略" in html
     assert "ETHUSDT" in html
     assert "做空" in html
@@ -89,45 +91,45 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "rejected-signals" in html
 
 
-def test_fill_prices_are_displayed_as_buy_and_sell_prices_for_long_and_short(tmp_path):
+def test_status_page_formats_numbers_times_and_compact_trade_list(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 
     state_path = tmp_path / "paper-state.json"
+    fills = []
+    for index in range(6):
+        fills.append(
+            {
+                "symbol": "BTCUSDT",
+                "side": "SHORT",
+                "strategy_type": "TREND_PULLBACK",
+                "entry_time": 1_800_000 + index,
+                "exit_time": 2_700_000 + index,
+                "entry_price": "62847.007800",
+                "exit_price": "62959.704400",
+                "quantity": "0.04380682621021708124083866467",
+                "gross_pnl": "-4.936880370682350317766298657",
+                "fees": "1.653851521264327346788839261",
+                "net_pnl": "-6.590731891946677664555137918",
+                "exit_reason": "STOP_LOSS",
+                "exit_detail": "做空止损：最高价触达止损价 62959.704400",
+            }
+        )
     state_path.write_text(
         json.dumps(
             {
-                "equity": "1000",
-                "open_position": None,
-                "fills": [
-                    {
-                        "symbol": "BTCUSDT",
-                        "side": "LONG",
-                        "strategy_type": "TREND_PULLBACK",
-                        "entry_time": 1,
-                        "exit_time": 2,
-                        "entry_price": "64000",
-                        "exit_price": "64600",
-                        "quantity": "0.01",
-                        "gross_pnl": "6",
-                        "fees": "0.2",
-                        "net_pnl": "5.8",
-                        "exit_reason": "TAKE_PROFIT",
-                    },
-                    {
-                        "symbol": "ETHUSDT",
-                        "side": "SHORT",
-                        "strategy_type": "REVERSAL_PROBE",
-                        "entry_time": 3,
-                        "exit_time": 4,
-                        "entry_price": "1800",
-                        "exit_price": "1760",
-                        "quantity": "0.2",
-                        "gross_pnl": "8",
-                        "fees": "0.1",
-                        "net_pnl": "7.9",
-                        "exit_reason": "TAKE_PROFIT",
-                    },
-                ],
+                "equity": "1059.420713783168846837195651",
+                "open_position": {
+                    "symbol": "BTCUSDT",
+                    "side": "SHORT",
+                    "strategy_type": "TREND_PULLBACK",
+                    "entry_time": 1_000,
+                    "entry_price": "62908.530000",
+                    "stop_loss": "63079.00",
+                    "take_profit": "62662.00",
+                    "quantity": "0.03107352360483278133505002789",
+                    "entry_fee": "0",
+                },
+                "fills": fills,
                 "rejected_signals": 0,
             }
         ),
@@ -136,10 +138,15 @@ def test_fill_prices_are_displayed_as_buy_and_sell_prices_for_long_and_short(tmp
 
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
-    assert "64000" in html
-    assert "64600" in html
-    assert "1760" in html
-    assert "1800" in html
+    assert "1059.42" in html
+    assert "62908.53" in html
+    assert "0.0311" in html
+    assert "62847.01" in html
+    assert "62959.70" in html
+    assert "-6.59" in html
+    assert "做空止损：最高价触达止损价 62959.70" in html
+    assert "trade-scroll" in html
+    assert html.find("2,700,005") < html.find("2,700,000")
 
 
 def test_paper_status_page_shows_only_error_log_lines_in_red(tmp_path):
@@ -593,3 +600,5 @@ def test_paper_status_page_shows_strategy_conditions_for_each_symbol(tmp_path):
     assert "当前趋势：ETHUSDT 主趋势做空 · 已满足 4/8" in html
     assert "BTC bearish structure" in html
     assert "ETH not below EMA50" in html
+    assert "condition-cards" in html
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in html

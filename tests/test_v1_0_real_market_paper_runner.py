@@ -382,3 +382,79 @@ def test_realtime_warmup_fetches_250_closed_klines_by_default(monkeypatch, tmp_p
 
     assert requested_limits
     assert set(requested_limits) == {250}
+
+
+def test_real_market_paper_runner_replays_missing_historical_klines_after_restart(monkeypatch, tmp_path):
+    from app.data.quality import INTERVAL_MS, Kline
+    from app.paper import live_runner
+    from app.paper.live_runner import RealMarketPaperConfig, run_real_market_paper
+    from app.paper.persistence import save_paper_snapshot
+    from app.paper.trading import PaperPosition, PaperSnapshot
+
+    state_path = tmp_path / "paper-state.json"
+    save_paper_snapshot(
+        PaperSnapshot(
+            equity=Decimal("10000"),
+            open_position=PaperPosition(
+                symbol="BTCUSDT",
+                side="LONG",
+                strategy_type="TREND_PULLBACK",
+                entry_time=0,
+                entry_price=Decimal("100"),
+                stop_loss=Decimal("95"),
+                take_profit=Decimal("110"),
+                quantity=Decimal("20"),
+                entry_fee=Decimal("0"),
+            ),
+            fills=[],
+            rejected_signals=0,
+            runtime_started_at_ms=1_000,
+            last_update_at_ms=1_799_999,
+        ),
+        state_path,
+    )
+
+    async def fake_fetch_klines(symbol: str, interval: str, limit: int, settings=None):
+        if symbol == "BTCUSDT" and interval == "15m":
+            return [
+                Kline(
+                    symbol="BTCUSDT",
+                    interval="15m",
+                    open_time=2 * INTERVAL_MS["15m"],
+                    close_time=3 * INTERVAL_MS["15m"] - 1,
+                    open=Decimal("105"),
+                    high=Decimal("111"),
+                    low=Decimal("104"),
+                    close=Decimal("110"),
+                    volume=Decimal("10"),
+                )
+            ]
+        return []
+
+    async def empty_websocket_source(*args, **kwargs):
+        if False:
+            yield None
+
+    monkeypatch.setattr(live_runner, "fetch_klines", fake_fetch_klines)
+    monkeypatch.setattr(live_runner, "iter_binance_multi_interval_websocket_klines", empty_websocket_source)
+
+    snapshot = asyncio.run(
+        run_real_market_paper(
+            RealMarketPaperConfig(
+                symbols=("BTCUSDT",),
+                intervals=("15m", "1h", "4h"),
+                websocket_base_url="wss://fstream.binance.com",
+                state_path=state_path,
+                initial_equity=Decimal("10000"),
+                risk_per_trade_pct=Decimal("0.005"),
+                maker_fee_rate=Decimal("0"),
+                taker_fee_rate=Decimal("0"),
+                slippage_pct=Decimal("0"),
+            )
+        )
+    )
+
+    assert snapshot.equity == Decimal("10200")
+    assert snapshot.open_position is None
+    assert len(snapshot.fills) == 1
+    assert snapshot.fills[0].exit_reason == "TAKE_PROFIT"
