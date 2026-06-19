@@ -167,6 +167,20 @@ def test_strategy_backtest_web_helper_archives_successful_result():
     assert saved_trade.net_pnl == Decimal("19")
 
 
+def test_strategy_backtest_web_helper_reports_runner_errors(monkeypatch):
+    import scripts.run_paper_status_web as web
+
+    async def fail_backtest(config):
+        raise TimeoutError("connect timed out")
+
+    monkeypatch.setattr(web, "run_strategy_backtest", fail_backtest)
+
+    result = web._run_strategy_backtest_from_query({"symbol": ["BTCUSDT"], "history_period": ["3m"]})
+
+    assert result.total_trades == 0
+    assert result.error == "回测执行失败：connect timed out"
+
+
 def test_strategy_backtest_page_supports_long_history_periods():
     from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
     from app.paper.web_status import render_strategy_backtest_html

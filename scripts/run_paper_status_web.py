@@ -45,7 +45,7 @@ def make_handler(state_path: Path, error_log_path: Path):
                 result = None
                 query = parse_qs(parsed.query)
                 if query.get("run") == ["1"]:
-                    result = asyncio.run(run_strategy_backtest(_backtest_config_from_query(query)))
+                    result = _run_strategy_backtest_from_query(query)
                     result = _archive_strategy_backtest_result(result)
                 else:
                     result = run_strategy_backtest_default_result()
@@ -101,6 +101,14 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
         limit=_query_int(query, "limit", 1500, minimum=50, maximum=1500),
         history_period=_query_choice(query, "history_period", "3m", {"3m", "6m", "1y", "2y"}),
     )
+
+
+def _run_strategy_backtest_from_query(query: dict[str, list[str]]):
+    config = _backtest_config_from_query(query)
+    try:
+        return asyncio.run(run_strategy_backtest(config))
+    except Exception as exc:
+        return replace(run_strategy_backtest_default_result(), config=config, error=f"回测执行失败：{exc}")
 
 
 def _archive_strategy_backtest_result(result, session_factory=None):
