@@ -13,6 +13,7 @@ def test_paper_trading_opens_and_closes_long_position():
             maker_fee_rate=Decimal("0"),
             taker_fee_rate=Decimal("0"),
             slippage_pct=Decimal("0"),
+            trend_pullback_take_profit_mode="FIXED",
         )
     )
     signal = TradeSignal(
@@ -62,6 +63,104 @@ def test_paper_trading_opens_and_closes_long_position():
     assert fill.exit_reason == "TAKE_PROFIT"
     assert fill.net_pnl == Decimal("200")
     assert engine.snapshot().equity == Decimal("10200")
+    assert engine.snapshot().open_position is None
+
+
+def test_trend_pullback_uses_trailing_take_profit_after_target_is_reached():
+    from app.data.quality import Kline
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.pullback_strategy import TradeSignal
+
+    engine = PaperTradingEngine(
+        config=PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+        )
+    )
+    opened = engine.on_signal(
+        kline=Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        signal=TradeSignal(
+            action="SHORT_ENTRY",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("100"),
+            stop_loss=Decimal("105"),
+            take_profit=Decimal("90"),
+            risk_reward=Decimal("2"),
+            reason=["paper short"],
+        ),
+    )
+
+    assert opened is not None
+    activation_fill = engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("89"),
+            close=Decimal("90"),
+            volume=Decimal("10"),
+        )
+    )
+
+    assert activation_fill is None
+    active_position = engine.snapshot().open_position
+    assert active_position is not None
+    assert active_position.trailing_active is True
+    assert active_position.stop_loss == Decimal("95")
+
+    continuation_fill = engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=1_800_000,
+            close_time=2_699_999,
+            open=Decimal("90"),
+            high=Decimal("92"),
+            low=Decimal("80"),
+            close=Decimal("82"),
+            volume=Decimal("10"),
+        )
+    )
+
+    assert continuation_fill is None
+    trailed_position = engine.snapshot().open_position
+    assert trailed_position is not None
+    assert trailed_position.stop_loss == Decimal("87")
+
+    exit_fill = engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=2_700_000,
+            close_time=3_599_999,
+            open=Decimal("82"),
+            high=Decimal("87"),
+            low=Decimal("81"),
+            close=Decimal("86"),
+            volume=Decimal("10"),
+        )
+    )
+
+    assert exit_fill is not None
+    assert exit_fill.exit_reason == "TRAILING_TAKE_PROFIT"
+    assert exit_fill.exit_price == Decimal("87")
+    assert exit_fill.net_pnl == Decimal("260")
     assert engine.snapshot().open_position is None
 
 
@@ -212,6 +311,7 @@ def test_paper_trading_applies_funding_every_eight_hours():
             taker_fee_rate=Decimal("0"),
             slippage_pct=Decimal("0"),
             funding_rate=Decimal("0.0001"),
+            trend_pullback_take_profit_mode="FIXED",
         )
     )
     position = engine.on_signal(

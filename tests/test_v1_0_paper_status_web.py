@@ -29,6 +29,7 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
                     "take_profit": "1760",
                     "quantity": "0.5",
                     "entry_fee": "0.36",
+                    "trailing_active": True,
                 },
                 "fills": [
                     {
@@ -76,6 +77,7 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "2 分钟" in html
     assert "账户权益" in html
     assert "持仓情况" in html
+    assert "移动止盈中" in html
     assert "全部模拟交易记录" in html
     assert "开仓时间 UTC+8" in html
     assert "平仓时间 UTC+8" in html

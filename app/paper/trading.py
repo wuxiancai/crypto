@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
 from app.data.quality import Kline
@@ -16,6 +16,7 @@ class PaperConfig:
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     default_stop_distance_pct: Decimal = Decimal("0.02")
     default_take_profit_risk_reward: Decimal = Decimal("2")
+    trend_pullback_take_profit_mode: str = "TRAILING"
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,12 @@ class PaperPosition:
     take_profit: Decimal
     quantity: Decimal
     entry_fee: Decimal
+    initial_stop_loss: Decimal | None = None
+    trailing_active: bool = False
+
+    def __post_init__(self) -> None:
+        if self.initial_stop_loss is None:
+            object.__setattr__(self, "initial_stop_loss", self.stop_loss)
 
 
 @dataclass(frozen=True)
@@ -158,6 +165,7 @@ class PaperTradingEngine:
             take_profit=take_profit,
             quantity=quantity,
             entry_fee=entry_fee,
+            initial_stop_loss=stop_loss,
         )
 
     def _maybe_close_position(self, position: PaperPosition, kline: Kline) -> PaperFill | None:
@@ -167,35 +175,37 @@ class PaperTradingEngine:
                     position,
                     kline,
                     position.stop_loss,
-                    "STOP_LOSS",
-                    f"做多止损：最低价触达止损价 {position.stop_loss}",
+                    _stop_exit_reason(position),
+                    _stop_exit_detail(position, "最低价"),
                 )
             if kline.high >= position.take_profit:
-                return self._close_position(
-                    position,
-                    kline,
-                    position.take_profit,
-                    "TAKE_PROFIT",
-                    f"做多止盈：最高价触达止盈价 {position.take_profit}",
-                )
+                return self._handle_take_profit(position, kline)
+            self._position = _trail_position(position, kline)
             return None
         if kline.high >= position.stop_loss:
             return self._close_position(
                 position,
                 kline,
                 position.stop_loss,
-                "STOP_LOSS",
-                f"做空止损：最高价触达止损价 {position.stop_loss}",
+                _stop_exit_reason(position),
+                _stop_exit_detail(position, "最高价"),
             )
         if kline.low <= position.take_profit:
-            return self._close_position(
-                position,
-                kline,
-                position.take_profit,
-                "TAKE_PROFIT",
-                f"做空止盈：最低价触达止盈价 {position.take_profit}",
-            )
+            return self._handle_take_profit(position, kline)
+        self._position = _trail_position(position, kline)
         return None
+
+    def _handle_take_profit(self, position: PaperPosition, kline: Kline) -> PaperFill | None:
+        if _uses_trailing_take_profit(position, self._config):
+            self._position = _activate_trailing_take_profit(position, kline)
+            return None
+        return self._close_position(
+            position,
+            kline,
+            position.take_profit,
+            "TAKE_PROFIT",
+            _take_profit_detail(position),
+        )
 
     def _close_position(
         self,
@@ -279,3 +289,50 @@ def _funding_settlement_count(entry_time: int, exit_time: int, interval_ms: int)
     first = entry_time // interval_ms + 1
     last = exit_time // interval_ms
     return max(0, last - first + 1)
+
+
+def _uses_trailing_take_profit(position: PaperPosition, config: PaperConfig) -> bool:
+    return (
+        position.strategy_type == "TREND_PULLBACK"
+        and config.trend_pullback_take_profit_mode == "TRAILING"
+    )
+
+
+def _activate_trailing_take_profit(position: PaperPosition, kline: Kline) -> PaperPosition:
+    activated = replace(position, trailing_active=True)
+    return _trail_position(activated, kline)
+
+
+def _trail_position(position: PaperPosition, kline: Kline) -> PaperPosition:
+    if not position.trailing_active:
+        return position
+    trail_distance = _initial_risk_per_unit(position)
+    if position.side == "LONG":
+        new_stop = max(position.stop_loss, kline.close - trail_distance)
+    else:
+        new_stop = min(position.stop_loss, kline.close + trail_distance)
+    return replace(position, stop_loss=new_stop)
+
+
+def _initial_risk_per_unit(position: PaperPosition) -> Decimal:
+    initial_stop = position.initial_stop_loss or position.stop_loss
+    return abs(position.entry_price - initial_stop)
+
+
+def _stop_exit_reason(position: PaperPosition) -> str:
+    return "TRAILING_TAKE_PROFIT" if position.trailing_active else "STOP_LOSS"
+
+
+def _stop_exit_detail(position: PaperPosition, trigger_price_label: str) -> str:
+    if position.trailing_active:
+        return f"{_side_action_label(position.side)}移动止盈：{trigger_price_label}触达移动止盈价 {position.stop_loss}"
+    return f"{_side_action_label(position.side)}止损：{trigger_price_label}触达止损价 {position.stop_loss}"
+
+
+def _take_profit_detail(position: PaperPosition) -> str:
+    trigger_price_label = "最高价" if position.side == "LONG" else "最低价"
+    return f"{_side_action_label(position.side)}止盈：{trigger_price_label}触达止盈价 {position.take_profit}"
+
+
+def _side_action_label(side: str) -> str:
+    return "做多" if side == "LONG" else "做空"

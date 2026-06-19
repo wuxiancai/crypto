@@ -57,7 +57,7 @@
 - 当前已实现 `TREND_PULLBACK` 主趋势入场信号。
 - 做多要求：主趋势允许做多、价格回踩到 EMA50/ATR 区域、15m 看涨确认、RR 达标。
 - 做空要求：主趋势允许做空、价格反弹到 EMA50/ATR 区域、15m 看跌确认、RR 达标。
-- 当前 TP 使用固定目标 RR，止损使用最近 swing low / swing high。
+- 当前主趋势策略使用 RR 目标作为移动止盈触发线，触发后不立即全平，而是移动止损继续跟随趋势；止损使用最近 swing low / swing high。
 - 当前已实现 `REVERSAL_PROBE` 趋势转换试仓信号。
 - 趋势转换输出通用事件 `REVERSAL_LONG_ENTRY` / `REVERSAL_SHORT_ENTRY`，并通过 `signal_level = EARLY | CONFIRMED` 区分早期/确认。
 - 趋势转换评分已执行 `min(raw_score, 100)` 封顶。
@@ -109,6 +109,7 @@
 
 - 当前已实现 Paper Trading 最小内核：接收策略信号、单仓位撮合、止盈/止损退出、权益更新、fills 记录和 rejected_signals 计数。
 - 当前 Paper Trading 默认按永续合约模拟：初始资金 1000 USDT、默认 10X 杠杆、maker 0.02%、taker 0.05%、资金费每 8 小时结算一次；资金费率当前默认 0，可通过启动参数配置。
+- 当前 Paper Trading 的 `TREND_PULLBACK` 默认使用移动止盈：价格触达 2R 目标后进入“移动止盈中”，继续持仓捕捉惯性上涨/下跌，回撤触达移动止盈价才平仓；可通过 `--trend-pullback-take-profit-mode FIXED` 回退固定止盈。
 - Paper 当前支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE`，趋势转换信号同样使用自身 `risk_pct`。
 - 当前已实现稳定的 Paper CLI 状态格式化输出。
 - 当前已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。

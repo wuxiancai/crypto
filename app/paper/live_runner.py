@@ -29,6 +29,7 @@ class RealMarketPaperConfig:
     leverage: Decimal = Decimal("10")
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
+    trend_pullback_take_profit_mode: str = "TRAILING"
     strategy_config: RealtimeStrategyConfig = field(default_factory=RealtimeStrategyConfig)
     historical_warmup_enabled: bool = True
     historical_warmup_limit: int = 250
@@ -65,6 +66,7 @@ async def run_real_market_paper(
             leverage=config.leverage,
             funding_rate=config.funding_rate,
             funding_interval_ms=config.funding_interval_ms,
+            trend_pullback_take_profit_mode=config.trend_pullback_take_profit_mode,
         ),
         source=kline_source,
         signal_fn=signal_fn

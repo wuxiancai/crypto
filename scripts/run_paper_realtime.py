@@ -27,6 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--slippage-pct", default="0.0005")
     parser.add_argument("--leverage", default="10")
     parser.add_argument("--funding-rate", default="0")
+    parser.add_argument("--trend-pullback-take-profit-mode", choices=["TRAILING", "FIXED"], default="TRAILING")
     return parser.parse_args()
 
 
@@ -46,6 +47,7 @@ def main() -> None:
                 slippage_pct=Decimal(args.slippage_pct),
                 leverage=Decimal(args.leverage),
                 funding_rate=Decimal(args.funding_rate),
+                trend_pullback_take_profit_mode=args.trend_pullback_take_profit_mode,
             )
         )
     )

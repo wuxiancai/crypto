@@ -289,6 +289,7 @@ def _render_position(position: dict[str, Any] | None) -> str:
             _format_decimal(position.get("stop_loss"), 2),
             _format_decimal(position.get("take_profit"), 2),
         ])),
+        ("止盈状态", "移动止盈中" if position.get("trailing_active") else "等待触发"),
         ("数量", _format_decimal(position.get("quantity"), 4)),
     ]
     headers = "".join(f"<th>{_escape(label)}</th>" for label, _value in rows)
@@ -763,6 +764,8 @@ def _exit_reason_label(reason: Any, detail: Any = None) -> str:
         return detail_text or "止盈"
     if reason == "STOP_LOSS":
         return detail_text or "止损"
+    if reason == "TRAILING_TAKE_PROFIT":
+        return detail_text or "移动止盈"
     if reason == "LIQUIDATION":
         return "强平"
     return _escape(reason)

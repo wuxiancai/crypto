@@ -86,6 +86,7 @@ def test_real_market_paper_config_defaults_to_perpetual_costs_and_10x_leverage(t
     assert config.taker_fee_rate == Decimal("0.0005")
     assert config.leverage == Decimal("10")
     assert config.funding_interval_ms == 8 * 60 * 60 * 1000
+    assert config.trend_pullback_take_profit_mode == "TRAILING"
 
 
 def test_real_market_paper_runner_uses_injected_strategy_signal(tmp_path):
@@ -156,6 +157,7 @@ def test_real_market_paper_runner_uses_injected_strategy_signal(tmp_path):
                 maker_fee_rate=Decimal("0"),
                 taker_fee_rate=Decimal("0"),
                 slippage_pct=Decimal("0"),
+                trend_pullback_take_profit_mode="FIXED",
             ),
             source=source(),
             signal_fn=signal_fn,
@@ -216,6 +218,7 @@ def test_real_market_paper_runner_uses_default_realtime_strategy(tmp_path):
                 maker_fee_rate=Decimal("0"),
                 taker_fee_rate=Decimal("0"),
                 slippage_pct=Decimal("0"),
+                trend_pullback_take_profit_mode="FIXED",
                 strategy_config=RealtimeStrategyConfig(
                     ema_fast_period=3,
                     ema_slow_period=5,
@@ -318,6 +321,7 @@ def test_real_market_paper_runner_uses_default_reversal_strategy(tmp_path):
                 maker_fee_rate=Decimal("0"),
                 taker_fee_rate=Decimal("0"),
                 slippage_pct=Decimal("0"),
+                trend_pullback_take_profit_mode="FIXED",
                 strategy_config=RealtimeStrategyConfig(
                     ema_fast_period=3,
                     ema_slow_period=5,
@@ -385,6 +389,7 @@ def test_default_realtime_strategy_can_be_warmed_with_historical_klines(tmp_path
                 maker_fee_rate=Decimal("0"),
                 taker_fee_rate=Decimal("0"),
                 slippage_pct=Decimal("0"),
+                trend_pullback_take_profit_mode="FIXED",
                 strategy_config=RealtimeStrategyConfig(
                     ema_fast_period=3,
                     ema_slow_period=5,
@@ -427,6 +432,7 @@ def test_realtime_warmup_fetches_250_closed_klines_by_default(monkeypatch, tmp_p
                 maker_fee_rate=Decimal("0"),
                 taker_fee_rate=Decimal("0"),
                 slippage_pct=Decimal("0"),
+                trend_pullback_take_profit_mode="FIXED",
             )
         )
     )
@@ -501,6 +507,7 @@ def test_real_market_paper_runner_replays_missing_historical_klines_after_restar
                 maker_fee_rate=Decimal("0"),
                 taker_fee_rate=Decimal("0"),
                 slippage_pct=Decimal("0"),
+                trend_pullback_take_profit_mode="FIXED",
             )
         )
     )

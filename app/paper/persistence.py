@@ -64,6 +64,8 @@ def _position_to_payload(position: PaperPosition | None) -> dict[str, Any] | Non
         "take_profit": str(position.take_profit),
         "quantity": str(position.quantity),
         "entry_fee": str(position.entry_fee),
+        "initial_stop_loss": str(position.initial_stop_loss or position.stop_loss),
+        "trailing_active": position.trailing_active,
     }
 
 
@@ -80,6 +82,8 @@ def _position_from_payload(payload: dict[str, Any] | None) -> PaperPosition | No
         take_profit=Decimal(payload["take_profit"]),
         quantity=Decimal(payload["quantity"]),
         entry_fee=Decimal(payload["entry_fee"]),
+        initial_stop_loss=Decimal(payload.get("initial_stop_loss", payload["stop_loss"])),
+        trailing_active=bool(payload.get("trailing_active", False)),
     )
 
 

@@ -32,6 +32,7 @@ class StrategyBacktestConfig:
     leverage: Decimal = Decimal("10")
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
+    trend_pullback_take_profit_mode: str = "TRAILING"
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
             leverage=backtest_config.leverage,
             funding_rate=backtest_config.funding_rate,
             funding_interval_ms=backtest_config.funding_interval_ms,
+            trend_pullback_take_profit_mode=backtest_config.trend_pullback_take_profit_mode,
         )
     )
     signal_fn = build_default_realtime_signal_fn(strategy_config, warmup_klines=())

@@ -88,6 +88,7 @@ def test_strategy_backtest_fetches_history_and_runs_current_realtime_strategy(mo
                 history_end_time_ms=6 * 15 * 60 * 1000 - 1,
                 maker_fee_rate=Decimal("0"),
                 taker_fee_rate=Decimal("0"),
+                trend_pullback_take_profit_mode="FIXED",
             )
         )
     )
@@ -113,6 +114,7 @@ def test_strategy_backtest_defaults_to_perpetual_contract_costs():
     assert config.leverage == Decimal("10")
     assert config.funding_rate == Decimal("0")
     assert config.funding_interval_ms == 8 * 60 * 60 * 1000
+    assert config.trend_pullback_take_profit_mode == "TRAILING"
 
 
 def test_strategy_backtest_returns_error_when_historical_fetch_fails(monkeypatch):

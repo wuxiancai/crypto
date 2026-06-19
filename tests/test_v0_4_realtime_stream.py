@@ -62,11 +62,12 @@ def test_paper_stream_consumes_async_klines_and_updates_engine():
         PaperConfig(
             initial_equity=Decimal("10000"),
             risk_per_trade_pct=Decimal("0.01"),
-            maker_fee_rate=Decimal("0"),
-            taker_fee_rate=Decimal("0"),
-            slippage_pct=Decimal("0"),
+                maker_fee_rate=Decimal("0"),
+                taker_fee_rate=Decimal("0"),
+                slippage_pct=Decimal("0"),
+                trend_pullback_take_profit_mode="FIXED",
+            )
         )
-    )
 
     snapshot = asyncio.run(run_paper_kline_stream(engine=engine, source=source(), signal_fn=signal_fn))
 
