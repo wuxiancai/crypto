@@ -306,17 +306,34 @@ def _activate_trailing_take_profit(position: PaperPosition, kline: Kline) -> Pap
 def _trail_position(position: PaperPosition, kline: Kline) -> PaperPosition:
     if not position.trailing_active:
         return position
-    trail_distance = _initial_risk_per_unit(position)
     if position.side == "LONG":
-        new_stop = max(position.stop_loss, kline.close - trail_distance)
+        step_stop = _long_step_take_profit(position, kline.high)
+        new_stop = max(position.stop_loss, step_stop)
     else:
-        new_stop = min(position.stop_loss, kline.close + trail_distance)
+        step_stop = _short_step_take_profit(position, kline.low)
+        new_stop = min(position.stop_loss, step_stop)
     return replace(position, stop_loss=new_stop)
 
 
 def _initial_risk_per_unit(position: PaperPosition) -> Decimal:
     initial_stop = position.initial_stop_loss or position.stop_loss
     return abs(position.entry_price - initial_stop)
+
+
+def _long_step_take_profit(position: PaperPosition, high: Decimal) -> Decimal:
+    step_size = _initial_risk_per_unit(position) * Decimal("2")
+    completed_steps = int((high - position.entry_price) // step_size)
+    if completed_steps <= 0:
+        return position.stop_loss
+    return position.entry_price + step_size * Decimal(completed_steps)
+
+
+def _short_step_take_profit(position: PaperPosition, low: Decimal) -> Decimal:
+    step_size = _initial_risk_per_unit(position) * Decimal("2")
+    completed_steps = int((position.entry_price - low) // step_size)
+    if completed_steps <= 0:
+        return position.stop_loss
+    return position.entry_price - step_size * Decimal(completed_steps)
 
 
 def _stop_exit_reason(position: PaperPosition) -> str:

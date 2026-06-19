@@ -51,7 +51,7 @@
 - 实现 V0.2 主趋势回踩/反弹入场信号：`TREND_PULLBACK`。
 - 主趋势做多要求：UPTREND、允许做多、价格在 EMA50/ATR 回踩区域、15m 看涨确认、RR 达标。
 - 主趋势做空要求：DOWNTREND、允许做空、价格在 EMA50/ATR 反弹区域、15m 看跌确认、RR 达标。
-- 主趋势 `TREND_PULLBACK` 的 RR 目标在 Paper/当前策略回测中默认作为移动止盈触发线：触达 2R 后不立即全平，而是移动止损继续跟随趋势，回撤触达移动止盈价才平仓；如需旧行为可用 `trend_pullback_take_profit_mode=FIXED`。
+- 主趋势 `TREND_PULLBACK` 在 Paper/当前策略回测中默认使用 2R 阶梯移动止盈：触达第一个 2R 后不立即全平，而是把 2R 价设为移动止盈价；每继续完成一个新的 2R 阶梯，移动止盈价再推进到新阶梯价；回撤触达当前移动止盈价才平仓。如需旧行为可用 `trend_pullback_take_profit_mode=FIXED`。
 - 实现 V0.2 趋势转换试仓信号：`REVERSAL_PROBE`。
 - 趋势转换输出通用事件 `REVERSAL_LONG_ENTRY` / `REVERSAL_SHORT_ENTRY`，并通过 `signal_level` 区分 `EARLY` / `CONFIRMED`。
 - 趋势转换评分已封顶 100，且已实现距离 EMA50 过远时的禁止追涨追跌过滤。
@@ -70,7 +70,7 @@
 - V0.3 已新增 `archive_backtest_result()` repository 写入入口。
 - V0.4 已实现 Paper Trading 最小内核：信号入场、单仓位撮合、止盈/止损退出、权益更新、fills 记录、rejected_signals 计数。
 - V0.4 Paper Trading 默认按永续合约模拟：初始资金 1000 USDT、默认 10X 杠杆、maker 0.02%、taker 0.05%、资金费每 8 小时结算一次；资金费率当前默认 0，可通过启动参数配置。
-- V0.4 Paper Trading 已修复主趋势固定止盈导致的短周期反复开平问题：`TREND_PULLBACK` 默认移动止盈，状态页持仓会显示“等待触发 / 移动止盈中”。
+- V0.4 Paper Trading 已修复主趋势固定止盈导致的短周期反复开平问题：`TREND_PULLBACK` 默认 2R 阶梯移动止盈，状态页持仓会显示“等待触发 / 移动止盈中”。
 - V0.4 Paper 已支持主趋势和趋势转换信号，趋势转换同样使用自身 `risk_pct`。
 - V0.4 已实现 Paper CLI 状态格式化输出。
 - V0.4 已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。
@@ -191,7 +191,7 @@
 - `.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py tests/test_v1_0_strategy_backtest_runner.py -q`：8 passed。
 - `.venv/bin/python -m pytest tests/test_v1_0_realtime_strategy_adapter.py::test_nearest_strategy_prioritizes_primary_four_hour_structure_over_match_count -q`：先失败，确认旧逻辑会在 4h 空头结构成立时按满足数量误选主趋势做多；修复后通过。
 - `.venv/bin/python -m pytest tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_paper_status_web.py -q`：17 passed。
-- `.venv/bin/python -m pytest tests/test_v0_4_paper_trading.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_paper_status_web.py -q`：37 passed，覆盖主趋势移动止盈、持久化和页面状态。
+- `.venv/bin/python -m pytest tests/test_v0_4_paper_trading.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_paper_status_web.py -q`：38 passed，覆盖主趋势 2R 阶梯移动止盈、持久化和页面状态。
 - `.venv/bin/python -m py_compile app/paper/trading.py app/paper/persistence.py app/paper/live_runner.py app/paper/strategy_backtest.py app/paper/web_status.py scripts/run_paper_realtime.py`：通过。
 - `.venv/bin/python -m pytest -q`：154 passed。
 - 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
