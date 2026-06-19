@@ -190,7 +190,7 @@
 - 当前已修复实时 Paper 启动后长时间无信号的问题：默认策略需要 4h / 1h / 15m 多周期指标历史，尤其 EMA200；现在启动时会先用 Binance REST 默认拉取最近 250 根真实已收盘 K 线预热策略缓存，再接 WebSocket 实时 K 线推进。
 - 当前 Web 状态页已增加系统运行时间，方便判断模拟交易服务是否中途断开或重启。
 - 当前 Web 状态页仍保持 5 秒自动刷新，但已从浏览器级整页刷新改为后台软刷新，避免页面闪烁，并保留当前选中的交易对和 K 线周期。
-- 当前 Web 状态页已增加错误日志框，用红色字体显示运行异常摘要；`Traceback`、`File ...`、`map_httpcore_exceptions` 等 Python 调用栈不直接展示，`ConnectTimeout` 会摘要为 Binance REST 连接超时提示。
+- 当前 Web 状态页已增加错误日志框，用红色字体显示运行异常摘要；`Traceback`、`File ...`、`map_httpcore_exceptions` 等 Python 调用栈不直接展示，`ConnectTimeout` 会摘要为 Binance REST 连接超时提示。若超时来自历史预热，会保留交易对和周期，例如 `BTCUSDT 4h 历史数据预热失败`。
 - 当前 Binance REST 历史预热失败不会再让实时 Paper runner 退出；单个交易对/周期预热失败会记录日志并继续进入 WebSocket 主流程。
 - 当前 Web 状态页顶部已显示 BTCUSDT / ETHUSDT 永续最新价；当状态文件暂时没有策略评估数据时，策略触发条件和 K 线图区会显示“等待实时策略评估更新”。
 - 当前已修复“运行很久但页面没有任何输出”的可观察性问题：Paper 状态文件会记录最近 50 条策略评估结果。早期 Web 状态页曾显示“最近策略输出”调试表；现在主页面已隐藏该表，避免无意义的 `SYSTEM / no actionable signal` 干扰用户阅读，复盘数据仍保留在状态文件中。

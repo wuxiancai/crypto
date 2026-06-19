@@ -132,7 +132,7 @@
 - 策略回测已支持分页历史回测：用户可选择最近 3个月 / 6个月 / 1年 / 2年，后端按 Binance 单次 1500 根限制自动分页拉取 4h / 1h / 15m 历史 K 线，再复用当前实时策略和 PaperTradingEngine 回放。历史 K 线会按交易对和周期缓存到 `runtime/backtest-klines/`，例如先回测 BTC 2 年，再回测 BTC 1 年或 EMA30/EMA120，会直接复用已缓存 K 线；只有缓存缺少所需时间段时才补拉缺口数据。
 - 2026-06-19 已通过 SSH 核查 Ubuntu 服务器 `/home/wuxiancai/crypto`：当前 migration 为 `0002_backtest_archive`，`backtest_runs` / `backtest_trades` 表存在，但历史 Web 回测没有写入数据库，二者行数均为 0。已修复 `/backtest` 页面：成功完成的策略回测会写入 `backtest_runs`、`backtest_trades` 和 `config_snapshots`；如果写库失败，页面会显示“回测结果写入数据库失败：...”而不是静默丢失。
 - Ubuntu 验证 `/backtest` 时发现 Binance REST 连接超时会导致 HTTP empty reply，已补充页面级异常处理：REST 超时、DNS/网络异常或回测执行异常都会显示为“回测执行失败：...”，不再让浏览器空白或连接断开。
-- Web 状态页错误日志已改为用户可读摘要：`Traceback`、`File ...`、`map_httpcore_exceptions` 等 Python 调用栈不再直接展示；`ConnectTimeout` 会显示为“Binance REST 连接超时：历史数据预热或回测可能无法完成，请检查服务器网络是否能访问 Binance。”。
+- Web 状态页错误日志已改为用户可读摘要：`Traceback`、`File ...`、`map_httpcore_exceptions` 等 Python 调用栈不再直接展示；`ConnectTimeout` 会显示为“Binance REST 连接超时：历史数据预热或回测可能无法完成，请检查服务器网络是否能访问 Binance。”。如果日志来自 `Historical warmup skipped for BTCUSDT 4h: connect timed out`，页面会保留交易对和周期，显示为“Binance REST 连接超时：BTCUSDT 4h 历史数据预热失败...”。
 - 已修复 Binance REST 预热网络异常导致实时 Paper runner 退出的问题：`fetch_realtime_warmup_klines()` 现在会跳过单个交易对/周期的预热异常并继续进入 WebSocket 主流程，避免状态页只剩旧持仓/成交而没有新的策略触发条件和 K 线图。Web 状态页顶部已增加 BTCUSDT / ETHUSDT 永续最新价展示；当状态文件暂时没有策略评估数据时，策略触发条件和 K 线图区会显示“等待实时策略评估更新”，不再让用户误以为模块消失。
 
 ## 验证结果
@@ -204,6 +204,9 @@
 - `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_real_market_paper_runner.py`：25 passed，覆盖永续最新价展示、策略评估空状态说明和 warmup 网络异常不崩溃。
 - `.venv/bin/python -m py_compile app/paper/web_status.py app/paper/live_runner.py`：通过。
 - `.venv/bin/python -m pytest`：167 passed。
+- `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py`：16 passed，覆盖 Binance REST 预热超时在错误日志里显示交易对和周期。
+- `.venv/bin/python -m py_compile app/paper/web_status.py`：通过。
+- `.venv/bin/python -m pytest`：168 passed。
 - `.venv/bin/python -m pytest tests/test_v1_0_realtime_strategy_adapter.py::test_nearest_strategy_prioritizes_primary_four_hour_structure_over_match_count -q`：先失败，确认旧逻辑会在 4h 空头结构成立时按满足数量误选主趋势做多；修复后通过。
 - `.venv/bin/python -m pytest tests/test_v1_0_realtime_strategy_adapter.py tests/test_v1_0_paper_status_web.py -q`：17 passed。
 - `.venv/bin/python -m pytest tests/test_v0_4_paper_trading.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_paper_status_web.py -q`：38 passed，覆盖主趋势 2R 阶梯移动止盈、持久化和页面状态。

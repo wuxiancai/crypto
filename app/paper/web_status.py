@@ -1081,10 +1081,10 @@ def _read_error_logs(path: Path | None, max_lines: int = 50) -> list[str]:
 
 def _summarize_error_log_line(line: str) -> str | None:
     lowered = line.lower()
+    if "historical warmup skipped" in lowered:
+        return _summarize_historical_warmup_error(line, lowered)
     if "connecttimeout" in lowered or "connect timeout" in lowered or "timed out" in lowered:
         return "Binance REST 连接超时：历史数据预热或回测可能无法完成，请检查服务器网络是否能访问 Binance。"
-    if "historical warmup skipped" in lowered:
-        return f"历史数据预热失败：{line}"
     if (
         "traceback" in lowered
         or "the above exception" in lowered
@@ -1098,6 +1098,20 @@ def _summarize_error_log_line(line: str) -> str | None:
     if _is_error_log_line(line):
         return line
     return None
+
+
+def _summarize_historical_warmup_error(line: str, lowered: str) -> str:
+    prefix = "Historical warmup skipped for "
+    target = ""
+    detail = line
+    if line.startswith(prefix):
+        rest = line[len(prefix):]
+        target, _, detail = rest.partition(": ")
+    if "connecttimeout" in lowered or "connect timeout" in lowered or "timed out" in lowered:
+        target_text = f"{target} " if target else ""
+        return f"Binance REST 连接超时：{target_text}历史数据预热失败，{detail}"
+    target_text = f"{target} " if target else ""
+    return f"历史数据预热失败：{target_text}{detail}"
 
 
 def _is_error_log_line(line: str) -> bool:

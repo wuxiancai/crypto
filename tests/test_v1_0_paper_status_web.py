@@ -216,7 +216,7 @@ def test_paper_status_page_shows_only_error_log_lines_in_red(tmp_path):
     )
 
     assert "错误日志" in html
-    assert "Historical warmup skipped" in html
+    assert "历史数据预热失败：BTCUSDT 4h Binance futures data endpoint returned HTTP 451" in html
     assert "ERROR websocket disconnected" in html
     assert "Paper runner started" not in html
     assert "error-log-line" in html
@@ -262,6 +262,35 @@ def test_paper_status_page_summarizes_tracebacks_in_error_log(tmp_path):
     assert "Traceback" not in html
     assert "map_httpcore_exceptions" not in html
     assert "The above exception" not in html
+
+
+def test_paper_status_page_shows_binance_timeout_with_symbol_and_interval(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    log_path = tmp_path / "paper-realtime.log"
+    log_path.write_text(
+        "Historical warmup skipped for BTCUSDT 4h: connect timed out",
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(
+        build_paper_status_payload(state_path, error_log_path=log_path)
+    )
+
+    assert "Binance REST 连接超时：BTCUSDT 4h 历史数据预热失败" in html
+    assert "connect timed out" in html
 
 
 def test_paper_status_page_shows_recent_strategy_outputs(tmp_path):
