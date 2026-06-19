@@ -82,6 +82,33 @@ def test_strategy_backtest_defaults_to_binance_single_request_limit():
     assert 'value="1500"' in html
 
 
+def test_strategy_backtest_page_supports_long_history_periods():
+    from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
+    from app.paper.web_status import render_strategy_backtest_html
+
+    html = render_strategy_backtest_html(
+        result=StrategyBacktestResult(
+            config=StrategyBacktestConfig(history_period="2y"),
+            initial_equity="1000",
+            final_equity="1000",
+            total_trades=0,
+            wins=0,
+            losses=0,
+            net_pnl="0",
+            trades=[],
+            error=None,
+        )
+    )
+
+    assert "回测周期" in html
+    assert 'name="history_period"' in html
+    assert "最近3个月" in html
+    assert "最近6个月" in html
+    assert "最近1年" in html
+    assert "最近2年" in html
+    assert '<option value="2y" selected>' in html
+
+
 def test_strategy_backtest_page_can_show_error_without_results():
     from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
     from app.paper.web_status import render_strategy_backtest_html

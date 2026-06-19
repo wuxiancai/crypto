@@ -95,6 +95,7 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
         ema_fast_period=_query_int(query, "ema_fast", 50, minimum=2, maximum=500),
         ema_slow_period=_query_int(query, "ema_slow", 200, minimum=3, maximum=1000),
         limit=_query_int(query, "limit", 1500, minimum=50, maximum=1500),
+        history_period=_query_choice(query, "history_period", "3m", {"3m", "6m", "1y", "2y"}),
     )
 
 
@@ -110,6 +111,16 @@ def _query_int(
     except (TypeError, ValueError):
         return default
     return max(minimum, min(maximum, value))
+
+
+def _query_choice(
+    query: dict[str, list[str]],
+    key: str,
+    default: str,
+    allowed: set[str],
+) -> str:
+    value = query.get(key, [default])[0]
+    return value if value in allowed else default
 
 
 def main() -> None:

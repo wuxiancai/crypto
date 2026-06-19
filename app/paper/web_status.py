@@ -69,10 +69,10 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .nav-button {{ color: #b42318; text-decoration: none; font-weight: 700; border-color: #ef4444; }}
     .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
-    .form-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; }}
+    .form-grid {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: end; }}
     .form-field {{ display: grid; gap: 6px; }}
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
-    .form-field input {{ border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; }}
+    .form-field input, .form-field select {{ border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
     .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
     .label {{ color: #65748b; font-size: 12px; margin-bottom: 6px; }}
     .value {{ font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }}
@@ -252,6 +252,12 @@ def render_strategy_backtest_html(result: Any | None = None) -> str:
           <label for="limit">历史K线根数</label>
           <input id="limit" name="limit" type="number" min="50" max="1500" value="{_escape(config.limit)}">
         </div>
+        <div class="form-field">
+          <label for="history_period">回测周期</label>
+          <select id="history_period" name="history_period">
+            {_render_history_period_options(getattr(config, "history_period", "3m"))}
+          </select>
+        </div>
         <button class="primary-button" type="submit" name="run" value="1">开始回测</button>
       </form>
     </section>
@@ -288,6 +294,24 @@ def _render_position(position: dict[str, Any] | None) -> str:
     headers = "".join(f"<th>{_escape(label)}</th>" for label, _value in rows)
     values = "".join(f"<td>{value}</td>" for _label, value in rows)
     return f'<div class="table-wrap"><table class="compact-position"><thead><tr>{headers}</tr></thead><tbody><tr>{values}</tr></tbody></table></div>'
+
+
+def _render_history_period_options(selected: Any) -> str:
+    options = [
+        ("3m", "最近3个月"),
+        ("6m", "最近6个月"),
+        ("1y", "最近1年"),
+        ("2y", "最近2年"),
+    ]
+    selected_value = str(selected or "3m")
+    return "".join(
+        f'<option value="{_escape(value)}"{_selected_attr(value == selected_value)}>{_escape(label)}</option>'
+        for value, label in options
+    )
+
+
+def _selected_attr(selected: bool) -> str:
+    return " selected" if selected else ""
 
 
 def _render_fills(fills: list[dict[str, Any]]) -> str:

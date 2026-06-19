@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+import time
 
 from app.data.binance import BinanceDataError, fetch_klines
-from app.data.quality import Kline
+from app.data.quality import INTERVAL_MS, Kline
 from app.paper.live_runner import build_default_realtime_signal_fn
 from app.paper.persistence import _fill_to_payload
 from app.paper.strategy_adapter import RealtimeStrategyConfig
@@ -20,6 +21,9 @@ class StrategyBacktestConfig:
     dmi_period: int = 14
     swing_lookback: int = 20
     limit: int = 1500
+    history_period: str = "3m"
+    history_start_time_ms: int | None = None
+    history_end_time_ms: int | None = None
     initial_equity: Decimal = Decimal("1000")
     risk_per_trade_pct: Decimal = Decimal("0.005")
     maker_fee_rate: Decimal = Decimal("0")
@@ -93,13 +97,55 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
 
 async def _fetch_backtest_klines(config: StrategyBacktestConfig) -> list[Kline]:
     intervals = ("4h", "1h", "15m")
+    end_time = config.history_end_time_ms or int(time.time() * 1000)
+    start_time = config.history_start_time_ms
+    if start_time is None:
+        start_time = end_time - _history_window_ms(config.history_period)
     historical: list[Kline] = []
     for symbol in config.symbols:
         for interval in intervals:
-            historical.extend(
-                await fetch_klines(symbol=symbol, interval=interval, limit=config.limit)
-            )
+            historical.extend(await _fetch_interval_pages(symbol, interval, config.limit, start_time, end_time))
     return sorted(historical, key=lambda kline: (kline.open_time, kline.symbol, kline.interval))
+
+
+async def _fetch_interval_pages(
+    symbol: str,
+    interval: str,
+    limit: int,
+    start_time: int,
+    end_time: int,
+) -> list[Kline]:
+    page_limit = max(1, min(1500, limit))
+    cursor = start_time
+    pages: list[Kline] = []
+    interval_ms = INTERVAL_MS[interval]
+    while cursor <= end_time:
+        page_end = min(end_time, cursor + interval_ms * page_limit - 1)
+        page = await fetch_klines(
+            symbol=symbol,
+            interval=interval,
+            limit=page_limit,
+            start_time=cursor,
+            end_time=page_end,
+        )
+        pages.extend(page)
+        if not page:
+            cursor = page_end + 1
+            continue
+        next_cursor = max(kline.open_time for kline in page) + interval_ms
+        cursor = max(next_cursor, page_end + 1)
+    return pages
+
+
+def _history_window_ms(period: str) -> int:
+    days_by_period = {
+        "3m": 90,
+        "6m": 180,
+        "1y": 365,
+        "2y": 730,
+    }
+    days = days_by_period.get(period, 90)
+    return days * 24 * 60 * 60 * 1000
 
 
 def _empty_result(config: StrategyBacktestConfig, error: str | None = None) -> StrategyBacktestResult:

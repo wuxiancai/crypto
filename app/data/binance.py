@@ -31,12 +31,19 @@ async def fetch_klines(
     interval: str,
     limit: int = 500,
     settings: Settings | None = None,
+    start_time: int | None = None,
+    end_time: int | None = None,
 ) -> list[Kline]:
     config = settings or Settings()
+    params: dict[str, int | str] = {"symbol": symbol, "interval": interval, "limit": limit}
+    if start_time is not None:
+        params["startTime"] = start_time
+    if end_time is not None:
+        params["endTime"] = end_time
     async with httpx.AsyncClient(base_url=config.binance_base_url, timeout=20.0) as client:
         response = await client.get(
             "/fapi/v1/klines",
-            params={"symbol": symbol, "interval": interval, "limit": limit},
+            params=params,
         )
         try:
             response.raise_for_status()

@@ -122,7 +122,8 @@
 - 已修复非入场周期重复触发问题：Ubuntu 启动脚本可订阅 5m/15m/1h/4h，但真实交易信号只允许在 `entry_interval=15m` 已收盘 K 线到达时生成；5m、1h、4h 推送只更新缓存并输出 WAIT，避免同一个 15m 信号在后续 5m 推送里重复开仓。
 - Web 交易记录时间改为 UTC+8 展示，并在表头标明 `开仓时间 UTC+8` / `平仓时间 UTC+8`。内部策略、K 线对齐和持久化仍使用 Binance 毫秒时间戳 / UTC，不影响策略计算。
 - Web 状态页已新增“策略回测”入口：主看板右上角按钮会以新标签页打开 `/backtest`。回测页复用当前实时策略适配器和 PaperTradingEngine，按 Binance REST 历史 K 线回放 4h / 1h / 15m 多周期策略，不展示持仓和策略 K 线图，只展示参数、权益和回测交易记录。
-- 策略回测页默认使用 EMA50 / EMA200、历史 K 线 1500 根、初始资金 1000 USDT；页面允许用户输入 EMA 快线、EMA 慢线和历史 K 线根数，用于快速比较 EMA50/EMA200、EMA30/EMA120 等参数组合。1500 是 Binance 单次 REST 拉取的快速回测上限，不等同于 3-6 个月长期验证。
+- 策略回测页默认使用 EMA50 / EMA200、单页历史 K 线 1500 根、初始资金 1000 USDT；页面允许用户输入 EMA 快线、EMA 慢线、单页 K 线根数和回测周期，用于快速比较 EMA50/EMA200、EMA30/EMA120 等参数组合。
+- 策略回测已支持分页历史回测：用户可选择最近 3个月 / 6个月 / 1年 / 2年，后端按 Binance 单次 1500 根限制自动分页拉取 4h / 1h / 15m 历史 K 线，再复用当前实时策略和 PaperTradingEngine 回放。
 
 ## 验证结果
 
@@ -183,6 +184,7 @@
 - `.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_realtime_strategy_adapter.py -q`：28 passed。
 - `.venv/bin/python -m py_compile app/paper/strategy_backtest.py app/paper/web_status.py scripts/run_paper_status_web.py`：通过。
 - `.venv/bin/python -m pytest -q`：145 passed。
+- `.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py tests/test_v1_0_strategy_backtest_runner.py -q`：8 passed。
 - 2026-06-17 已启动真实行情 Paper Trading：`.venv/bin/python scripts/run_paper_realtime.py --symbols BTCUSDT ETHUSDT --intervals 5m 15m 1h 4h --websocket-base-url wss://fstream.binancefuture.com --state-path runtime/paper-state.json`。
 - 真实行情源验证：`wss://fstream.binancefuture.com` 可收到 BTCUSDT / ETHUSDT Binance Futures K 线推送；`runtime/paper-state.json` 已在收到已收盘 K 线后创建。
 - 2026-06-17 已启动 Web 状态页：`.venv/bin/python scripts/run_paper_status_web.py --host 127.0.0.1 --port 8765 --state-path runtime/paper-state.json`，访问地址 `http://127.0.0.1:8765`。
@@ -201,7 +203,7 @@
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
 3. 下一步继续真实行情 Paper Trading：把实时 Paper 的每次信号、拒绝原因、成交、持仓快照持久化到数据库表，便于连续 2 周稳定性验证和复盘统计。
 4. 使用 `/backtest` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；当前回测用于策略参数快速筛选，手续费/滑点默认设为 0，后续如需真实成本评估可再加入手续费和滑点输入。
-5. 下一步可把 `/backtest` 升级为分页历史回测：支持选择最近 3 个月 / 6 个月 / 1 年，自动分页拉取 Binance 历史 K 线，并输出最大回撤、胜率、盈亏比、按交易对统计和参数组合对比表。
+5. 下一步可继续增强 `/backtest`：输出最大回撤、胜率、盈亏比、按交易对统计和参数组合对比表。
 6. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 
 ## 最近提交
