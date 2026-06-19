@@ -77,9 +77,43 @@ def test_strategy_backtest_defaults_to_binance_single_request_limit():
 
     html = render_strategy_backtest_html()
 
+    assert StrategyBacktestConfig().symbols == ("BTCUSDT",)
     assert StrategyBacktestConfig().limit == 1500
     assert 'name="limit"' in html
     assert 'value="1500"' in html
+
+
+def test_strategy_backtest_page_selects_one_symbol_and_uses_compact_form():
+    from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
+    from app.paper.web_status import render_strategy_backtest_html
+
+    html = render_strategy_backtest_html(
+        result=StrategyBacktestResult(
+            config=StrategyBacktestConfig(symbols=("ETHUSDT",)),
+            initial_equity="1000",
+            final_equity="1000",
+            total_trades=0,
+            wins=0,
+            losses=0,
+            net_pnl="0",
+            trades=[],
+            error=None,
+        )
+    )
+
+    assert "交易对" in html
+    assert 'name="symbol"' in html
+    assert '<option value="BTCUSDT">BTC</option>' in html
+    assert '<option value="ETHUSDT" selected>ETH</option>' in html
+    assert "grid-template-columns: 120px 120px 120px 140px 160px 140px" in html
+
+
+def test_strategy_backtest_query_uses_selected_single_symbol():
+    from scripts.run_paper_status_web import _backtest_config_from_query
+
+    config = _backtest_config_from_query({"symbol": ["ETHUSDT"], "run": ["1"]})
+
+    assert config.symbols == ("ETHUSDT",)
 
 
 def test_strategy_backtest_page_supports_long_history_periods():

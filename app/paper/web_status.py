@@ -207,10 +207,10 @@ def render_strategy_backtest_html(result: Any | None = None) -> str:
     .label {{ color: #65748b; font-size: 12px; margin-bottom: 6px; }}
     .value {{ font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }}
     h2 {{ font-size: 16px; margin: 0 0 10px; }}
-    .form-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; }}
+    .form-grid {{ display: grid; grid-template-columns: 120px 120px 120px 140px 160px 140px; gap: 12px; align-items: end; }}
     .form-field {{ display: grid; gap: 6px; }}
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
-    .form-field input {{ border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; }}
+    .form-field input, .form-field select {{ width: 100%; box-sizing: border-box; border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
     .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
     table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; overflow: hidden; }}
     th, td {{ border-bottom: 1px solid #e6ebf2; padding: 9px 10px; text-align: left; font-size: 13px; white-space: nowrap; }}
@@ -240,6 +240,12 @@ def render_strategy_backtest_html(result: Any | None = None) -> str:
     <section class="panel">
       <h2>回测参数</h2>
       <form class="form-grid" method="get" action="/backtest">
+        <div class="form-field">
+          <label for="symbol">交易对</label>
+          <select id="symbol" name="symbol">
+            {_render_symbol_options(getattr(config, "symbols", ("BTCUSDT",)))}
+          </select>
+        </div>
         <div class="form-field">
           <label for="ema_fast">EMA 快线</label>
           <input id="ema_fast" name="ema_fast" type="number" min="2" max="500" value="{_escape(config.ema_fast_period)}">
@@ -307,6 +313,20 @@ def _render_history_period_options(selected: Any) -> str:
     selected_value = str(selected or "3m")
     return "".join(
         f'<option value="{_escape(value)}"{_selected_attr(value == selected_value)}>{_escape(label)}</option>'
+        for value, label in options
+    )
+
+
+def _render_symbol_options(symbols: Any) -> str:
+    selected = "BTCUSDT"
+    if isinstance(symbols, (list, tuple)) and symbols:
+        selected = str(symbols[0])
+    options = [
+        ("BTCUSDT", "BTC"),
+        ("ETHUSDT", "ETH"),
+    ]
+    return "".join(
+        f'<option value="{_escape(value)}"{_selected_attr(value == selected)}>{_escape(label)}</option>'
         for value, label in options
     )
 

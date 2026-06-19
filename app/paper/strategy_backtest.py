@@ -14,7 +14,7 @@ from app.paper.trading import PaperConfig, PaperTradingEngine
 
 @dataclass(frozen=True)
 class StrategyBacktestConfig:
-    symbols: tuple[str, ...] = ("BTCUSDT", "ETHUSDT")
+    symbols: tuple[str, ...] = ("BTCUSDT",)
     ema_fast_period: int = 50
     ema_slow_period: int = 200
     atr_period: int = 14

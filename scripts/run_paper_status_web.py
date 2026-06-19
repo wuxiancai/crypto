@@ -91,7 +91,9 @@ def run_strategy_backtest_default_result():
 
 
 def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktestConfig:
+    symbol = _query_choice(query, "symbol", "BTCUSDT", {"BTCUSDT", "ETHUSDT"})
     return StrategyBacktestConfig(
+        symbols=(symbol,),
         ema_fast_period=_query_int(query, "ema_fast", 50, minimum=2, maximum=500),
         ema_slow_period=_query_int(query, "ema_slow", 200, minimum=3, maximum=1000),
         limit=_query_int(query, "limit", 1500, minimum=50, maximum=1500),
