@@ -236,20 +236,20 @@ def _batch_config_from_query(query: dict[str, list[str]]):
         slow_ma_type=_query_choice(query, "slow_ma_type", "MA", {"EMA", "MA"}),
         fast_periods=_query_range(query, "fast", default_start=15, default_end=50, default_step=5, minimum=2, maximum=500),
         slow_periods=_query_range(query, "slow", default_start=30, default_end=200, default_step=30, minimum=3, maximum=1000),
-        atr_periods=_query_int_list(query, "atr_periods", (10, 12, 14, 16, 18), minimum=2, maximum=200),
-        dmi_periods=_query_int_list(query, "dmi_periods", (10, 12, 14, 16, 18), minimum=2, maximum=200),
+        atr_periods=_query_int_list(query, "atr_periods", (12, 14), minimum=2, maximum=200),
+        dmi_periods=_query_int_list(query, "dmi_periods", (12, 14), minimum=2, maximum=200),
         swing_lookbacks=_query_int_list(query, "swing_lookbacks", (10, 15, 20, 25, 30), minimum=2, maximum=500),
         max_fee_to_risk_ratios=_query_decimal_list(
             query,
             "max_fee_to_risk_ratios",
-            ("0.15", "0.20", "0.25", "0.30", "0.35", "0.50"),
+            ("0.25", "0"),
             minimum=Decimal("0"),
             maximum=Decimal("2"),
         ),
         take_profit_modes=_query_choice_list(query, "take_profit_modes", ("TRAILING", "FIXED"), {"TRAILING", "FIXED"}),
         history_period=history_period,
         history_window_ms=HISTORY_WINDOWS_MS[history_period],
-        skip_fast_gte_slow=_query_bool(query, "skip_fast_gte_slow", False),
+        skip_fast_gte_slow=_query_bool(query, "skip_fast_gte_slow", True),
     )
 
 
@@ -342,7 +342,10 @@ def _query_range(
     step = _query_int(query, f"{prefix}_step", default_step, minimum=1, maximum=maximum)
     if end < start:
         end = start
-    return tuple(range(start, end + 1, step))
+    values = list(range(start, end + 1, step))
+    if values and values[-1] != end:
+        values.append(end)
+    return tuple(values)
 
 
 def _query_int_list(

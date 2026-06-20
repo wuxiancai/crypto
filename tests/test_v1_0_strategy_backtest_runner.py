@@ -358,6 +358,18 @@ def test_strategy_backtest_batch_config_builds_user_selected_parameter_sets():
     assert {item.trend_pullback_take_profit_mode for item in refinement} == {"TRAILING", "FIXED"}
 
 
+def test_strategy_backtest_batch_query_defaults_match_page_defaults():
+    from scripts.run_paper_status_web import _batch_config_from_query
+
+    config = _batch_config_from_query({})
+
+    assert config.slow_periods == (30, 60, 90, 120, 150, 180, 200)
+    assert config.atr_periods == (12, 14)
+    assert config.dmi_periods == (12, 14)
+    assert config.max_fee_to_risk_ratios == ("0.25", "0")
+    assert config.skip_fast_gte_slow is True
+
+
 def test_strategy_backtest_batch_query_builds_config_from_ranges():
     from scripts.run_paper_status_web import _batch_config_from_query
 

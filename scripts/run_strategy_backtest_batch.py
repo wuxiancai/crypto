@@ -114,15 +114,15 @@ class StrategyBacktestBatchConfig:
     fast_ma_type: str = "EMA"
     slow_ma_type: str = "MA"
     fast_periods: tuple[int, ...] = tuple(range(15, 51, 5))
-    slow_periods: tuple[int, ...] = tuple(range(30, 201, 30))
-    atr_periods: tuple[int, ...] = (10, 12, 14, 16, 18)
-    dmi_periods: tuple[int, ...] = (10, 12, 14, 16, 18)
+    slow_periods: tuple[int, ...] = (30, 60, 90, 120, 150, 180, 200)
+    atr_periods: tuple[int, ...] = (12, 14)
+    dmi_periods: tuple[int, ...] = (12, 14)
     swing_lookbacks: tuple[int, ...] = (10, 15, 20, 25, 30)
-    max_fee_to_risk_ratios: tuple[str, ...] = ("0.15", "0.20", "0.25", "0.30", "0.35", "0.50")
+    max_fee_to_risk_ratios: tuple[str, ...] = ("0.25", "0")
     take_profit_modes: tuple[str, ...] = ("TRAILING", "FIXED")
     history_period: str = HISTORY_PERIOD
     history_window_ms: int = HISTORY_WINDOW_MS
-    skip_fast_gte_slow: bool = False
+    skip_fast_gte_slow: bool = True
     rerun_completed: bool = False
     retry_failed: bool = False
     refresh_cache: bool = False
@@ -145,11 +145,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fast-ma-type", default="EMA", choices=("EMA", "MA"))
     parser.add_argument("--slow-ma-type", default="MA", choices=("EMA", "MA"))
     parser.add_argument("--fast-periods", default="15:50:5", help="Fast MA periods, e.g. 15:50:5 or 15,20,25.")
-    parser.add_argument("--slow-periods", default="30:200:30", help="Slow MA periods, e.g. 30:200:30 or 60,90,120.")
-    parser.add_argument("--atr-periods", default="10,12,14,16,18")
-    parser.add_argument("--dmi-periods", default="10,12,14,16,18")
+    parser.add_argument("--slow-periods", default="30,60,90,120,150,180,200", help="Slow MA periods, e.g. 30,60,90,120,150,180,200.")
+    parser.add_argument("--atr-periods", default="12,14")
+    parser.add_argument("--dmi-periods", default="12,14")
     parser.add_argument("--swing-lookbacks", default="10,15,20,25,30")
-    parser.add_argument("--max-fee-to-risk-ratios", default="0.15,0.20,0.25,0.30,0.35,0.50")
+    parser.add_argument("--max-fee-to-risk-ratios", default="0.25,0")
     parser.add_argument("--take-profit-modes", default="TRAILING,FIXED")
     parser.add_argument("--history-period", default=HISTORY_PERIOD, choices=tuple(HISTORY_WINDOWS_MS))
     parser.add_argument(
@@ -161,7 +161,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-fast-gte-slow",
         action="store_true",
+        default=True,
         help="Skip combinations where EMA period is greater than or equal to MA period.",
+    )
+    parser.add_argument(
+        "--include-fast-gte-slow",
+        action="store_false",
+        dest="skip_fast_gte_slow",
+        help="Include combinations where the fast period is greater than or equal to the slow period.",
     )
     parser.add_argument(
         "--rerun-completed",

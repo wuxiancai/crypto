@@ -164,6 +164,10 @@ def test_strategy_backtest_web_helper_archives_successful_result():
             slow_ma_type="MA",
             ema_fast_period=30,
             ema_slow_period=120,
+            atr_period=12,
+            dmi_period=14,
+            swing_lookback=25,
+            max_fee_to_risk_ratio=Decimal("0"),
         ),
         initial_equity="1000.00",
         final_equity="1019.00",
@@ -209,6 +213,10 @@ def test_strategy_backtest_web_helper_archives_successful_result():
     assert summaries[0].symbol == "BTCUSDT"
     assert summaries[0].fast_ma_type == "EMA"
     assert summaries[0].slow_ma_type == "MA"
+    assert summaries[0].atr_period == 12
+    assert summaries[0].dmi_period == 14
+    assert summaries[0].swing_lookback == 25
+    assert summaries[0].max_fee_to_risk_ratio == "0"
     assert summaries[0].final_equity == "1019.00"
 
 
@@ -227,6 +235,10 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
                 fast_period=30,
                 slow_ma_type="EMA",
                 slow_period=120,
+                atr_period=12,
+                dmi_period=14,
+                swing_lookback=20,
+                max_fee_to_risk_ratio="0",
                 history_period="6m",
                 initial_equity="1000.00",
                 final_equity="980.00",
@@ -242,6 +254,10 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
                 fast_period=50,
                 slow_ma_type="MA",
                 slow_period=200,
+                atr_period=14,
+                dmi_period=14,
+                swing_lookback=25,
+                max_fee_to_risk_ratio="0.25",
                 history_period="1y",
                 initial_equity="1000.00",
                 final_equity="1044.00",
@@ -256,6 +272,11 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
     assert "最近回测结果" in html
     assert "recent-results-scroll" in html
     assert "EMA50 / MA200" in html
+    assert "<th>ATR</th><th>DMI</th><th>Swing</th><th>手续费/风险</th>" in html
+    assert "<td>14</td>" in html
+    assert "<td>25</td>" in html
+    assert "<td>0.25</td>" in html
+    assert "<td>关闭</td>" in html
     assert "11 / 14 / 胜率 44%" in html
     assert html.index("BTCUSDT") < html.index("ETHUSDT")
 
@@ -307,6 +328,18 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     assert "止盈模式" in html
     assert "回测周期" in html
     assert "开始批量回测" in html
+
+
+def test_strategy_backtest_batch_page_defaults_to_smaller_refinement_grid():
+    from app.paper.web_status import render_strategy_backtest_batch_html
+
+    html = render_strategy_backtest_batch_html()
+
+    assert 'name="slow_end" type="number" min="3" max="1000" value="200"' in html
+    assert 'name="atr_periods" value="12,14"' in html
+    assert 'name="dmi_periods" value="12,14"' in html
+    assert 'name="max_fee_to_risk_ratios" value="0.25,0"' in html
+    assert '<option value="1" selected>是</option>' in html
 
 
 def test_strategy_backtest_batch_page_shows_stop_button_and_terminal_logs():

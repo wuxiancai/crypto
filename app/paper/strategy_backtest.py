@@ -63,6 +63,10 @@ class StrategyBacktestRunSummary:
     fast_period: int
     slow_ma_type: str
     slow_period: int
+    atr_period: int
+    dmi_period: int
+    swing_lookback: int
+    max_fee_to_risk_ratio: str
     history_period: str
     initial_equity: str
     final_equity: str

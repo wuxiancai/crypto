@@ -459,14 +459,14 @@ def render_strategy_backtest_batch_html(
           <label for="history_period">回测周期</label>
           <select id="history_period" name="history_period">{_render_history_period_options(getattr(config, "history_period", "1y"))}</select>
         </div>
-        <div class="form-field"><label for="atr_periods">ATR 周期</label><input id="atr_periods" name="atr_periods" value="{_escape(_join_values(getattr(config, "atr_periods", (10, 12, 14, 16, 18))))}"></div>
-        <div class="form-field"><label for="dmi_periods">DMI 周期</label><input id="dmi_periods" name="dmi_periods" value="{_escape(_join_values(getattr(config, "dmi_periods", (10, 12, 14, 16, 18))))}"></div>
+        <div class="form-field"><label for="atr_periods">ATR 周期</label><input id="atr_periods" name="atr_periods" value="{_escape(_join_values(getattr(config, "atr_periods", (12, 14))))}"></div>
+        <div class="form-field"><label for="dmi_periods">DMI 周期</label><input id="dmi_periods" name="dmi_periods" value="{_escape(_join_values(getattr(config, "dmi_periods", (12, 14))))}"></div>
         <div class="form-field"><label for="swing_lookbacks">Swing Lookback</label><input id="swing_lookbacks" name="swing_lookbacks" value="{_escape(_join_values(getattr(config, "swing_lookbacks", (10, 15, 20, 25, 30))))}"></div>
-        <div class="form-field"><label for="max_fee_to_risk_ratios">手续费/风险上限</label><input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0.15", "0.20", "0.25", "0.30", "0.35", "0.50"))))}"></div>
+        <div class="form-field"><label for="max_fee_to_risk_ratios">手续费/风险上限</label><input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0.25", "0"))))}"></div>
         <div class="form-field"><label for="take_profit_modes">止盈模式</label><input id="take_profit_modes" name="take_profit_modes" value="{_escape(_join_values(getattr(config, "take_profit_modes", ("TRAILING", "FIXED"))))}"></div>
         <div class="form-field">
           <label for="skip_fast_gte_slow">过滤快线>=慢线</label>
-          <select id="skip_fast_gte_slow" name="skip_fast_gte_slow">{_render_bool_options(getattr(config, "skip_fast_gte_slow", False))}</select>
+          <select id="skip_fast_gte_slow" name="skip_fast_gte_slow">{_render_bool_options(getattr(config, "skip_fast_gte_slow", True))}</select>
         </div>
         <div class="button-row">
           <button class="primary-button" type="submit" name="run" value="1">开始批量回测</button>
@@ -698,7 +698,7 @@ def _render_recent_backtest_results(results: list[Any]) -> str:
 <table>
   <thead>
     <tr>
-      <th>回测时间 UTC+8</th><th>交易对</th><th>均线组合</th><th>周期</th>
+      <th>回测时间 UTC+8</th><th>交易对</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费/风险</th><th>周期</th>
       <th>初始权益</th><th>账户权益</th><th>总交易次数</th><th>胜 / 负 / 胜率</th><th>净盈亏</th>
     </tr>
   </thead>
@@ -716,6 +716,10 @@ def _render_recent_backtest_result_row(result: Any) -> str:
   <td>{_escape(_format_datetime(getattr(result, "created_at", None)))}</td>
   <td>{_escape(getattr(result, "symbol", "-"))}</td>
   <td>{_escape(_average_combo_label(result))}</td>
+  <td>{_escape(getattr(result, "atr_period", "-"))}</td>
+  <td>{_escape(getattr(result, "dmi_period", "-"))}</td>
+  <td>{_escape(getattr(result, "swing_lookback", "-"))}</td>
+  <td>{_escape(_fee_to_risk_label(getattr(result, "max_fee_to_risk_ratio", "-")))}</td>
   <td>{_escape(_history_period_label(getattr(result, "history_period", "")))}</td>
   <td>{_format_decimal(getattr(result, "initial_equity", "0"), 2)}</td>
   <td>{_format_decimal(getattr(result, "final_equity", "0"), 2)}</td>
@@ -731,6 +735,11 @@ def _average_combo_label(result: Any) -> str:
     fast_period = getattr(result, "fast_period", 50)
     slow_period = getattr(result, "slow_period", 200)
     return f"{fast_type}{fast_period} / {slow_type}{slow_period}"
+
+
+def _fee_to_risk_label(value: Any) -> str:
+    text = str(value)
+    return "关闭" if text in {"0", "0.0", "0.00"} else text
 
 
 def _sort_recent_backtest_results(results: list[Any]) -> list[Any]:
