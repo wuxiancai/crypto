@@ -478,3 +478,79 @@ def test_strategy_backtest_batch_skips_parameter_set_already_archived_in_databas
     assert records[0]["archived_run_id"] == archived_run_id
     assert records[0]["final_equity"] == "1111.00"
     assert records[0]["win_rate"] == "66.67"
+
+
+def test_strategy_backtest_batch_phase_emits_logs_and_honors_stop_event(tmp_path):
+    import threading
+
+    import scripts.run_strategy_backtest_batch as batch
+    from scripts.run_strategy_backtest_batch import BacktestWindow, ParameterSet
+
+    stop_event = threading.Event()
+    stop_event.set()
+    logs: list[str] = []
+
+    records = batch._run_phase(
+        phase="primary",
+        candidates=[ParameterSet(fast_period=15, slow_period=60)],
+        checkpoint={"records": {}},
+        workspace=tmp_path,
+        cache_dir=tmp_path / "cache",
+        session_factory=None,
+        symbol="BTCUSDT",
+        window=BacktestWindow(
+            start_time_ms=0,
+            end_time_ms=1000,
+            latest_close_time_by_interval={"4h": 1000, "1h": 1000, "15m": 1000},
+        ),
+        history_period="1y",
+        rerun_completed=False,
+        retry_failed=False,
+        log_callback=logs.append,
+        stop_event=stop_event,
+    )
+
+    assert records == []
+    assert any("停止请求已收到" in line for line in logs)
+
+
+def test_batch_backtest_job_manager_starts_logs_and_stops(monkeypatch):
+    import time
+
+    import scripts.run_paper_status_web as web
+    from scripts.run_strategy_backtest_batch import StrategyBacktestBatchConfig
+
+    entered = False
+
+    def fake_run_strategy_backtest_batch(config, log_callback=None, stop_event=None):
+        nonlocal entered
+        entered = True
+        assert config.symbol == "BTCUSDT"
+        assert log_callback is not None
+        assert stop_event is not None
+        log_callback("[run  1/1] primary EMA15/MA30")
+        while not stop_event.is_set():
+            time.sleep(0.01)
+        log_callback("停止请求已收到，当前批量回测将在安全点退出。")
+        return {"primary": {"success_runs": 0, "total_runs": 0}, "refinement": {}}
+
+    monkeypatch.setattr(web, "run_strategy_backtest_batch", fake_run_strategy_backtest_batch, raising=False)
+    manager = web.BatchBacktestJobManager()
+
+    started = manager.start(StrategyBacktestBatchConfig(symbol="BTCUSDT"))
+    time.sleep(0.05)
+    stopped = manager.stop()
+    for _ in range(50):
+        status = manager.status()
+        if not status["running"]:
+            break
+        time.sleep(0.01)
+
+    status = manager.status()
+    assert started is True
+    assert stopped is True
+    assert entered is True
+    assert status["running"] is False
+    assert status["stop_requested"] is True
+    assert any("[run  1/1]" in line for line in status["logs"])
+    assert status["analysis"]["primary"]["success_runs"] == 0

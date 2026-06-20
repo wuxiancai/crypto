@@ -46,6 +46,11 @@
   - `scripts/run_strategy_backtest_batch.py` 在每组参数执行前先查数据库；若已有 `web_strategy_backtest + strategy_backtest` 同配置 hash 的 run，默认跳过，不调用 `run_strategy_backtest()`，并把已有 run 的权益、PnL、交易数、胜负和胜率写入 checkpoint，保证后续 best primary/refinement 分析还能使用已有结果。
   - `--rerun-completed` 会绕过数据库跳过逻辑并强制重跑。
   - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_strategy_backtest_page.py tests/test_v0_3_backtest_archive.py -q`，22 passed；`.venv/bin/python -m py_compile scripts/run_strategy_backtest_batch.py app/database/repositories.py scripts/run_paper_status_web.py app/paper/web_status.py` 通过。
+- 2026-06-20 批量回测停止按钮与日志面板：
+  - `/backtest/batch` 已从同步阻塞请求改为后台任务执行；页面新增“停止回测”按钮和终端风格“运行日志”面板。
+  - `scripts.run_paper_status_web.BatchBacktestJobManager` 管理当前批量回测任务、日志、停止事件、分析结果和错误；`/api/backtest/batch/status` 返回 `running/stop_requested/logs/analysis/error`。
+  - `scripts/run_strategy_backtest_batch.py` 新增 `log_callback` 与 `stop_event` 支持，脚本中的 `[phase]`、`[run]`、`[skip]`、`[ARCHIVED]`、耗时/剩余预计、倒计时和最终 summary 都会显式进入 Web 日志。停止请求会在当前回测组合结束后的下一组开始前退出。
+  - 本机验证：`.venv/bin/python -m pytest -q`，183 passed；本地启动 `scripts/run_paper_status_web.py --port 8876` 后，`/backtest/batch` 包含停止按钮和日志容器，`/api/backtest/batch/status` 返回状态 JSON。
 - 统一 AI fallback：移除 `BLOCK_NEW_ENTRIES`，统一使用 `BLOCK`。
 - 主趋势做多/做空也必须使用 DI_PLUS / DI_MINUS 判断方向。
 - 趋势转换早期试仓风险固定为 0.2%，确认试仓风险固定为 0.3%。
@@ -264,7 +269,7 @@
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
 3. 下一步继续真实行情 Paper Trading：把实时 Paper 的每次信号、拒绝原因、成交、持仓快照持久化到数据库表，便于连续 2 周稳定性验证和复盘统计。
-4. 使用 `/backtest` 或 `/backtest/batch` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果。当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
+4. 使用 `/backtest` 或 `/backtest/batch` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果，并可在页面查看终端风格日志或请求停止。当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
 5. 下一步可继续增强 `/backtest`：输出最大回撤、胜率、盈亏比、按交易对统计和参数组合对比表。
 6. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 

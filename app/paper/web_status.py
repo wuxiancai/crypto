@@ -369,11 +369,19 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
 </html>"""
 
 
-def render_strategy_backtest_batch_html(config: Any | None = None, analysis: dict[str, Any] | None = None, error: str | None = None) -> str:
+def render_strategy_backtest_batch_html(
+    config: Any | None = None,
+    analysis: dict[str, Any] | None = None,
+    error: str | None = None,
+    job_status: dict[str, Any] | None = None,
+) -> str:
     if config is None:
         from scripts.run_strategy_backtest_batch import StrategyBacktestBatchConfig
 
         config = StrategyBacktestBatchConfig()
+    job = job_status or {}
+    effective_analysis = analysis if analysis is not None else job.get("analysis")
+    effective_error = error or job.get("error")
     fast_start, fast_end, fast_step = _series_bounds(getattr(config, "fast_periods", (15, 50)))
     slow_start, slow_end, slow_step = _series_bounds(getattr(config, "slow_periods", (30, 200)))
     return f"""<!doctype html>
@@ -401,8 +409,12 @@ def render_strategy_backtest_batch_html(config: Any | None = None, analysis: dic
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
     .form-field input, .form-field select {{ width: 100%; box-sizing: border-box; border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
     .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
+    .danger-button {{ border: 1px solid #b42318; background: #b42318; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; text-decoration: none; }}
+    .button-row {{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }}
+    .job-badge {{ font-size: 13px; padding: 7px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; color: #344055; }}
     .empty {{ color: #65748b; padding: 14px; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; }}
     .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
+    .terminal {{ min-height: 360px; max-height: 540px; overflow-y: auto; background: #2b001f; color: #f8edf5; border: 1px solid #531540; border-radius: 6px; padding: 12px; font-family: Menlo, Consolas, "Courier New", monospace; font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }}
     table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; overflow: hidden; }}
     th, td {{ border-bottom: 1px solid #e6ebf2; padding: 9px 10px; text-align: left; font-size: 13px; white-space: nowrap; }}
     th {{ background: #eef3f9; color: #344055; }}
@@ -455,15 +467,48 @@ def render_strategy_backtest_batch_html(config: Any | None = None, analysis: dic
           <label for="skip_fast_gte_slow">过滤快线>=慢线</label>
           <select id="skip_fast_gte_slow" name="skip_fast_gte_slow">{_render_bool_options(getattr(config, "skip_fast_gte_slow", False))}</select>
         </div>
-        <button class="primary-button" type="submit" name="run" value="1">开始批量回测</button>
+        <div class="button-row">
+          <button class="primary-button" type="submit" name="run" value="1">开始批量回测</button>
+          <button class="danger-button" type="submit" name="stop" value="1">停止回测</button>
+          <span class="job-badge" id="batch-job-status">{_escape(_batch_job_status_label(job))}</span>
+        </div>
       </form>
     </section>
-    {_render_backtest_error(error)}
+    {_render_backtest_error(effective_error)}
+    <section style="margin-top: 16px;">
+      <h2>运行日志</h2>
+      <div id="backtest-log-terminal" class="terminal">{_escape(_batch_log_text(job))}</div>
+    </section>
     <section style="margin-top: 16px;">
       <h2>批量回测结果</h2>
-      {_render_batch_analysis(analysis)}
+      <div id="batch-analysis">{_render_batch_analysis(effective_analysis)}</div>
     </section>
   </main>
+  <script>
+    async function refreshBatchStatus() {{
+      try {{
+        const response = await fetch("/api/backtest/batch/status", {{ cache: "no-store" }});
+        if (!response.ok) return;
+        const payload = await response.json();
+        const terminal = document.getElementById("backtest-log-terminal");
+        if (terminal) {{
+          terminal.textContent = (payload.logs || []).join("\\n") || "等待批量回测启动";
+          terminal.scrollTop = terminal.scrollHeight;
+        }}
+        const status = document.getElementById("batch-job-status");
+        if (status) {{
+          status.textContent = payload.running ? (payload.stop_requested ? "停止中" : "运行中") : "空闲";
+        }}
+        if (!payload.running && payload.analysis) {{
+          window.location.reload();
+        }}
+      }} catch (_error) {{
+        return;
+      }}
+    }}
+    refreshBatchStatus();
+    setInterval(refreshBatchStatus, 2000);
+  </script>
 </body>
 </html>"""
 
@@ -577,6 +622,19 @@ def _render_batch_analysis(analysis: dict[str, Any] | None) -> str:
     ]
     body = "".join(f"<tr><th>{_escape(label)}</th><td>{_escape(value)}</td></tr>" for label, value in rows)
     return f'<div class="table-wrap"><table><tbody>{body}</tbody></table></div>'
+
+
+def _batch_job_status_label(job_status: dict[str, Any]) -> str:
+    if job_status.get("running"):
+        return "停止中" if job_status.get("stop_requested") else "运行中"
+    return "空闲"
+
+
+def _batch_log_text(job_status: dict[str, Any]) -> str:
+    logs = job_status.get("logs")
+    if isinstance(logs, list) and logs:
+        return "\n".join(str(line) for line in logs)
+    return "等待批量回测启动"
 
 
 def _batch_record_line(record: Any) -> str:

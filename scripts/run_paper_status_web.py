@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from collections import deque
 from dataclasses import replace
 from decimal import Decimal
 import json
 import sys
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -21,6 +24,7 @@ from app.paper.web_status import (
     render_strategy_backtest_batch_html,
     render_strategy_backtest_html,
 )
+from scripts.run_strategy_backtest_batch import run_strategy_backtest_batch
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,6 +36,84 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+class BatchBacktestJobManager:
+    def __init__(self, max_logs: int = 800) -> None:
+        self._lock = threading.Lock()
+        self._logs: deque[str] = deque(maxlen=max_logs)
+        self._running = False
+        self._stop_requested = False
+        self._analysis = None
+        self._error = None
+        self._started_at_ms = None
+        self._finished_at_ms = None
+        self._stop_event: threading.Event | None = None
+        self._thread: threading.Thread | None = None
+
+    def start(self, config) -> bool:
+        with self._lock:
+            if self._running:
+                return False
+            self._logs.clear()
+            self._running = True
+            self._stop_requested = False
+            self._analysis = None
+            self._error = None
+            self._started_at_ms = int(time.time() * 1000)
+            self._finished_at_ms = None
+            self._stop_event = threading.Event()
+            self._append_log_locked("批量回测后台任务已启动。")
+            thread = threading.Thread(target=self._run, args=(config, self._stop_event), daemon=True)
+            self._thread = thread
+            thread.start()
+            return True
+
+    def stop(self) -> bool:
+        with self._lock:
+            if not self._running or self._stop_event is None:
+                return False
+            self._stop_requested = True
+            self._stop_event.set()
+            self._append_log_locked("停止请求已收到，当前回测组合完成后会退出。")
+            return True
+
+    def status(self) -> dict:
+        with self._lock:
+            return {
+                "running": self._running,
+                "stop_requested": self._stop_requested,
+                "started_at_ms": self._started_at_ms,
+                "finished_at_ms": self._finished_at_ms,
+                "logs": list(self._logs),
+                "analysis": self._analysis,
+                "error": self._error,
+            }
+
+    def _run(self, config, stop_event: threading.Event) -> None:
+        try:
+            analysis = run_strategy_backtest_batch(config, log_callback=self._append_log, stop_event=stop_event)
+            with self._lock:
+                self._analysis = analysis
+                self._append_log_locked("批量回测后台任务已结束。")
+        except Exception as exc:
+            with self._lock:
+                self._error = f"批量回测执行失败：{exc}"
+                self._append_log_locked(self._error)
+        finally:
+            with self._lock:
+                self._running = False
+                self._finished_at_ms = int(time.time() * 1000)
+
+    def _append_log(self, line: str) -> None:
+        with self._lock:
+            self._append_log_locked(line)
+
+    def _append_log_locked(self, line: str) -> None:
+        self._logs.append(str(line))
+
+
+_BATCH_BACKTEST_JOBS = BatchBacktestJobManager()
+
+
 def make_handler(state_path: Path, error_log_path: Path):
     class PaperStatusHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -39,6 +121,9 @@ def make_handler(state_path: Path, error_log_path: Path):
             payload = build_paper_status_payload(state_path, error_log_path=error_log_path)
             if parsed.path == "/api/status":
                 self._send_json(payload)
+                return
+            if parsed.path == "/api/backtest/batch/status":
+                self._send_json(_BATCH_BACKTEST_JOBS.status())
                 return
             if parsed.path in {"/", "/index.html"}:
                 self._send_html(render_paper_status_html(payload))
@@ -57,16 +142,20 @@ def make_handler(state_path: Path, error_log_path: Path):
             if parsed.path == "/backtest/batch":
                 query = parse_qs(parsed.query)
                 config = _batch_config_from_query(query)
-                analysis = None
                 error = None
                 if query.get("run") == ["1"]:
-                    try:
-                        from scripts.run_strategy_backtest_batch import run_strategy_backtest_batch
-
-                        analysis = run_strategy_backtest_batch(config)
-                    except Exception as exc:
-                        error = f"批量回测执行失败：{exc}"
-                self._send_html(render_strategy_backtest_batch_html(config=config, analysis=analysis, error=error))
+                    if not _BATCH_BACKTEST_JOBS.start(config):
+                        error = "已有批量回测正在运行，请先停止或等待完成。"
+                if query.get("stop") == ["1"]:
+                    if not _BATCH_BACKTEST_JOBS.stop():
+                        error = "当前没有正在运行的批量回测。"
+                self._send_html(
+                    render_strategy_backtest_batch_html(
+                        config=config,
+                        job_status=_BATCH_BACKTEST_JOBS.status(),
+                        error=error,
+                    )
+                )
                 return
             self.send_error(404)
 

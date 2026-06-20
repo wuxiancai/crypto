@@ -309,6 +309,30 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     assert "开始批量回测" in html
 
 
+def test_strategy_backtest_batch_page_shows_stop_button_and_terminal_logs():
+    from app.paper.web_status import render_strategy_backtest_batch_html
+
+    html = render_strategy_backtest_batch_html(
+        job_status={
+            "running": True,
+            "stop_requested": False,
+            "logs": [
+                "[run  1/48] primary EMA20/MA60 | ATR 14 | DMI 14",
+                "         [ARCHIVED] run_id=19 | combo=EMA20/MA60",
+            ],
+            "analysis": None,
+            "error": None,
+        }
+    )
+
+    assert "停止回测" in html
+    assert 'name="stop"' in html
+    assert "backtest-log-terminal" in html
+    assert "/api/backtest/batch/status" in html
+    assert "[run  1/48] primary EMA20/MA60" in html
+    assert "[ARCHIVED] run_id=19" in html
+
+
 def test_strategy_backtest_web_helper_reports_runner_errors(monkeypatch):
     import scripts.run_paper_status_web as web
 

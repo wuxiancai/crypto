@@ -215,7 +215,11 @@ def _batch_config_from_args(args: argparse.Namespace) -> StrategyBacktestBatchCo
     )
 
 
-def run_strategy_backtest_batch(config: StrategyBacktestBatchConfig) -> dict[str, Any]:
+def run_strategy_backtest_batch(
+    config: StrategyBacktestBatchConfig,
+    log_callback: Any | None = None,
+    stop_event: Any | None = None,
+) -> dict[str, Any]:
     workspace = config.workspace_path()
     if config.reset_workspace and workspace.exists():
         shutil.rmtree(workspace)
@@ -235,6 +239,7 @@ def run_strategy_backtest_batch(config: StrategyBacktestBatchConfig) -> dict[str
         symbol=config.symbol,
         requested_window=requested_window,
         history_window_ms=config.history_window_ms,
+        log_callback=log_callback,
     )
 
     if checkpoint is None:
@@ -271,6 +276,8 @@ def run_strategy_backtest_batch(config: StrategyBacktestBatchConfig) -> dict[str
         rerun_completed=config.rerun_completed,
         retry_failed=config.retry_failed,
         future_runs_estimate=estimated_refinement_runs,
+        log_callback=log_callback,
+        stop_event=stop_event,
     )
     best_primary = _best_record(primary_records)
     if best_primary is None:
@@ -292,6 +299,8 @@ def run_strategy_backtest_batch(config: StrategyBacktestBatchConfig) -> dict[str
         rerun_completed=config.rerun_completed,
         retry_failed=config.retry_failed,
         future_runs_estimate=0,
+        log_callback=log_callback,
+        stop_event=stop_event,
     )
 
     analysis = _build_analysis(
@@ -301,7 +310,7 @@ def run_strategy_backtest_batch(config: StrategyBacktestBatchConfig) -> dict[str
         refinement_records=refinement_records,
     )
     _write_analysis_outputs(workspace, analysis)
-    _print_summary(analysis, workspace)
+    _print_summary(analysis, workspace, log_callback=log_callback)
     return analysis
 
 
@@ -385,6 +394,7 @@ def _ensure_database_history(
     symbol: str,
     requested_window: BacktestWindow | None,
     history_window_ms: int,
+    log_callback: Any | None = None,
 ) -> None:
     if requested_window is None:
         target_end_time_ms = _latest_closed_end_time(int(time.time() * 1000))
@@ -393,7 +403,8 @@ def _ensure_database_history(
         target_start_time_ms = requested_window.start_time_ms
         target_end_time_ms = requested_window.end_time_ms
 
-    print(
+    _emit(
+        log_callback,
         f"Checking database K-lines for {symbol} "
         f"({target_start_time_ms} -> {target_end_time_ms})"
     )
@@ -409,9 +420,9 @@ def _ensure_database_history(
             )
         )
         if written > 0:
-            print(f"  synced {symbol} {interval}: wrote {written} klines")
+            _emit(log_callback, f"  synced {symbol} {interval}: wrote {written} klines")
         else:
-            print(f"  ready  {symbol} {interval}: database already has full window")
+            _emit(log_callback, f"  ready  {symbol} {interval}: database already has full window")
 
 
 async def _ensure_interval_history(
@@ -746,6 +757,8 @@ def _run_phase(
     rerun_completed: bool,
     retry_failed: bool,
     future_runs_estimate: int = 0,
+    log_callback: Any | None = None,
+    stop_event: Any | None = None,
 ) -> list[dict[str, Any]]:
     records = checkpoint.setdefault("records", {})
     initial_phase_pending = _pending_run_count(
@@ -758,12 +771,16 @@ def _run_phase(
     if initial_phase_pending > 0:
         phase_estimate_seconds = _estimate_run_seconds(records, phase=phase)
         total_estimated_runs = initial_phase_pending + future_runs_estimate
-        print(
+        _emit(
+            log_callback,
             f"[phase] {phase} 待执行 {initial_phase_pending} 组 | "
             f"当前阶段预计总用时 {_format_duration_clock(phase_estimate_seconds * initial_phase_pending)} | "
             f"整个脚本预计总用时 {_format_duration_clock(phase_estimate_seconds * total_estimated_runs)}"
         )
     for index, params in enumerate(candidates, start=1):
+        if _stop_requested(stop_event):
+            _emit(log_callback, f"[stopped] 停止请求已收到，{phase} 在第 {index}/{len(candidates)} 组前退出。")
+            break
         run_key = _run_key(phase, params)
         existing = records.get(run_key)
         if existing is not None and not _should_run_existing(
@@ -771,7 +788,7 @@ def _run_phase(
             rerun_completed=rerun_completed,
             retry_failed=retry_failed,
         ):
-            print(f"[skip {index}/{len(candidates)}] {phase} {params.label()}")
+            _emit(log_callback, f"[skip {index}/{len(candidates)}] {phase} {params.label()}")
             continue
 
         config = params.to_config(symbol=symbol, cache_dir=cache_dir, window=window, history_period=history_period)
@@ -787,13 +804,14 @@ def _run_phase(
                 )
                 records[run_key] = record
                 _save_checkpoint(workspace, checkpoint)
-                print(
+                _emit(
+                    log_callback,
                     f"[skip {index}/{len(candidates)}] {phase} {params.label()} "
                     f"| existing database run_id={archived_run.id}"
                 )
                 continue
 
-        print(f"[run  {index}/{len(candidates)}] {phase} {params.label()}")
+        _emit(log_callback, f"[run  {index}/{len(candidates)}] {phase} {params.label()}")
         current_estimated_seconds = _estimate_run_seconds(records, phase=phase)
         remaining_runs = _pending_run_count(
             candidates=candidates[index - 1 :],
@@ -803,7 +821,8 @@ def _run_phase(
             retry_failed=retry_failed,
         )
         total_remaining_runs = remaining_runs + future_runs_estimate
-        print(
+        _emit(
+            log_callback,
             "         "
             f"本轮预计用时={_format_duration_clock(current_estimated_seconds)} | "
             f"当前阶段剩余总预计={_format_duration_clock(current_estimated_seconds * remaining_runs)} | "
@@ -813,6 +832,7 @@ def _run_phase(
         with _countdown_printer(
             label="         本轮倒计时",
             estimated_seconds=current_estimated_seconds,
+            log_callback=log_callback,
         ):
             result = asyncio.run(run_strategy_backtest(config))
         actual_elapsed_seconds = max(1, int((int(time.time() * 1000) - started_at_ms) / 1000))
@@ -826,16 +846,18 @@ def _run_phase(
             "elapsed_seconds": actual_elapsed_seconds,
             "error": result.error,
         }
-        print(
+        _emit(
+            log_callback,
             "         "
             f"本轮实际用时={_format_duration_clock(actual_elapsed_seconds)}"
         )
         if result.error:
-            print(f"         error: {result.error}")
+            _emit(log_callback, f"         error: {result.error}")
         else:
             with session_factory() as session:
                 archived_run_id = archive_strategy_backtest_result(session, result)
-            print(
+            _emit(
+                log_callback,
                 "         "
                 f"[ARCHIVED] run_id={archived_run_id} | "
                 f"combo={params.fast_ma_type}{params.fast_period}/{params.slow_ma_type}{params.slow_period}"
@@ -852,7 +874,8 @@ def _run_phase(
                     "win_rate": _format_ratio(result.wins, result.losses),
                 }
             )
-            print(
+            _emit(
+                log_callback,
                 "         "
                 f"final={result.final_equity} | pnl={result.net_pnl} | "
                 f"trades={result.total_trades} | win_rate={record['win_rate']}"
@@ -1138,23 +1161,24 @@ def _record_params_label(record: dict[str, Any]) -> str:
     )
 
 
-def _print_summary(analysis: dict[str, Any], workspace: Path) -> None:
+def _print_summary(analysis: dict[str, Any], workspace: Path, log_callback: Any | None = None) -> None:
     primary_best = (analysis.get("primary") or {}).get("best")
     refinement = analysis.get("refinement") or {}
-    print("")
-    print("Batch backtest completed.")
-    print(f"Workspace: {workspace}")
-    print(f"Analysis JSON: {workspace / 'analysis.json'}")
-    print(f"Analysis Markdown: {workspace / 'analysis.md'}")
-    print(f"Best primary: {_record_short_line(primary_best)}")
-    print(f"Best refinement: {_record_short_line(refinement.get('best'))}")
-    print(f"Joint improvement: {_record_short_line(refinement.get('best_joint_improvement'))}")
+    _emit(log_callback, "")
+    _emit(log_callback, "Batch backtest completed.")
+    _emit(log_callback, f"Workspace: {workspace}")
+    _emit(log_callback, f"Analysis JSON: {workspace / 'analysis.json'}")
+    _emit(log_callback, f"Analysis Markdown: {workspace / 'analysis.md'}")
+    _emit(log_callback, f"Best primary: {_record_short_line(primary_best)}")
+    _emit(log_callback, f"Best refinement: {_record_short_line(refinement.get('best'))}")
+    _emit(log_callback, f"Joint improvement: {_record_short_line(refinement.get('best_joint_improvement'))}")
 
 
 class _countdown_printer:
-    def __init__(self, label: str, estimated_seconds: int) -> None:
+    def __init__(self, label: str, estimated_seconds: int, log_callback: Any | None = None) -> None:
         self._label = label
         self._estimated_seconds = max(1, estimated_seconds)
+        self._log_callback = log_callback
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._started_at = 0.0
@@ -1167,8 +1191,9 @@ class _countdown_printer:
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         self._stop.set()
         self._thread.join(timeout=1.5)
-        sys.stdout.write("\r" + " " * 120 + "\r")
-        sys.stdout.flush()
+        if self._log_callback is None:
+            sys.stdout.write("\r" + " " * 120 + "\r")
+            sys.stdout.flush()
 
     def _run(self) -> None:
         while not self._stop.wait(1):
@@ -1178,11 +1203,23 @@ class _countdown_printer:
                 status = f"剩余 {_format_duration_clock(remaining)}"
             else:
                 status = f"已超时 {_format_duration_clock(abs(remaining))}"
-            sys.stdout.write(
-                "\r"
-                f"{self._label}: {status} / 预计 {_format_duration_clock(self._estimated_seconds)}"
-            )
-            sys.stdout.flush()
+            line = f"{self._label}: {status} / 预计 {_format_duration_clock(self._estimated_seconds)}"
+            if self._log_callback is None:
+                sys.stdout.write("\r" + line)
+                sys.stdout.flush()
+            else:
+                self._log_callback(line)
+
+
+def _emit(log_callback: Any | None, line: str) -> None:
+    if log_callback is None:
+        print(line)
+        return
+    log_callback(line)
+
+
+def _stop_requested(stop_event: Any | None) -> bool:
+    return bool(stop_event is not None and stop_event.is_set())
 
 
 def _format_ratio(wins: int, losses: int) -> str:
