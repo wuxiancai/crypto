@@ -554,3 +554,24 @@ def test_batch_backtest_job_manager_starts_logs_and_stops(monkeypatch):
     assert status["stop_requested"] is True
     assert any("[run  1/1]" in line for line in status["logs"])
     assert status["analysis"]["primary"]["success_runs"] == 0
+
+
+def test_batch_backtest_job_manager_coalesces_countdown_logs():
+    import scripts.run_paper_status_web as web
+
+    manager = web.BatchBacktestJobManager()
+
+    manager._append_log("[run  1/1] primary EMA15/MA30")
+    manager._append_log("         本轮倒计时: 剩余 00:03 / 预计 00:05")
+    manager._append_log("         本轮倒计时: 剩余 00:02 / 预计 00:05")
+    manager._append_log("         本轮倒计时: 剩余 00:01 / 预计 00:05")
+    manager._append_log("         本轮实际用时=00:05")
+
+    logs = manager.status()["logs"]
+    countdown_logs = [line for line in logs if "本轮倒计时" in line]
+    assert countdown_logs == ["         本轮倒计时: 剩余 00:01 / 预计 00:05"]
+    assert logs == [
+        "[run  1/1] primary EMA15/MA30",
+        "         本轮倒计时: 剩余 00:01 / 预计 00:05",
+        "         本轮实际用时=00:05",
+    ]

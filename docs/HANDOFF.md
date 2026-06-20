@@ -51,6 +51,10 @@
   - `scripts.run_paper_status_web.BatchBacktestJobManager` 管理当前批量回测任务、日志、停止事件、分析结果和错误；`/api/backtest/batch/status` 返回 `running/stop_requested/logs/analysis/error`。
   - `scripts/run_strategy_backtest_batch.py` 新增 `log_callback` 与 `stop_event` 支持，脚本中的 `[phase]`、`[run]`、`[skip]`、`[ARCHIVED]`、耗时/剩余预计、倒计时和最终 summary 都会显式进入 Web 日志。停止请求会在当前回测组合结束后的下一组开始前退出。
   - 本机验证：`.venv/bin/python -m pytest -q`，183 passed；本地启动 `scripts/run_paper_status_web.py --port 8876` 后，`/backtest/batch` 包含停止按钮和日志容器，`/api/backtest/batch/status` 返回状态 JSON。
+- 2026-06-20 修复批量回测倒计时日志刷屏：
+  - 根因：`_countdown_printer` 每秒向 Web `log_callback` 输出一次倒计时，而 `BatchBacktestJobManager` 把每次倒计时都 append 到日志列表，导致页面像截图一样每秒新增一行。
+  - 修复：`BatchBacktestJobManager._append_log_locked()` 识别 `本轮倒计时:` 日志，如果上一条也是倒计时则替换上一条；页面继续轮询状态接口，但倒计时表现为读秒更新同一行，不再刷屏。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py tests/test_v1_0_strategy_backtest_runner.py -q`，25 passed；新增测试 `test_batch_backtest_job_manager_coalesces_countdown_logs` 覆盖倒计时日志合并。
 - 统一 AI fallback：移除 `BLOCK_NEW_ENTRIES`，统一使用 `BLOCK`。
 - 主趋势做多/做空也必须使用 DI_PLUS / DI_MINUS 判断方向。
 - 趋势转换早期试仓风险固定为 0.2%，确认试仓风险固定为 0.3%。

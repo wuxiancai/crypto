@@ -108,7 +108,15 @@ class BatchBacktestJobManager:
             self._append_log_locked(line)
 
     def _append_log_locked(self, line: str) -> None:
-        self._logs.append(str(line))
+        text = str(line)
+        if _is_countdown_log_line(text) and self._logs and _is_countdown_log_line(self._logs[-1]):
+            self._logs[-1] = text
+            return
+        self._logs.append(text)
+
+
+def _is_countdown_log_line(line: str) -> bool:
+    return "本轮倒计时:" in line
 
 
 _BATCH_BACKTEST_JOBS = BatchBacktestJobManager()
