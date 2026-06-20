@@ -2,7 +2,7 @@ import hashlib
 import json
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.backtest.engine import BacktestResult
@@ -212,6 +212,45 @@ def list_strategy_backtest_summaries(
         .limit(max(1, limit))
     ).all()
     return [_strategy_backtest_summary(run, snapshot) for run, snapshot in rows]
+
+
+def clear_strategy_backtest_history(session: Session) -> dict[str, int]:
+    rows = session.execute(
+        select(BacktestRun.id, BacktestRun.config_snapshot_id)
+        .join(ConfigSnapshot, BacktestRun.config_snapshot_id == ConfigSnapshot.id)
+        .where(BacktestRun.name == "web_strategy_backtest")
+        .where(ConfigSnapshot.name == "strategy_backtest")
+    ).all()
+    run_ids = [int(row.id) for row in rows]
+    config_snapshot_ids = {int(row.config_snapshot_id) for row in rows}
+    if not run_ids:
+        return {"runs": 0, "trades": 0, "config_snapshots": 0}
+
+    trades_deleted = session.execute(
+        delete(BacktestTradeRecord).where(BacktestTradeRecord.backtest_run_id.in_(run_ids))
+    ).rowcount or 0
+    runs_deleted = session.execute(
+        delete(BacktestRun).where(BacktestRun.id.in_(run_ids))
+    ).rowcount or 0
+
+    configs_deleted = 0
+    for config_snapshot_id in config_snapshot_ids:
+        still_used = session.execute(
+            select(BacktestRun.id)
+            .where(BacktestRun.config_snapshot_id == config_snapshot_id)
+            .limit(1)
+        ).first()
+        if still_used is None:
+            configs_deleted += session.execute(
+                delete(ConfigSnapshot).where(ConfigSnapshot.id == config_snapshot_id)
+            ).rowcount or 0
+
+    session.commit()
+    return {
+        "runs": runs_deleted,
+        "trades": trades_deleted,
+        "config_snapshots": configs_deleted,
+    }
 
 
 def _strategy_backtest_summary(

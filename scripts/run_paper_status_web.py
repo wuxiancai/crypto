@@ -151,17 +151,28 @@ def make_handler(state_path: Path, error_log_path: Path):
                 query = parse_qs(parsed.query)
                 config = _batch_config_from_query(query)
                 error = None
+                info = None
                 if query.get("run") == ["1"]:
                     if not _BATCH_BACKTEST_JOBS.start(config):
                         error = "已有批量回测正在运行，请先停止或等待完成。"
                 if query.get("stop") == ["1"]:
                     if not _BATCH_BACKTEST_JOBS.stop():
                         error = "当前没有正在运行的批量回测。"
+                if query.get("clear") == ["1"]:
+                    if _BATCH_BACKTEST_JOBS.status().get("running"):
+                        error = "批量回测正在运行，请先停止或等待完成后再清空记录。"
+                    else:
+                        clear_message = _clear_strategy_backtest_records()
+                        if clear_message.startswith("清空回测记录失败"):
+                            error = clear_message
+                        else:
+                            info = clear_message
                 self._send_html(
                     render_strategy_backtest_batch_html(
                         config=config,
                         job_status=_BATCH_BACKTEST_JOBS.status(),
                         error=error,
+                        info=info,
                     )
                 )
                 return
@@ -288,6 +299,25 @@ def _load_recent_strategy_backtest_results(session_factory=None):
             return list_strategy_backtest_summaries(session, limit=100)
     except Exception:
         return []
+
+
+def _clear_strategy_backtest_records(session_factory=None) -> str:
+    try:
+        from app.config.settings import Settings
+        from app.database.db import build_session_factory
+        from app.database.repositories import clear_strategy_backtest_history
+
+        factory = session_factory or build_session_factory(Settings())
+        with factory() as session:
+            counts = clear_strategy_backtest_history(session)
+    except Exception as exc:
+        return f"清空回测记录失败：{exc}"
+    return (
+        "已清空回测记录："
+        f"回测 {counts.get('runs', 0)} 条，"
+        f"交易 {counts.get('trades', 0)} 条，"
+        f"配置 {counts.get('config_snapshots', 0)} 条。"
+    )
 
 
 def _query_int(

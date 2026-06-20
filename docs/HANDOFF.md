@@ -62,6 +62,10 @@
 - 2026-06-20 批量回测完成态和 UI 调整：
   - `BatchBacktestJobManager` 在所有组合自然完成后会把 `running` 置为 `False` 并记录 `finished_at_ms`，页面完成后只刷新一次，避免完成状态下反复 reload。
   - `/backtest/batch` 操作按钮改为同一行排列，运行日志面板改为白底黑字。
+- 2026-06-20 批量回测记录清空：
+  - `/backtest/batch` 在“停止回测”后新增“清空回测记录”按钮；点击后会清空策略回测页面的历史归档记录。
+  - 清空范围限定为 `web_strategy_backtest + strategy_backtest` 归档：先删关联 `backtest_trades`，再删 `backtest_runs`，最后删除不再被任何 run 引用的 `config_snapshots`。
+  - 批量回测运行中会拒绝清空并提示“批量回测正在运行，请先停止或等待完成后再清空记录。”
 - 统一 AI fallback：移除 `BLOCK_NEW_ENTRIES`，统一使用 `BLOCK`。
 - 主趋势做多/做空也必须使用 DI_PLUS / DI_MINUS 判断方向。
 - 趋势转换早期试仓风险固定为 0.2%，确认试仓风险固定为 0.3%。

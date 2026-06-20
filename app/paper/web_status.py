@@ -374,6 +374,7 @@ def render_strategy_backtest_batch_html(
     config: Any | None = None,
     analysis: dict[str, Any] | None = None,
     error: str | None = None,
+    info: str | None = None,
     job_status: dict[str, Any] | None = None,
 ) -> str:
     if config is None:
@@ -411,10 +412,12 @@ def render_strategy_backtest_batch_html(
     .form-field input, .form-field select {{ width: 100%; box-sizing: border-box; border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
     .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
     .danger-button {{ border: 1px solid #b42318; background: #b42318; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; text-decoration: none; }}
+    .secondary-button {{ border: 1px solid #b8c2d6; background: #fff; color: #344055; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; text-decoration: none; }}
     .button-row {{ display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }}
     .batch-actions {{ grid-column: span 2; align-self: end; }}
     .job-badge {{ font-size: 13px; padding: 7px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; color: #344055; }}
     .empty {{ color: #65748b; padding: 14px; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; }}
+    .info-box {{ color: #0a7c52; padding: 12px 14px; background: #f0fdf8; border: 1px solid #a7f3d0; border-radius: 6px; margin-top: 16px; }}
     .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
     .terminal {{ min-height: 360px; max-height: 540px; overflow-y: auto; background: #fff; color: #172033; border: 1px solid #d9e0ec; border-radius: 6px; padding: 12px; font-family: Menlo, Consolas, "Courier New", monospace; font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }}
     table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; overflow: hidden; }}
@@ -474,11 +477,13 @@ def render_strategy_backtest_batch_html(
         <div class="button-row batch-actions">
           <button class="primary-button" type="submit" name="run" value="1">开始批量回测</button>
           <button class="danger-button" type="submit" name="stop" value="1">停止回测</button>
+          <button class="secondary-button" type="submit" name="clear" value="1">清空回测记录</button>
           <span class="job-badge" id="batch-job-status">{_escape(_batch_job_status_label(job))}</span>
         </div>
       </form>
     </section>
     {_render_backtest_error(effective_error)}
+    {_render_info_box(info)}
     <section style="margin-top: 16px;">
       <h2>运行日志</h2>
       <div id="backtest-log-terminal" class="terminal">{_escape(_batch_log_text(job))}</div>
@@ -779,6 +784,12 @@ def _render_backtest_error(error: Any) -> str:
   <h2>错误日志</h2>
   <div class="error-log-line">{_escape(error)}</div>
 </section>"""
+
+
+def _render_info_box(message: Any) -> str:
+    if not message:
+        return ""
+    return f'<div class="info-box">{_escape(message)}</div>'
 
 
 def _render_error_logs(lines: list[str]) -> str:

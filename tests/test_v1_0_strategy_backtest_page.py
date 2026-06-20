@@ -361,6 +361,9 @@ def test_strategy_backtest_batch_page_shows_stop_button_and_terminal_logs():
 
     assert "停止回测" in html
     assert 'name="stop"' in html
+    assert "清空回测记录" in html
+    assert 'name="clear"' in html
+    assert "secondary-button" in html
     assert 'class="button-row batch-actions"' in html
     assert ".button-row { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }" in html
     assert ".batch-actions { grid-column: span 2; align-self: end; }" in html
@@ -369,6 +372,70 @@ def test_strategy_backtest_batch_page_shows_stop_button_and_terminal_logs():
     assert "/api/backtest/batch/status" in html
     assert "[run  1/48] primary EMA20/MA60" in html
     assert "[ARCHIVED] run_id=19" in html
+
+
+def test_strategy_backtest_batch_page_shows_clear_history_info():
+    from app.paper.web_status import render_strategy_backtest_batch_html
+
+    html = render_strategy_backtest_batch_html(
+        info="已清空回测记录：回测 1 条，交易 2 条，配置 1 条。"
+    )
+
+    assert "info-box" in html
+    assert "已清空回测记录：回测 1 条，交易 2 条，配置 1 条。" in html
+
+
+def test_strategy_backtest_web_helper_clears_archived_results():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session, sessionmaker
+
+    from app.database.models import Base
+    from app.database.repositories import archive_strategy_backtest_result, list_strategy_backtest_summaries
+    from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
+    import scripts.run_paper_status_web as web
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    result = StrategyBacktestResult(
+        config=StrategyBacktestConfig(),
+        initial_equity="1000.00",
+        final_equity="1010.00",
+        total_trades=1,
+        wins=1,
+        losses=0,
+        net_pnl="10.00",
+        trades=[
+            {
+                "symbol": "BTCUSDT",
+                "side": "LONG",
+                "strategy_type": "TREND_PULLBACK",
+                "entry_time": "1",
+                "exit_time": "2",
+                "entry_price": "100",
+                "exit_price": "101",
+                "quantity": "1",
+                "gross_pnl": "10",
+                "fees": "0",
+                "funding_fee": "0",
+                "net_pnl": "10",
+                "exit_reason": "TAKE_PROFIT",
+            }
+        ],
+        error=None,
+    )
+
+    with Session(engine) as session:
+        archive_strategy_backtest_result(session, result)
+        assert len(list_strategy_backtest_summaries(session)) == 1
+
+    message = web._clear_strategy_backtest_records(session_factory=session_factory)
+
+    with Session(engine) as session:
+        summaries = list_strategy_backtest_summaries(session)
+
+    assert message == "已清空回测记录：回测 1 条，交易 1 条，配置 1 条。"
+    assert summaries == []
 
 
 def test_strategy_backtest_batch_page_reload_after_completion_only_once():

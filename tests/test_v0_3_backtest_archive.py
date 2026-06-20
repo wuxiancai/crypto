@@ -93,3 +93,80 @@ def test_archives_backtest_run_config_snapshot_and_trades():
     assert saved_trade.backtest_run_id == run_id
     assert saved_trade.strategy_type == "TREND_PULLBACK"
     assert saved_trade.net_pnl == Decimal("200")
+
+
+def test_clears_only_web_strategy_backtest_history():
+    from app.database.models import BacktestRun, BacktestTradeRecord, Base, ConfigSnapshot
+    from app.database.repositories import clear_strategy_backtest_history
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        strategy_config = ConfigSnapshot(
+            name="strategy_backtest",
+            version="v1",
+            content_hash="strategy",
+            content="{}",
+        )
+        other_config = ConfigSnapshot(
+            name="unit",
+            version="v1",
+            content_hash="other",
+            content="{}",
+        )
+        session.add_all([strategy_config, other_config])
+        session.flush()
+        strategy_run = BacktestRun(
+            name="web_strategy_backtest",
+            config_snapshot_id=strategy_config.id,
+            initial_equity=Decimal("1000"),
+            final_equity=Decimal("1010"),
+            total_trades=1,
+            wins=1,
+            losses=0,
+            net_pnl=Decimal("10"),
+        )
+        other_run = BacktestRun(
+            name="v0.3 archive test",
+            config_snapshot_id=other_config.id,
+            initial_equity=Decimal("1000"),
+            final_equity=Decimal("990"),
+            total_trades=1,
+            wins=0,
+            losses=1,
+            net_pnl=Decimal("-10"),
+        )
+        session.add_all([strategy_run, other_run])
+        session.flush()
+        for run in (strategy_run, other_run):
+            session.add(
+                BacktestTradeRecord(
+                    backtest_run_id=run.id,
+                    symbol="BTCUSDT",
+                    side="LONG",
+                    strategy_type="TREND_PULLBACK",
+                    entry_time=1,
+                    exit_time=2,
+                    entry_price=Decimal("100"),
+                    exit_price=Decimal("101"),
+                    quantity=Decimal("1"),
+                    gross_pnl=Decimal("1"),
+                    fees=Decimal("0"),
+                    funding_fee=Decimal("0"),
+                    net_pnl=Decimal("1"),
+                    exit_reason="TAKE_PROFIT",
+                )
+            )
+        session.commit()
+
+        counts = clear_strategy_backtest_history(session)
+
+        remaining_runs = session.execute(select(BacktestRun)).scalars().all()
+        remaining_trades = session.execute(select(BacktestTradeRecord)).scalars().all()
+        remaining_configs = session.execute(select(ConfigSnapshot)).scalars().all()
+
+    assert counts == {"runs": 1, "trades": 1, "config_snapshots": 1}
+    assert [run.name for run in remaining_runs] == ["v0.3 archive test"]
+    assert len(remaining_trades) == 1
+    assert [config.name for config in remaining_configs] == ["unit"]
