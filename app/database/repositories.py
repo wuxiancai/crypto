@@ -110,26 +110,7 @@ def archive_strategy_backtest_result(
     result: StrategyBacktestResult,
 ) -> int:
     config = result.config
-    config_payload = {
-        "symbols": ",".join(config.symbols),
-        "fast_ma_type": str(config.fast_ma_type),
-        "slow_ma_type": str(config.slow_ma_type),
-        "ema_fast_period": str(config.ema_fast_period),
-        "ema_slow_period": str(config.ema_slow_period),
-        "atr_period": str(config.atr_period),
-        "dmi_period": str(config.dmi_period),
-        "swing_lookback": str(config.swing_lookback),
-        "limit": str(config.limit),
-        "history_period": str(config.history_period),
-        "initial_equity": str(config.initial_equity),
-        "risk_per_trade_pct": str(config.risk_per_trade_pct),
-        "maker_fee_rate": str(config.maker_fee_rate),
-        "taker_fee_rate": str(config.taker_fee_rate),
-        "leverage": str(config.leverage),
-        "trend_pullback_take_profit_mode": str(config.trend_pullback_take_profit_mode),
-        "max_fee_to_risk_ratio": str(config.max_fee_to_risk_ratio),
-    }
-    config_content = json.dumps(config_payload, sort_keys=True)
+    config_content = json.dumps(strategy_backtest_config_payload(config), sort_keys=True)
     config_snapshot = ConfigSnapshot(
         name="strategy_backtest",
         version="v1",
@@ -173,6 +154,49 @@ def archive_strategy_backtest_result(
         )
     session.commit()
     return run.id
+
+
+def find_archived_strategy_backtest_run(
+    session: Session,
+    config: object,
+) -> BacktestRun | None:
+    content_hash = strategy_backtest_config_hash(config)
+    return session.execute(
+        select(BacktestRun)
+        .join(ConfigSnapshot, BacktestRun.config_snapshot_id == ConfigSnapshot.id)
+        .where(BacktestRun.name == "web_strategy_backtest")
+        .where(ConfigSnapshot.name == "strategy_backtest")
+        .where(ConfigSnapshot.content_hash == content_hash)
+        .order_by(BacktestRun.created_at.desc(), BacktestRun.id.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def strategy_backtest_config_hash(config: object) -> str:
+    content = json.dumps(strategy_backtest_config_payload(config), sort_keys=True)
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def strategy_backtest_config_payload(config: object) -> dict[str, str]:
+    return {
+        "symbols": ",".join(getattr(config, "symbols")),
+        "fast_ma_type": str(getattr(config, "fast_ma_type")),
+        "slow_ma_type": str(getattr(config, "slow_ma_type")),
+        "ema_fast_period": str(getattr(config, "ema_fast_period")),
+        "ema_slow_period": str(getattr(config, "ema_slow_period")),
+        "atr_period": str(getattr(config, "atr_period")),
+        "dmi_period": str(getattr(config, "dmi_period")),
+        "swing_lookback": str(getattr(config, "swing_lookback")),
+        "limit": str(getattr(config, "limit")),
+        "history_period": str(getattr(config, "history_period")),
+        "initial_equity": str(getattr(config, "initial_equity")),
+        "risk_per_trade_pct": str(getattr(config, "risk_per_trade_pct")),
+        "maker_fee_rate": str(getattr(config, "maker_fee_rate")),
+        "taker_fee_rate": str(getattr(config, "taker_fee_rate")),
+        "leverage": str(getattr(config, "leverage")),
+        "trend_pullback_take_profit_mode": str(getattr(config, "trend_pullback_take_profit_mode")),
+        "max_fee_to_risk_ratio": str(getattr(config, "max_fee_to_risk_ratio")),
+    }
 
 
 def list_strategy_backtest_summaries(

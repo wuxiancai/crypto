@@ -19,6 +19,9 @@
 - [x] 确认低胜率本身不是唯一问题：`15/60` 与 `30/120` 胜率约 44% 但盈利；`50/200` 亏损主要来自慢参数下止损密集、手续费吞噬计划风险。
 - [x] 新增入场成本过滤：下单前估算 `开仓 taker fee + 止损 taker fee`，若超过计划止损风险的 `max_fee_to_risk_ratio` 则拒绝入场；默认 `0.25`。
 - [x] Web 回测页新增“手续费/风险上限”参数；回测归档 config snapshot 新增 `content` 字段保存完整 JSON 参数，避免以后只能靠 hash 反推参数。
+- [x] `scripts/run_strategy_backtest_batch.py` 的固定参数已抽成批量配置：支持用户指定快/慢均线类型、快/慢周期起止与步进、回测周期、ATR/DMI/Swing 参数组、手续费/风险上限组、止盈模式组。
+- [x] 策略回测页新增“批量参数回测”按钮，新标签页打开 `/backtest/batch`，页面可手动输入批量脚本参数并执行同一套批量回测与归档逻辑。
+- [x] 批量回测脚本在执行每组参数前会先查 `backtest_runs + config_snapshots`，若数据库已有相同配置 hash 的策略回测结果，默认跳过该组合并复用已有指标进入分析；只有显式 `--rerun-completed` 才会重跑。
 
 ## Ubuntu 部署
 
@@ -215,4 +218,6 @@
 - 当前 Web 状态页已新增策略回测入口 `/backtest`，用于在等待长期 Paper Trading 之前，先用历史 K 线快速验证当前策略和不同 EMA 参数组合。
 - 当前策略回测页已改为单交易对回测：默认 BTC，可切换 ETH，避免 BTC/ETH 成交记录混在同一张报表里造成误判；回测参数栏已压缩为一行展示。
 - 当前策略回测已增加历史 K 线本地缓存：数据按交易对和周期保存到 `runtime/backtest-klines/`；同一交易对后续回测更短周期或不同 EMA 参数时复用缓存，只在所需时间段缺失时补拉 Binance REST 数据。
+- 当前策略回测页新增批量参数回测入口 `/backtest/batch`：页面可输入 EMA/MA 类型、快慢周期范围与步进、回测周期、ATR/DMI/Swing、手续费/风险上限和止盈模式，执行逻辑仍复用 `scripts/run_strategy_backtest_batch.py` 与现有 `run_strategy_backtest()`。
+- 当前批量回测会基于归档配置 hash 跳过数据库中已存在的同参数结果，并把已有 run 的 final_equity、net_pnl、胜负和胜率写入 checkpoint，保证全跳过时仍可选出 best primary。
 - 待做：策略回测继续补充最大回撤、胜率、盈亏比、按交易对统计和参数组合对比表。

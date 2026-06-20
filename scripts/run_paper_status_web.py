@@ -18,6 +18,7 @@ from app.paper.strategy_backtest import StrategyBacktestConfig, run_strategy_bac
 from app.paper.web_status import (
     build_paper_status_payload,
     render_paper_status_html,
+    render_strategy_backtest_batch_html,
     render_strategy_backtest_html,
 )
 
@@ -52,6 +53,20 @@ def make_handler(state_path: Path, error_log_path: Path):
                     result = run_strategy_backtest_default_result()
                 recent_results = _load_recent_strategy_backtest_results()
                 self._send_html(render_strategy_backtest_html(result=result, recent_results=recent_results))
+                return
+            if parsed.path == "/backtest/batch":
+                query = parse_qs(parsed.query)
+                config = _batch_config_from_query(query)
+                analysis = None
+                error = None
+                if query.get("run") == ["1"]:
+                    try:
+                        from scripts.run_strategy_backtest_batch import run_strategy_backtest_batch
+
+                        analysis = run_strategy_backtest_batch(config)
+                    except Exception as exc:
+                        error = f"批量回测执行失败：{exc}"
+                self._send_html(render_strategy_backtest_batch_html(config=config, analysis=analysis, error=error))
                 return
             self.send_error(404)
 
@@ -111,6 +126,33 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
             minimum=Decimal("0"),
             maximum=Decimal("2"),
         ),
+    )
+
+
+def _batch_config_from_query(query: dict[str, list[str]]):
+    from scripts.run_strategy_backtest_batch import HISTORY_WINDOWS_MS, StrategyBacktestBatchConfig
+
+    history_period = _query_choice(query, "history_period", "1y", set(HISTORY_WINDOWS_MS))
+    return StrategyBacktestBatchConfig(
+        symbol=_query_choice(query, "symbol", "BTCUSDT", {"BTCUSDT", "ETHUSDT"}),
+        fast_ma_type=_query_choice(query, "fast_ma_type", "EMA", {"EMA", "MA"}),
+        slow_ma_type=_query_choice(query, "slow_ma_type", "MA", {"EMA", "MA"}),
+        fast_periods=_query_range(query, "fast", default_start=15, default_end=50, default_step=5, minimum=2, maximum=500),
+        slow_periods=_query_range(query, "slow", default_start=30, default_end=200, default_step=30, minimum=3, maximum=1000),
+        atr_periods=_query_int_list(query, "atr_periods", (10, 12, 14, 16, 18), minimum=2, maximum=200),
+        dmi_periods=_query_int_list(query, "dmi_periods", (10, 12, 14, 16, 18), minimum=2, maximum=200),
+        swing_lookbacks=_query_int_list(query, "swing_lookbacks", (10, 15, 20, 25, 30), minimum=2, maximum=500),
+        max_fee_to_risk_ratios=_query_decimal_list(
+            query,
+            "max_fee_to_risk_ratios",
+            ("0.15", "0.20", "0.25", "0.30", "0.35", "0.50"),
+            minimum=Decimal("0"),
+            maximum=Decimal("2"),
+        ),
+        take_profit_modes=_query_choice_list(query, "take_profit_modes", ("TRAILING", "FIXED"), {"TRAILING", "FIXED"}),
+        history_period=history_period,
+        history_window_ms=HISTORY_WINDOWS_MS[history_period],
+        skip_fast_gte_slow=_query_bool(query, "skip_fast_gte_slow", False),
     )
 
 
@@ -187,6 +229,82 @@ def _query_decimal(
     except Exception:
         return default
     return max(minimum, min(maximum, value))
+
+
+def _query_range(
+    query: dict[str, list[str]],
+    prefix: str,
+    default_start: int,
+    default_end: int,
+    default_step: int,
+    minimum: int,
+    maximum: int,
+) -> tuple[int, ...]:
+    start = _query_int(query, f"{prefix}_start", default_start, minimum=minimum, maximum=maximum)
+    end = _query_int(query, f"{prefix}_end", default_end, minimum=minimum, maximum=maximum)
+    step = _query_int(query, f"{prefix}_step", default_step, minimum=1, maximum=maximum)
+    if end < start:
+        end = start
+    return tuple(range(start, end + 1, step))
+
+
+def _query_int_list(
+    query: dict[str, list[str]],
+    key: str,
+    default: tuple[int, ...],
+    minimum: int,
+    maximum: int,
+) -> tuple[int, ...]:
+    values: list[int] = []
+    for part in query.get(key, [",".join(str(value) for value in default)])[0].split(","):
+        text = part.strip()
+        if not text:
+            continue
+        try:
+            value = int(text)
+        except ValueError:
+            continue
+        values.append(max(minimum, min(maximum, value)))
+    return tuple(values) or default
+
+
+def _query_decimal_list(
+    query: dict[str, list[str]],
+    key: str,
+    default: tuple[str, ...],
+    minimum: Decimal,
+    maximum: Decimal,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    for part in query.get(key, [",".join(default)])[0].split(","):
+        text = part.strip()
+        if not text:
+            continue
+        try:
+            value = Decimal(text)
+        except Exception:
+            continue
+        values.append(str(max(minimum, min(maximum, value))))
+    return tuple(values) or default
+
+
+def _query_choice_list(
+    query: dict[str, list[str]],
+    key: str,
+    default: tuple[str, ...],
+    allowed: set[str],
+) -> tuple[str, ...]:
+    values = tuple(
+        part.strip().upper()
+        for part in query.get(key, [",".join(default)])[0].split(",")
+        if part.strip().upper() in allowed
+    )
+    return values or default
+
+
+def _query_bool(query: dict[str, list[str]], key: str, default: bool) -> bool:
+    value = str(query.get(key, ["1" if default else "0"])[0]).strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def main() -> None:

@@ -36,6 +36,16 @@
   - 回测参数新增快线/慢线类型选择，支持 `EMA` 与 `MA` 组合，例如 `EMA50 / MA200`；配置会写入归档 JSON，旧记录缺字段时默认按 EMA 显示。
   - 策略适配器已按所选类型计算均线，非仅前端展示；Backtest/Paper 继续共用 `RealtimeStrategyConfig`。
   - 本机验证：`.venv/bin/python -m pytest`，175 passed。
+- 2026-06-20 批量回测脚本参数可视化：
+  - `scripts/run_strategy_backtest_batch.py` 已新增 `StrategyBacktestBatchConfig`，原脚本硬编码的快慢均线类型、快慢周期网格、回测周期、ATR/DMI/Swing 精修列表、手续费/风险上限列表和止盈模式列表都可由 CLI 或 Web 参数传入。
+  - `/backtest` 页面新增“批量参数回测”按钮，新标签页打开 `/backtest/batch`。
+  - `/backtest/batch` 页面可设置 EMA/MA、快慢周期起止与步进、回测周期、ATR/DMI/Swing、手续费/风险上限和止盈模式；点击“开始批量回测”后仍调用同一个批量脚本入口，脚本内部仍复用现有 `run_strategy_backtest()`、数据库 K 线补齐、缓存、checkpoint 和归档逻辑。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py tests/test_v1_0_strategy_backtest_runner.py -q`，20 passed；`.venv/bin/python -m py_compile scripts/run_strategy_backtest_batch.py scripts/run_paper_status_web.py app/paper/web_status.py` 通过。
+- 2026-06-20 批量回测数据库去重：
+  - `app.database.repositories` 新增策略回测配置 payload/hash 复用函数和 `find_archived_strategy_backtest_run()`；hash 与 `archive_strategy_backtest_result()` 完全一致。
+  - `scripts/run_strategy_backtest_batch.py` 在每组参数执行前先查数据库；若已有 `web_strategy_backtest + strategy_backtest` 同配置 hash 的 run，默认跳过，不调用 `run_strategy_backtest()`，并把已有 run 的权益、PnL、交易数、胜负和胜率写入 checkpoint，保证后续 best primary/refinement 分析还能使用已有结果。
+  - `--rerun-completed` 会绕过数据库跳过逻辑并强制重跑。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_strategy_backtest_page.py tests/test_v0_3_backtest_archive.py -q`，22 passed；`.venv/bin/python -m py_compile scripts/run_strategy_backtest_batch.py app/database/repositories.py scripts/run_paper_status_web.py app/paper/web_status.py` 通过。
 - 统一 AI fallback：移除 `BLOCK_NEW_ENTRIES`，统一使用 `BLOCK`。
 - 主趋势做多/做空也必须使用 DI_PLUS / DI_MINUS 判断方向。
 - 趋势转换早期试仓风险固定为 0.2%，确认试仓风险固定为 0.3%。
@@ -254,7 +264,7 @@
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
 3. 下一步继续真实行情 Paper Trading：把实时 Paper 的每次信号、拒绝原因、成交、持仓快照持久化到数据库表，便于连续 2 周稳定性验证和复盘统计。
-4. 使用 `/backtest` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
+4. 使用 `/backtest` 或 `/backtest/batch` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果。当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
 5. 下一步可继续增强 `/backtest`：输出最大回撤、胜率、盈亏比、按交易对统计和参数组合对比表。
 6. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 

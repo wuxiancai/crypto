@@ -298,7 +298,10 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
   <main>
     <header>
       <h1>策略回测</h1>
-      <a class="badge" href="/">返回模拟交易看板</a>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a class="badge" href="/backtest/batch" target="_blank" rel="noopener">批量参数回测</a>
+        <a class="badge" href="/">返回模拟交易看板</a>
+      </div>
     </header>
     <section class="panel">
       <h2>回测参数</h2>
@@ -366,6 +369,105 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
 </html>"""
 
 
+def render_strategy_backtest_batch_html(config: Any | None = None, analysis: dict[str, Any] | None = None, error: str | None = None) -> str:
+    if config is None:
+        from scripts.run_strategy_backtest_batch import StrategyBacktestBatchConfig
+
+        config = StrategyBacktestBatchConfig()
+    fast_start, fast_end, fast_step = _series_bounds(getattr(config, "fast_periods", (15, 50)))
+    slow_start, slow_end, slow_step = _series_bounds(getattr(config, "slow_periods", (30, 200)))
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>批量参数回测</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #f5f7fb;
+      color: #172033;
+    }}
+    body {{ margin: 0; }}
+    main {{ max-width: 1180px; margin: 0 auto; padding: 24px; }}
+    header {{ display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }}
+    h1 {{ font-size: 24px; margin: 0; }}
+    h2 {{ font-size: 16px; margin: 0 0 10px; }}
+    .badge {{ font-size: 13px; padding: 6px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; color: #344055; text-decoration: none; }}
+    .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
+    .form-grid {{ display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; align-items: end; }}
+    .form-field {{ display: grid; gap: 6px; }}
+    .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
+    .form-field input, .form-field select {{ width: 100%; box-sizing: border-box; border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
+    .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
+    .empty {{ color: #65748b; padding: 14px; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; }}
+    .error-log-line {{ color: #b42318; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }}
+    table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; overflow: hidden; }}
+    th, td {{ border-bottom: 1px solid #e6ebf2; padding: 9px 10px; text-align: left; font-size: 13px; white-space: nowrap; }}
+    th {{ background: #eef3f9; color: #344055; }}
+    tr:last-child td {{ border-bottom: 0; }}
+    .table-wrap {{ overflow-x: auto; }}
+    @media (max-width: 900px) {{
+      main {{ padding: 14px; }}
+      header {{ align-items: flex-start; flex-direction: column; }}
+      .form-grid {{ grid-template-columns: 1fr; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>批量参数回测</h1>
+      <a class="badge" href="/backtest">返回策略回测</a>
+    </header>
+    <section class="panel">
+      <h2>批量回测参数</h2>
+      <form class="form-grid" method="get" action="/backtest/batch">
+        <div class="form-field">
+          <label for="symbol">交易对</label>
+          <select id="symbol" name="symbol">{_render_batch_symbol_options(getattr(config, "symbol", "BTCUSDT"))}</select>
+        </div>
+        <div class="form-field">
+          <label for="fast_ma_type">快线类型</label>
+          <select id="fast_ma_type" name="fast_ma_type">{_render_average_type_options(getattr(config, "fast_ma_type", "EMA"))}</select>
+        </div>
+        <div class="form-field"><label for="fast_start">快线起始</label><input id="fast_start" name="fast_start" type="number" min="2" max="500" value="{_escape(fast_start)}"></div>
+        <div class="form-field"><label for="fast_end">快线结束</label><input id="fast_end" name="fast_end" type="number" min="2" max="500" value="{_escape(fast_end)}"></div>
+        <div class="form-field"><label for="fast_step">快线步进</label><input id="fast_step" name="fast_step" type="number" min="1" max="100" value="{_escape(fast_step)}"></div>
+        <div class="form-field">
+          <label for="slow_ma_type">慢线类型</label>
+          <select id="slow_ma_type" name="slow_ma_type">{_render_average_type_options(getattr(config, "slow_ma_type", "MA"))}</select>
+        </div>
+        <div class="form-field"><label for="slow_start">慢线起始</label><input id="slow_start" name="slow_start" type="number" min="3" max="1000" value="{_escape(slow_start)}"></div>
+        <div class="form-field"><label for="slow_end">慢线结束</label><input id="slow_end" name="slow_end" type="number" min="3" max="1000" value="{_escape(slow_end)}"></div>
+        <div class="form-field"><label for="slow_step">慢线步进</label><input id="slow_step" name="slow_step" type="number" min="1" max="200" value="{_escape(slow_step)}"></div>
+        <div class="form-field">
+          <label for="history_period">回测周期</label>
+          <select id="history_period" name="history_period">{_render_history_period_options(getattr(config, "history_period", "1y"))}</select>
+        </div>
+        <div class="form-field"><label for="atr_periods">ATR 周期</label><input id="atr_periods" name="atr_periods" value="{_escape(_join_values(getattr(config, "atr_periods", (10, 12, 14, 16, 18))))}"></div>
+        <div class="form-field"><label for="dmi_periods">DMI 周期</label><input id="dmi_periods" name="dmi_periods" value="{_escape(_join_values(getattr(config, "dmi_periods", (10, 12, 14, 16, 18))))}"></div>
+        <div class="form-field"><label for="swing_lookbacks">Swing Lookback</label><input id="swing_lookbacks" name="swing_lookbacks" value="{_escape(_join_values(getattr(config, "swing_lookbacks", (10, 15, 20, 25, 30))))}"></div>
+        <div class="form-field"><label for="max_fee_to_risk_ratios">手续费/风险上限</label><input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0.15", "0.20", "0.25", "0.30", "0.35", "0.50"))))}"></div>
+        <div class="form-field"><label for="take_profit_modes">止盈模式</label><input id="take_profit_modes" name="take_profit_modes" value="{_escape(_join_values(getattr(config, "take_profit_modes", ("TRAILING", "FIXED"))))}"></div>
+        <div class="form-field">
+          <label for="skip_fast_gte_slow">过滤快线>=慢线</label>
+          <select id="skip_fast_gte_slow" name="skip_fast_gte_slow">{_render_bool_options(getattr(config, "skip_fast_gte_slow", False))}</select>
+        </div>
+        <button class="primary-button" type="submit" name="run" value="1">开始批量回测</button>
+      </form>
+    </section>
+    {_render_backtest_error(error)}
+    <section style="margin-top: 16px;">
+      <h2>批量回测结果</h2>
+      {_render_batch_analysis(analysis)}
+    </section>
+  </main>
+</body>
+</html>"""
+
+
 def _render_position(position: dict[str, Any] | None) -> str:
     if position is None:
         return '<div class="empty">当前无持仓</div>'
@@ -420,6 +522,74 @@ def _render_symbol_options(symbols: Any) -> str:
     return "".join(
         f'<option value="{_escape(value)}"{_selected_attr(value == selected)}>{_escape(label)}</option>'
         for value, label in options
+    )
+
+
+def _render_batch_symbol_options(selected: Any) -> str:
+    selected_value = str(selected or "BTCUSDT")
+    options = [
+        ("BTCUSDT", "BTC"),
+        ("ETHUSDT", "ETH"),
+    ]
+    return "".join(
+        f'<option value="{_escape(value)}"{_selected_attr(value == selected_value)}>{_escape(label)}</option>'
+        for value, label in options
+    )
+
+
+def _render_bool_options(selected: Any) -> str:
+    selected_bool = bool(selected)
+    options = [(False, "否"), (True, "是")]
+    return "".join(
+        f'<option value="{1 if value else 0}"{_selected_attr(value == selected_bool)}>{_escape(label)}</option>'
+        for value, label in options
+    )
+
+
+def _series_bounds(values: Any) -> tuple[int, int, int]:
+    numbers = [int(value) for value in values] if isinstance(values, (list, tuple)) else []
+    if not numbers:
+        return (0, 0, 1)
+    if len(numbers) == 1:
+        return (numbers[0], numbers[0], 1)
+    steps = [right - left for left, right in zip(numbers, numbers[1:]) if right > left]
+    step = steps[0] if steps else 1
+    return (numbers[0], numbers[-1], step)
+
+
+def _join_values(values: Any) -> str:
+    if not isinstance(values, (list, tuple)):
+        return str(values or "")
+    return ",".join(str(value) for value in values)
+
+
+def _render_batch_analysis(analysis: dict[str, Any] | None) -> str:
+    if not analysis:
+        return '<div class="empty">尚未执行批量回测</div>'
+    primary = analysis.get("primary") or {}
+    refinement = analysis.get("refinement") or {}
+    rows = [
+        ("主搜索成功/总数", f"{primary.get('success_runs', 0)} / {primary.get('total_runs', 0)}"),
+        ("主搜索最佳", _batch_record_line(primary.get("best"))),
+        ("精修成功/总数", f"{refinement.get('success_runs', 0)} / {refinement.get('total_runs', 0)}"),
+        ("精修最佳", _batch_record_line(refinement.get("best"))),
+        ("收益和胜率同时改善", _batch_record_line(refinement.get("best_joint_improvement"))),
+    ]
+    body = "".join(f"<tr><th>{_escape(label)}</th><td>{_escape(value)}</td></tr>" for label, value in rows)
+    return f'<div class="table-wrap"><table><tbody>{body}</tbody></table></div>'
+
+
+def _batch_record_line(record: Any) -> str:
+    if not isinstance(record, dict):
+        return "无"
+    params = record.get("params") or {}
+    combo = (
+        f"{params.get('fast_ma_type', 'EMA')}{params.get('fast_period', '-')}/"
+        f"{params.get('slow_ma_type', 'MA')}{params.get('slow_period', '-')}"
+    )
+    return (
+        f"{combo} | final={record.get('final_equity', '-')} | "
+        f"pnl={record.get('net_pnl', '-')} | win_rate={record.get('win_rate', '-')}"
     )
 
 

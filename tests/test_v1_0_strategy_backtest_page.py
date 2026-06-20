@@ -260,6 +260,55 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
     assert html.index("BTCUSDT") < html.index("ETHUSDT")
 
 
+def test_strategy_backtest_page_links_to_batch_parameter_page():
+    from app.paper.web_status import render_strategy_backtest_html
+
+    html = render_strategy_backtest_html()
+
+    assert "批量参数回测" in html
+    assert 'href="/backtest/batch"' in html
+    assert 'target="_blank"' in html
+
+
+def test_strategy_backtest_batch_page_shows_all_script_parameters():
+    from app.paper.web_status import render_strategy_backtest_batch_html
+    from scripts.run_strategy_backtest_batch import StrategyBacktestBatchConfig
+
+    html = render_strategy_backtest_batch_html(
+        config=StrategyBacktestBatchConfig(
+            symbol="ETHUSDT",
+            fast_ma_type="EMA",
+            slow_ma_type="MA",
+            fast_periods=(15, 20, 25),
+            slow_periods=(60, 90, 120),
+            atr_periods=(10, 14),
+            dmi_periods=(12, 16),
+            swing_lookbacks=(15, 20),
+            max_fee_to_risk_ratios=("0.20", "0.25"),
+            take_profit_modes=("TRAILING", "FIXED"),
+            history_period="6m",
+        )
+    )
+
+    assert "批量参数回测" in html
+    assert 'name="fast_start"' in html
+    assert 'value="15"' in html
+    assert 'name="fast_step"' in html
+    assert 'value="5"' in html
+    assert 'name="slow_start"' in html
+    assert 'value="60"' in html
+    assert 'name="slow_step"' in html
+    assert "ATR 周期" in html
+    assert 'name="atr_periods"' in html
+    assert 'value="10,14"' in html
+    assert "DMI 周期" in html
+    assert "Swing Lookback" in html
+    assert "手续费/风险上限" in html
+    assert "止盈模式" in html
+    assert "回测周期" in html
+    assert "开始批量回测" in html
+
+
 def test_strategy_backtest_web_helper_reports_runner_errors(monkeypatch):
     import scripts.run_paper_status_web as web
 

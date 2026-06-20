@@ -320,3 +320,161 @@ def test_archives_strategy_backtest_result_to_database():
     assert saved_trade.backtest_run_id == run_id
     assert saved_trade.symbol == "BTCUSDT"
     assert saved_trade.net_pnl == Decimal("19")
+
+
+def test_strategy_backtest_batch_config_builds_user_selected_parameter_sets():
+    from scripts.run_strategy_backtest_batch import (
+        StrategyBacktestBatchConfig,
+        _build_primary_candidates,
+        _build_refinement_candidates,
+    )
+
+    config = StrategyBacktestBatchConfig(
+        fast_ma_type="MA",
+        slow_ma_type="EMA",
+        fast_periods=(10, 20),
+        slow_periods=(30, 40),
+        atr_periods=(10, 14),
+        dmi_periods=(12,),
+        swing_lookbacks=(15,),
+        max_fee_to_risk_ratios=("0.20", "0.25"),
+        take_profit_modes=("TRAILING", "FIXED"),
+        skip_fast_gte_slow=True,
+    )
+
+    primary = list(_build_primary_candidates(config))
+    refinement = list(_build_refinement_candidates(primary[0], config))
+
+    assert [(item.fast_period, item.slow_period) for item in primary] == [
+        (10, 30),
+        (10, 40),
+        (20, 30),
+        (20, 40),
+    ]
+    assert primary[0].fast_ma_type == "MA"
+    assert primary[0].slow_ma_type == "EMA"
+    assert {item.atr_period for item in refinement} == {10, 14}
+    assert {item.max_fee_to_risk_ratio for item in refinement} == {"0.20", "0.25"}
+    assert {item.trend_pullback_take_profit_mode for item in refinement} == {"TRAILING", "FIXED"}
+
+
+def test_strategy_backtest_batch_query_builds_config_from_ranges():
+    from scripts.run_paper_status_web import _batch_config_from_query
+
+    config = _batch_config_from_query(
+        {
+            "symbol": ["ETHUSDT"],
+            "fast_ma_type": ["EMA"],
+            "slow_ma_type": ["MA"],
+            "fast_start": ["15"],
+            "fast_end": ["25"],
+            "fast_step": ["5"],
+            "slow_start": ["60"],
+            "slow_end": ["120"],
+            "slow_step": ["30"],
+            "history_period": ["2y"],
+            "atr_periods": ["10,14"],
+            "dmi_periods": ["12,16"],
+            "swing_lookbacks": ["15,20"],
+            "max_fee_to_risk_ratios": ["0.20,0.25"],
+            "take_profit_modes": ["TRAILING,FIXED"],
+            "skip_fast_gte_slow": ["1"],
+        }
+    )
+
+    assert config.symbol == "ETHUSDT"
+    assert config.fast_periods == (15, 20, 25)
+    assert config.slow_periods == (60, 90, 120)
+    assert config.history_period == "2y"
+    assert config.history_window_ms == 2 * 365 * 24 * 60 * 60 * 1000
+    assert config.atr_periods == (10, 14)
+    assert config.dmi_periods == (12, 16)
+    assert config.swing_lookbacks == (15, 20)
+    assert config.max_fee_to_risk_ratios == ("0.20", "0.25")
+    assert config.take_profit_modes == ("TRAILING", "FIXED")
+    assert config.skip_fast_gte_slow is True
+
+
+def test_strategy_backtest_batch_skips_parameter_set_already_archived_in_database(monkeypatch, tmp_path):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session, sessionmaker
+
+    import scripts.run_strategy_backtest_batch as batch
+    from app.database.models import Base
+    from app.database.repositories import archive_strategy_backtest_result
+    from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
+    from scripts.run_strategy_backtest_batch import BacktestWindow, ParameterSet
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    window = BacktestWindow(
+        start_time_ms=0,
+        end_time_ms=1000,
+        latest_close_time_by_interval={"4h": 1000, "1h": 1000, "15m": 1000},
+    )
+    params = ParameterSet(
+        fast_period=15,
+        slow_period=60,
+        fast_ma_type="EMA",
+        slow_ma_type="MA",
+        atr_period=14,
+        dmi_period=14,
+        swing_lookback=20,
+        max_fee_to_risk_ratio="0.25",
+        trend_pullback_take_profit_mode="TRAILING",
+    )
+    existing_result = StrategyBacktestResult(
+        config=StrategyBacktestConfig(
+            symbols=("BTCUSDT",),
+            fast_ma_type="EMA",
+            slow_ma_type="MA",
+            ema_fast_period=15,
+            ema_slow_period=60,
+            atr_period=14,
+            dmi_period=14,
+            swing_lookback=20,
+            limit=1500,
+            history_period="1y",
+            history_start_time_ms=0,
+            history_end_time_ms=1000,
+            history_cache_dir=tmp_path / "cache",
+            max_fee_to_risk_ratio=Decimal("0.25"),
+            trend_pullback_take_profit_mode="TRAILING",
+        ),
+        initial_equity="1000.00",
+        final_equity="1111.00",
+        total_trades=3,
+        wins=2,
+        losses=1,
+        net_pnl="111.00",
+        trades=[],
+        error=None,
+    )
+    with Session(engine) as session:
+        archived_run_id = archive_strategy_backtest_result(session, existing_result)
+
+    async def fail_if_called(_config):
+        raise AssertionError("run_strategy_backtest should not run when database already has this config")
+
+    monkeypatch.setattr(batch, "run_strategy_backtest", fail_if_called)
+
+    records = batch._run_phase(
+        phase="primary",
+        candidates=[params],
+        checkpoint={"records": {}},
+        workspace=tmp_path,
+        cache_dir=tmp_path / "cache",
+        session_factory=session_factory,
+        symbol="BTCUSDT",
+        window=window,
+        history_period="1y",
+        rerun_completed=False,
+        retry_failed=False,
+    )
+
+    assert records[0]["status"] == "success"
+    assert records[0]["source"] == "existing_database"
+    assert records[0]["archived_run_id"] == archived_run_id
+    assert records[0]["final_equity"] == "1111.00"
+    assert records[0]["win_rate"] == "66.67"
