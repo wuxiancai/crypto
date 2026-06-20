@@ -569,6 +569,36 @@ def test_batch_backtest_job_manager_starts_logs_and_stops(monkeypatch):
     assert status["analysis"]["primary"]["success_runs"] == 0
 
 
+def test_batch_backtest_job_manager_auto_stops_when_all_combinations_finish(monkeypatch):
+    import time
+
+    import scripts.run_paper_status_web as web
+    from scripts.run_strategy_backtest_batch import StrategyBacktestBatchConfig
+
+    def fake_run_strategy_backtest_batch(config, log_callback=None, stop_event=None):
+        assert stop_event is not None
+        assert stop_event.is_set() is False
+        log_callback("[summary] all combinations completed")
+        return {"primary": {"success_runs": 1, "total_runs": 1}, "refinement": {}}
+
+    monkeypatch.setattr(web, "run_strategy_backtest_batch", fake_run_strategy_backtest_batch, raising=False)
+    manager = web.BatchBacktestJobManager()
+
+    assert manager.start(StrategyBacktestBatchConfig(symbol="BTCUSDT")) is True
+    for _ in range(50):
+        status = manager.status()
+        if not status["running"]:
+            break
+        time.sleep(0.01)
+
+    status = manager.status()
+    assert status["running"] is False
+    assert status["stop_requested"] is False
+    assert status["finished_at_ms"] is not None
+    assert status["analysis"]["primary"]["success_runs"] == 1
+    assert any("批量回测后台任务已结束" in line for line in status["logs"])
+
+
 def test_batch_backtest_job_manager_coalesces_countdown_logs():
     import scripts.run_paper_status_web as web
 

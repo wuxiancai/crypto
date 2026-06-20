@@ -361,10 +361,32 @@ def test_strategy_backtest_batch_page_shows_stop_button_and_terminal_logs():
 
     assert "停止回测" in html
     assert 'name="stop"' in html
+    assert 'class="button-row batch-actions"' in html
+    assert ".button-row { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }" in html
+    assert ".batch-actions { grid-column: span 2; align-self: end; }" in html
     assert "backtest-log-terminal" in html
+    assert ".terminal { min-height: 360px; max-height: 540px; overflow-y: auto; background: #fff; color: #172033;" in html
     assert "/api/backtest/batch/status" in html
     assert "[run  1/48] primary EMA20/MA60" in html
     assert "[ARCHIVED] run_id=19" in html
+
+
+def test_strategy_backtest_batch_page_reload_after_completion_only_once():
+    from app.paper.web_status import render_strategy_backtest_batch_html
+
+    html = render_strategy_backtest_batch_html(
+        job_status={
+            "running": False,
+            "stop_requested": False,
+            "finished_at_ms": 1_234,
+            "logs": ["Batch backtest completed."],
+            "analysis": {"primary": {"success_runs": 1, "total_runs": 1}, "refinement": {}},
+            "error": None,
+        }
+    )
+
+    assert "const pageFinishedAt = 1234;" in html
+    assert "payload.finished_at_ms !== pageFinishedAt" in html
 
 
 def test_strategy_backtest_web_helper_reports_runner_errors(monkeypatch):
