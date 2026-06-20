@@ -117,7 +117,7 @@ class StrategyBacktestBatchConfig:
     slow_periods: tuple[int, ...] = (30, 60, 90, 120, 150, 180, 200)
     atr_periods: tuple[int, ...] = (12, 14)
     dmi_periods: tuple[int, ...] = (12, 14)
-    swing_lookbacks: tuple[int, ...] = (10, 15, 20, 25, 30)
+    swing_lookbacks: tuple[int, ...] = (20, 30)
     max_fee_to_risk_ratios: tuple[str, ...] = ("0.25", "0")
     take_profit_modes: tuple[str, ...] = ("TRAILING", "FIXED")
     history_period: str = HISTORY_PERIOD
@@ -148,7 +148,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--slow-periods", default="30,60,90,120,150,180,200", help="Slow MA periods, e.g. 30,60,90,120,150,180,200.")
     parser.add_argument("--atr-periods", default="12,14")
     parser.add_argument("--dmi-periods", default="12,14")
-    parser.add_argument("--swing-lookbacks", default="10,15,20,25,30")
+    parser.add_argument("--swing-lookbacks", default="20,30")
     parser.add_argument("--max-fee-to-risk-ratios", default="0.25,0")
     parser.add_argument("--take-profit-modes", default="TRAILING,FIXED")
     parser.add_argument("--history-period", default=HISTORY_PERIOD, choices=tuple(HISTORY_WINDOWS_MS))

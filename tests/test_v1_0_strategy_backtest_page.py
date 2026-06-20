@@ -338,6 +338,7 @@ def test_strategy_backtest_batch_page_defaults_to_smaller_refinement_grid():
     assert 'name="slow_end" type="number" min="3" max="1000" value="200"' in html
     assert 'name="atr_periods" value="12,14"' in html
     assert 'name="dmi_periods" value="12,14"' in html
+    assert 'name="swing_lookbacks" value="20,30"' in html
     assert 'name="max_fee_to_risk_ratios" value="0.25,0"' in html
     assert '<option value="1" selected>是</option>' in html
 

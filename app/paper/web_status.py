@@ -461,7 +461,7 @@ def render_strategy_backtest_batch_html(
         </div>
         <div class="form-field"><label for="atr_periods">ATR 周期</label><input id="atr_periods" name="atr_periods" value="{_escape(_join_values(getattr(config, "atr_periods", (12, 14))))}"></div>
         <div class="form-field"><label for="dmi_periods">DMI 周期</label><input id="dmi_periods" name="dmi_periods" value="{_escape(_join_values(getattr(config, "dmi_periods", (12, 14))))}"></div>
-        <div class="form-field"><label for="swing_lookbacks">Swing Lookback</label><input id="swing_lookbacks" name="swing_lookbacks" value="{_escape(_join_values(getattr(config, "swing_lookbacks", (10, 15, 20, 25, 30))))}"></div>
+        <div class="form-field"><label for="swing_lookbacks">Swing Lookback</label><input id="swing_lookbacks" name="swing_lookbacks" value="{_escape(_join_values(getattr(config, "swing_lookbacks", (20, 30))))}"></div>
         <div class="form-field"><label for="max_fee_to_risk_ratios">手续费/风险上限</label><input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0.25", "0"))))}"></div>
         <div class="form-field"><label for="take_profit_modes">止盈模式</label><input id="take_profit_modes" name="take_profit_modes" value="{_escape(_join_values(getattr(config, "take_profit_modes", ("TRAILING", "FIXED"))))}"></div>
         <div class="form-field">

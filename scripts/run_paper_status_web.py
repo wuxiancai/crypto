@@ -238,7 +238,7 @@ def _batch_config_from_query(query: dict[str, list[str]]):
         slow_periods=_query_range(query, "slow", default_start=30, default_end=200, default_step=30, minimum=3, maximum=1000),
         atr_periods=_query_int_list(query, "atr_periods", (12, 14), minimum=2, maximum=200),
         dmi_periods=_query_int_list(query, "dmi_periods", (12, 14), minimum=2, maximum=200),
-        swing_lookbacks=_query_int_list(query, "swing_lookbacks", (10, 15, 20, 25, 30), minimum=2, maximum=500),
+        swing_lookbacks=_query_int_list(query, "swing_lookbacks", (20, 30), minimum=2, maximum=500),
         max_fee_to_risk_ratios=_query_decimal_list(
             query,
             "max_fee_to_risk_ratios",

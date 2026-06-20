@@ -366,6 +366,7 @@ def test_strategy_backtest_batch_query_defaults_match_page_defaults():
     assert config.slow_periods == (30, 60, 90, 120, 150, 180, 200)
     assert config.atr_periods == (12, 14)
     assert config.dmi_periods == (12, 14)
+    assert config.swing_lookbacks == (20, 30)
     assert config.max_fee_to_risk_ratios == ("0.25", "0")
     assert config.skip_fast_gte_slow is True
 
