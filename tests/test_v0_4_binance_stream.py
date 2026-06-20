@@ -86,6 +86,38 @@ def test_builds_binance_combined_multi_interval_stream_url():
     )
 
 
+def test_builds_binance_combined_ticker_stream_url():
+    from app.paper.binance_stream import build_binance_ticker_stream_url
+
+    url = build_binance_ticker_stream_url(
+        base_url="wss://fstream.binance.com",
+        symbols=["BTCUSDT", "ETHUSDT"],
+    )
+
+    assert url == "wss://fstream.binance.com/market/stream?streams=btcusdt@ticker/ethusdt@ticker"
+
+
+def test_parses_binance_websocket_ticker_price_message():
+    from app.paper.binance_stream import parse_binance_ws_ticker_price
+
+    message = {
+        "stream": "btcusdt@ticker",
+        "data": {
+            "e": "24hrTicker",
+            "E": 1710000000000,
+            "s": "BTCUSDT",
+            "c": "63424.90",
+        },
+    }
+
+    price = parse_binance_ws_ticker_price(message)
+
+    assert price is not None
+    assert price.symbol == "BTCUSDT"
+    assert price.price == Decimal("63424.90")
+    assert price.event_time_ms == 1710000000000
+
+
 def test_iterates_closed_klines_from_raw_websocket_messages():
     import asyncio
 
@@ -122,6 +154,67 @@ def test_iterates_closed_klines_from_raw_websocket_messages():
 
     assert len(klines) == 1
     assert klines[0].open_time == 900_000
+
+
+def test_iterates_binance_websocket_ticker_prices_with_injected_connector():
+    import asyncio
+
+    from app.paper.binance_stream import iter_binance_websocket_ticker_prices
+
+    class FakeWebSocket:
+        def __init__(self, messages):
+            self.messages = messages
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self.messages:
+                raise StopAsyncIteration
+            return self.messages.pop(0)
+
+    captured_urls = []
+
+    def fake_connect(url):
+        captured_urls.append(url)
+        return FakeWebSocket(
+            [
+                json.dumps(
+                    {
+                        "stream": "btcusdt@ticker",
+                        "data": {
+                            "e": "24hrTicker",
+                            "E": 1710000000000,
+                            "s": "BTCUSDT",
+                            "c": "63424.90",
+                        },
+                    }
+                )
+            ]
+        )
+
+    async def collect():
+        return [
+            price
+            async for price in iter_binance_websocket_ticker_prices(
+                base_url="wss://fstream.binance.com",
+                symbols=["BTCUSDT"],
+                connect=fake_connect,
+            )
+        ]
+
+    prices = asyncio.run(collect())
+
+    assert captured_urls == ["wss://fstream.binance.com/market/stream?streams=btcusdt@ticker"]
+    assert len(prices) == 1
+    assert prices[0].symbol == "BTCUSDT"
+    assert prices[0].price == Decimal("63424.90")
 
 
 def test_iterates_binance_websocket_klines_with_injected_connector():

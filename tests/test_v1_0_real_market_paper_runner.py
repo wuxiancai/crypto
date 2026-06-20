@@ -70,6 +70,42 @@ def test_real_market_paper_runner_wires_source_to_persistent_stream(tmp_path):
     assert persisted == snapshot
 
 
+def test_realtime_price_update_writes_binance_ticker_price_to_state(tmp_path):
+    import json
+
+    from app.paper.binance_stream import TickerPrice
+    from app.paper.live_runner import RealMarketPaperConfig, run_realtime_price_updates
+
+    state_path = tmp_path / "paper-state.json"
+
+    async def prices():
+        yield TickerPrice(
+            symbol="BTCUSDT",
+            price=Decimal("63424.90"),
+            event_time_ms=1_710_000_000_000,
+        )
+
+    asyncio.run(
+        run_realtime_price_updates(
+            RealMarketPaperConfig(
+                symbols=("BTCUSDT",),
+                intervals=("15m", "1h", "4h"),
+                websocket_base_url="wss://fstream.binance.com",
+                state_path=state_path,
+                initial_equity=Decimal("10000"),
+                risk_per_trade_pct=Decimal("0.005"),
+            ),
+            source=prices(),
+        )
+    )
+
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+
+    assert payload["market_prices"]["BTCUSDT"]["price"] == "63424.90"
+    assert payload["market_prices"]["BTCUSDT"]["event_time_ms"] == 1_710_000_000_000
+    assert payload["market_prices"]["BTCUSDT"]["source"] == "binance_ticker_ws"
+
+
 def test_real_market_paper_config_defaults_to_perpetual_costs_and_10x_leverage(tmp_path):
     from app.paper.live_runner import RealMarketPaperConfig
 

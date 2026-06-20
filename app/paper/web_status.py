@@ -44,7 +44,8 @@ def build_paper_status_payload(
         "last_update_at_ms": payload.get("last_update_at_ms"),
         "error_logs": _read_error_logs(error_log_path),
         "signal_evaluations": signal_evaluations,
-        "market_prices": _latest_market_prices(
+        "market_prices": _stored_market_prices(payload.get("market_prices"))
+        or _latest_market_prices(
             evaluations=signal_evaluations,
             open_position=open_position,
             fills=fills,
@@ -778,12 +779,26 @@ def _render_market_prices(prices: dict[str, Any]) -> str:
     symbols = ("BTCUSDT", "ETHUSDT")
     items = "".join(
         f"""<div class="ticker-item">
-  <span class="ticker-symbol">{symbol} 永续最新价</span>
+  <span class="ticker-symbol">{symbol} 永续实时价格</span>
   <span class="ticker-price">{_format_decimal(prices.get(symbol), 2)}</span>
 </div>"""
         for symbol in symbols
     )
     return f'<div class="ticker-strip">{items}</div>'
+
+
+def _stored_market_prices(raw_prices: Any) -> dict[str, Any]:
+    if not isinstance(raw_prices, dict):
+        return {}
+    prices: dict[str, Any] = {}
+    for symbol, raw_value in raw_prices.items():
+        if isinstance(raw_value, dict):
+            price = raw_value.get("price")
+        else:
+            price = raw_value
+        if price is not None:
+            prices[str(symbol)] = price
+    return prices
 
 
 def _render_signal_evaluations(evaluations: list[dict[str, Any]]) -> str:

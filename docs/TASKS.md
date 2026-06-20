@@ -12,6 +12,7 @@
 - [x] Ubuntu 生成的 `.env.ports.generated` 默认 `BINANCE_WEBSOCKET_BASE_URL` 已从测试网 `wss://fstream.binancefuture.com` 改为主网 `wss://fstream.binance.com/market`，避免主网 REST 与测试网 WebSocket 混跑。
 - [x] WebSocket 默认连接参数已按官方 ping/pong 规则放宽：客户端 ping 间隔 180 秒，pong 超时 600 秒，并在断线、24 小时断开或 keepalive timeout 后自动指数退避重连。
 - [x] Binance REST K 线拉取已增加短退避重试：连接超时/网络错误、HTTP 408/429/503 默认最多 3 次；HTTP 451 仍直接提示当前网络/地区受限。
+- [x] 状态页顶部“永续实时价格”改为订阅 Binance USDⓈ-M Futures `<symbol>@ticker` WebSocket，使用 ticker 事件里的 last price，不再依赖成交、持仓或已收盘 K 线策略评估刷新。
 
 2026-06-20 回测胜率与交易成本诊断：
 
@@ -210,7 +211,7 @@
 - 当前 Web 状态页仍保持 5 秒自动刷新，但已从浏览器级整页刷新改为后台软刷新，避免页面闪烁，并保留当前选中的交易对和 K 线周期。
 - 当前 Web 状态页已增加错误日志框，用红色字体显示运行异常摘要；`Traceback`、`File ...`、`map_httpcore_exceptions` 等 Python 调用栈不直接展示，`ConnectTimeout` 会摘要为 Binance REST 连接超时提示。若超时来自历史预热，会保留交易对和周期，例如 `BTCUSDT 4h 历史数据预热失败`。
 - 当前 Binance REST 历史预热失败不会再让实时 Paper runner 退出；单个交易对/周期预热失败会记录日志并继续进入 WebSocket 主流程。
-- 当前 Web 状态页顶部已显示 BTCUSDT / ETHUSDT 永续最新价；当状态文件暂时没有策略评估数据时，策略触发条件和 K 线图区会显示“等待实时策略评估更新”。
+- 当前 Web 状态页顶部已显示 BTCUSDT / ETHUSDT 永续实时价格；该价格来自 Binance USDⓈ-M Futures ticker WebSocket，状态文件暂时没有 ticker 时才回退到成交、持仓或策略评估价格。当状态文件暂时没有策略评估数据时，策略触发条件和 K 线图区会显示“等待实时策略评估更新”。
 - 当前已修复“运行很久但页面没有任何输出”的可观察性问题：Paper 状态文件会记录最近 50 条策略评估结果。早期 Web 状态页曾显示“最近策略输出”调试表；现在主页面已隐藏该表，避免无意义的 `SYSTEM / no actionable signal` 干扰用户阅读，复盘数据仍保留在状态文件中。
 - 当前已修复 5m 高频输出淹没策略视图的问题：状态文件按“交易对 + 周期”保留最新策略输出，页面会同时展示各周期最新状态，而不是只被 5m 刷屏。
 - 当前 Web 状态页已增加“策略K线图”：使用内嵌 SVG 绘制 4h / 1h / 15m K 线图，并叠加 EMA50、EMA200；用户可点击交易对和周期按钮切换对应图表。页面同时展示核心策略摘要，例如 `4h EMA200 > EMA50：空头基础`、主策略回踩规则和趋势转换试仓规则；核心规则已压缩为单行横向展示。图表数据来自 Binance USDT-M Futures 已收盘 K 线，不包含正在形成中的实时蜡烛。

@@ -1,12 +1,19 @@
 from collections.abc import AsyncIterable
+import asyncio
+import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 import time
+from typing import Any
 
-from app.data.binance import BinanceDataError, fetch_klines
+from app.data.binance import fetch_klines
 from app.data.quality import Kline
-from app.paper.binance_stream import iter_binance_multi_interval_websocket_klines
+from app.paper.binance_stream import (
+    TickerPrice,
+    iter_binance_multi_interval_websocket_klines,
+    iter_binance_websocket_ticker_prices,
+)
 from app.paper.multitimeframe import MultiTimeframeKlineCache
 from app.paper.persistence import load_paper_snapshot
 from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
@@ -57,26 +64,98 @@ async def run_real_market_paper(
     )
     if catchup_klines:
         kline_source = _chain_klines(catchup_klines, kline_source)
-    return await run_persistent_paper_kline_stream(
-        config=PaperConfig(
-            initial_equity=config.initial_equity,
-            risk_per_trade_pct=config.risk_per_trade_pct,
-            maker_fee_rate=config.maker_fee_rate,
-            taker_fee_rate=config.taker_fee_rate,
-            slippage_pct=config.slippage_pct,
-            leverage=config.leverage,
-            funding_rate=config.funding_rate,
-            funding_interval_ms=config.funding_interval_ms,
-            trend_pullback_take_profit_mode=config.trend_pullback_take_profit_mode,
-        ),
-        source=kline_source,
-        signal_fn=signal_fn
-        or build_default_realtime_signal_fn(
-            config.strategy_config,
-            warmup_klines=historical_klines or [],
-        ),
-        state_path=config.state_path,
+    price_task = (
+        asyncio.create_task(run_realtime_price_updates(config))
+        if source is None
+        else None
     )
+    try:
+        return await run_persistent_paper_kline_stream(
+            config=PaperConfig(
+                initial_equity=config.initial_equity,
+                risk_per_trade_pct=config.risk_per_trade_pct,
+                maker_fee_rate=config.maker_fee_rate,
+                taker_fee_rate=config.taker_fee_rate,
+                slippage_pct=config.slippage_pct,
+                leverage=config.leverage,
+                funding_rate=config.funding_rate,
+                funding_interval_ms=config.funding_interval_ms,
+                trend_pullback_take_profit_mode=config.trend_pullback_take_profit_mode,
+            ),
+            source=kline_source,
+            signal_fn=signal_fn
+            or build_default_realtime_signal_fn(
+                config.strategy_config,
+                warmup_klines=historical_klines or [],
+            ),
+            state_path=config.state_path,
+        )
+    finally:
+        if price_task is not None:
+            price_task.cancel()
+            try:
+                await price_task
+            except asyncio.CancelledError:
+                pass
+
+
+async def run_realtime_price_updates(
+    config: RealMarketPaperConfig,
+    source: AsyncIterable[TickerPrice] | None = None,
+) -> None:
+    price_source = source or iter_binance_websocket_ticker_prices(
+        base_url=config.websocket_base_url,
+        symbols=list(config.symbols),
+        reconnect=True,
+    )
+    async for price in price_source:
+        save_realtime_market_price(
+            state_path=config.state_path,
+            price=price,
+            initial_equity=config.initial_equity,
+        )
+
+
+def save_realtime_market_price(
+    state_path: Path,
+    price: TickerPrice,
+    initial_equity: Decimal,
+) -> None:
+    payload = _read_state_payload_for_market_price(state_path, initial_equity)
+    market_prices = payload.get("market_prices")
+    if not isinstance(market_prices, dict):
+        market_prices = {}
+    market_prices[price.symbol] = {
+        "price": str(price.price),
+        "event_time_ms": price.event_time_ms,
+        "updated_at_ms": int(time.time() * 1000),
+        "source": "binance_ticker_ws",
+    }
+    payload["market_prices"] = market_prices
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+def _read_state_payload_for_market_price(state_path: Path, initial_equity: Decimal) -> dict[str, Any]:
+    if state_path.exists():
+        try:
+            payload = json.loads(state_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            payload = {}
+        if isinstance(payload, dict):
+            return payload
+    return {
+        "equity": str(initial_equity),
+        "open_position": None,
+        "fills": [],
+        "rejected_signals": 0,
+        "runtime_started_at_ms": int(time.time() * 1000),
+        "last_update_at_ms": None,
+        "signal_evaluations": [],
+    }
 
 
 async def fetch_realtime_warmup_klines(config: RealMarketPaperConfig) -> list[Kline]:

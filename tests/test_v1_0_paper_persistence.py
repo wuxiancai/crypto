@@ -85,3 +85,45 @@ def test_serializes_and_restores_paper_runtime_metadata():
     assert payload["runtime_started_at_ms"] == 1_000
     assert payload["last_update_at_ms"] == 2_000
     assert restored == snapshot
+
+
+def test_saving_paper_snapshot_preserves_existing_realtime_market_prices(tmp_path):
+    import json
+
+    from app.paper.persistence import save_paper_snapshot
+    from app.paper.trading import PaperSnapshot
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "market_prices": {
+                    "BTCUSDT": {
+                        "price": "63424.90",
+                        "event_time_ms": 1_710_000_000_000,
+                        "source": "binance_ticker_ws",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    save_paper_snapshot(
+        PaperSnapshot(
+            equity=Decimal("1005"),
+            open_position=None,
+            fills=[],
+            rejected_signals=0,
+        ),
+        state_path,
+    )
+
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+
+    assert payload["equity"] == "1005"
+    assert payload["market_prices"]["BTCUSDT"]["price"] == "63424.90"

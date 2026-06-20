@@ -38,8 +38,12 @@ def paper_snapshot_from_payload(payload: dict[str, Any]) -> PaperSnapshot:
 
 def save_paper_snapshot(snapshot: PaperSnapshot, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    payload = paper_snapshot_to_payload(snapshot)
+    existing_market_prices = _read_existing_market_prices(path)
+    if existing_market_prices:
+        payload["market_prices"] = existing_market_prices
     path.write_text(
-        json.dumps(paper_snapshot_to_payload(snapshot), indent=2, sort_keys=True),
+        json.dumps(payload, indent=2, sort_keys=True),
         encoding="utf-8",
     )
 
@@ -49,6 +53,17 @@ def load_paper_snapshot(path: Path) -> PaperSnapshot | None:
         return None
     payload = json.loads(path.read_text(encoding="utf-8"))
     return paper_snapshot_from_payload(payload)
+
+
+def _read_existing_market_prices(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    prices = payload.get("market_prices")
+    return prices if isinstance(prices, dict) else {}
 
 
 def _position_to_payload(position: PaperPosition | None) -> dict[str, Any] | None:

@@ -363,19 +363,32 @@ def test_paper_status_page_explains_missing_strategy_data_and_shows_price_ticker
                     }
                 ],
                 "rejected_signals": 0,
+                "market_prices": {
+                    "BTCUSDT": {
+                        "price": "63424.90",
+                        "event_time_ms": 1_710_000_000_000,
+                        "source": "binance_ticker_ws",
+                    },
+                    "ETHUSDT": "1707.37",
+                },
                 "signal_evaluations": [],
             }
         ),
         encoding="utf-8",
     )
 
-    html = render_paper_status_html(build_paper_status_payload(state_path))
+    payload = build_paper_status_payload(state_path)
+    html = render_paper_status_html(payload)
 
-    assert "永续最新价" in html
+    assert "永续实时价格" in html
     assert "BTCUSDT" in html
-    assert "62594.79" in html
+    assert "63424.90" in html
     assert "ETHUSDT" in html
-    assert "1688.40" in html
+    assert "1707.37" in html
+    assert payload["market_prices"] == {
+        "BTCUSDT": "63424.90",
+        "ETHUSDT": "1707.37",
+    }
     assert "暂无策略触发条件：等待实时策略评估更新" in html
     assert "暂无K线图数据：等待实时策略评估更新" in html
 
