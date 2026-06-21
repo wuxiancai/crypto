@@ -493,6 +493,105 @@ def test_strategy_backtest_batch_skips_parameter_set_already_archived_in_databas
     assert records[0]["win_rate"] == "66.67"
 
 
+def test_strategy_backtest_batch_reruns_stale_checkpoint_success_missing_from_database(monkeypatch, tmp_path):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session, sessionmaker
+
+    import scripts.run_strategy_backtest_batch as batch
+    from app.database.models import BacktestRun, Base
+    from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
+    from scripts.run_strategy_backtest_batch import BacktestWindow, ParameterSet
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    window = BacktestWindow(
+        start_time_ms=0,
+        end_time_ms=1000,
+        latest_close_time_by_interval={"4h": 1000, "1h": 1000, "15m": 1000},
+    )
+    params = ParameterSet(
+        fast_period=15,
+        slow_period=60,
+        fast_ma_type="EMA",
+        slow_ma_type="MA",
+        atr_period=14,
+        dmi_period=14,
+        swing_lookback=20,
+        max_fee_to_risk_ratio="0.25",
+        trend_pullback_take_profit_mode="TRAILING",
+    )
+    checkpoint = {
+        "records": {
+            "primary|ema15-ma60-atr14-dmi14-swing20-feerisk0.25-tptrailing": {
+                "phase": "primary",
+                "run_key": "primary|ema15-ma60-atr14-dmi14-swing20-feerisk0.25-tptrailing",
+                "status": "success",
+                "params": {},
+            }
+        }
+    }
+    calls = 0
+
+    async def fake_run_strategy_backtest(config):
+        nonlocal calls
+        calls += 1
+        return StrategyBacktestResult(
+            config=StrategyBacktestConfig(
+                symbols=("BTCUSDT",),
+                fast_ma_type=config.fast_ma_type,
+                slow_ma_type=config.slow_ma_type,
+                ema_fast_period=config.ema_fast_period,
+                ema_slow_period=config.ema_slow_period,
+                atr_period=config.atr_period,
+                dmi_period=config.dmi_period,
+                swing_lookback=config.swing_lookback,
+                limit=config.limit,
+                history_period=config.history_period,
+                history_start_time_ms=config.history_start_time_ms,
+                history_end_time_ms=config.history_end_time_ms,
+                history_cache_dir=config.history_cache_dir,
+                max_fee_to_risk_ratio=config.max_fee_to_risk_ratio,
+                trend_pullback_take_profit_mode=config.trend_pullback_take_profit_mode,
+            ),
+            initial_equity="1000.00",
+            final_equity="1005.00",
+            total_trades=1,
+            wins=1,
+            losses=0,
+            net_pnl="5.00",
+            trades=[],
+            error=None,
+        )
+
+    monkeypatch.setattr(batch, "run_strategy_backtest", fake_run_strategy_backtest)
+    logs: list[str] = []
+
+    records = batch._run_phase(
+        phase="primary",
+        candidates=[params],
+        checkpoint=checkpoint,
+        workspace=tmp_path,
+        cache_dir=tmp_path / "cache",
+        session_factory=session_factory,
+        symbol="BTCUSDT",
+        window=window,
+        history_period="1y",
+        rerun_completed=False,
+        retry_failed=False,
+        log_callback=logs.append,
+    )
+
+    with Session(engine) as session:
+        saved_runs = session.query(BacktestRun).all()
+
+    assert calls == 1
+    assert records[0]["status"] == "success"
+    assert records[0]["final_equity"] == "1005.00"
+    assert len(saved_runs) == 1
+    assert any("checkpoint success missing from database" in line for line in logs)
+
+
 def test_strategy_backtest_batch_phase_emits_logs_and_honors_stop_event(tmp_path):
     import threading
 

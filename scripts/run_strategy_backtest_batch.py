@@ -790,15 +790,38 @@ def _run_phase(
             break
         run_key = _run_key(phase, params)
         existing = records.get(run_key)
+        config = params.to_config(symbol=symbol, cache_dir=cache_dir, window=window, history_period=history_period)
         if existing is not None and not _should_run_existing(
             existing=existing,
             rerun_completed=rerun_completed,
             retry_failed=retry_failed,
         ):
-            _emit(log_callback, f"[skip {index}/{len(candidates)}] {phase} {params.label()}")
-            continue
+            if str(existing.get("status") or "") == "success":
+                with session_factory() as session:
+                    archived_run = find_archived_strategy_backtest_run(session, config)
+                if archived_run is not None:
+                    records[run_key] = _record_from_archived_run(
+                        phase=phase,
+                        run_key=run_key,
+                        params=params,
+                        archived_run=archived_run,
+                    )
+                    _save_checkpoint(workspace, checkpoint)
+                    _emit(
+                        log_callback,
+                        f"[skip {index}/{len(candidates)}] {phase} {params.label()} "
+                        f"| existing database run_id={archived_run.id}"
+                    )
+                    continue
+                _emit(
+                    log_callback,
+                    f"[rerun {index}/{len(candidates)}] {phase} {params.label()} "
+                    "| checkpoint success missing from database"
+                )
+            else:
+                _emit(log_callback, f"[skip {index}/{len(candidates)}] {phase} {params.label()}")
+                continue
 
-        config = params.to_config(symbol=symbol, cache_dir=cache_dir, window=window, history_period=history_period)
         if not rerun_completed:
             with session_factory() as session:
                 archived_run = find_archived_strategy_backtest_run(session, config)

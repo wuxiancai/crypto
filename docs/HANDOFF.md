@@ -66,6 +66,11 @@
   - `/backtest/batch` 在“停止回测”后新增“清空回测记录”按钮；点击后会清空策略回测页面的历史归档记录。
   - 清空范围限定为 `web_strategy_backtest + strategy_backtest` 归档：先删关联 `backtest_trades`，再删 `backtest_runs`，最后删除不再被任何 run 引用的 `config_snapshots`。
   - 批量回测运行中会拒绝清空并提示“批量回测正在运行，请先停止或等待完成后再清空记录。”
+- 2026-06-21 批量回测 skip 与刷新循环修复：
+  - 根因一：`runtime/strategy-backtest-batch/.../checkpoint.json` 会记录历史成功组合；如果数据库被清空或只有部分归档，旧 checkpoint 仍会让组合显示 `[skip x/51]`，但不会重新写入数据库，导致 `/backtest` 最近结果少于批量组合数。
+  - 修复：checkpoint 的 success 只作为本地提示；真正跳过前必须再次确认数据库存在同配置 `web_strategy_backtest + strategy_backtest` run。若数据库没有同配置记录，会输出 `checkpoint success missing from database` 并重新回测归档。
+  - 根因二：批量页面用 GET 参数启动任务，完成后前端 reload 保留 `?run=1`，空闲后 reload 会再次触发开始回测，形成“运行中/空闲”循环。
+  - 修复：页面加载后立即从地址栏移除 `run/stop/clear` 动作参数；完成后刷新也跳转到清理后的 `/backtest/batch?...` 参数 URL。
 - 统一 AI fallback：移除 `BLOCK_NEW_ENTRIES`，统一使用 `BLOCK`。
 - 主趋势做多/做空也必须使用 DI_PLUS / DI_MINUS 判断方向。
 - 趋势转换早期试仓风险固定为 0.2%，确认试仓风险固定为 0.3%。

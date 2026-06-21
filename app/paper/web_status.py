@@ -495,6 +495,14 @@ def render_strategy_backtest_batch_html(
   </main>
   <script>
     const pageFinishedAt = {json.dumps(job.get("finished_at_ms"))};
+    const cleanBatchUrl = () => {{
+      const url = new URL(window.location.href);
+      ["run", "stop", "clear"].forEach((key) => url.searchParams.delete(key));
+      return url.pathname + (url.search ? url.search : "");
+    }};
+    if (["run", "stop", "clear"].some((key) => new URL(window.location.href).searchParams.has(key))) {{
+      window.history.replaceState(null, "", cleanBatchUrl());
+    }}
     async function refreshBatchStatus() {{
       try {{
         const response = await fetch("/api/backtest/batch/status", {{ cache: "no-store" }});
@@ -510,7 +518,7 @@ def render_strategy_backtest_batch_html(
           status.textContent = payload.running ? (payload.stop_requested ? "停止中" : "运行中") : "空闲";
         }}
         if (!payload.running && payload.analysis && payload.finished_at_ms !== pageFinishedAt) {{
-          window.location.reload();
+          window.location.href = cleanBatchUrl();
         }}
       }} catch (_error) {{
         return;

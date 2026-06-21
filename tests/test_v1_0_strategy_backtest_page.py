@@ -453,7 +453,9 @@ def test_strategy_backtest_batch_page_reload_after_completion_only_once():
     )
 
     assert "const pageFinishedAt = 1234;" in html
-    assert "payload.finished_at_ms !== pageFinishedAt" in html
+    assert '["run", "stop", "clear"].forEach((key) => url.searchParams.delete(key));' in html
+    assert "window.history.replaceState(null, \"\", cleanBatchUrl());" in html
+    assert "window.location.href = cleanBatchUrl();" in html
 
 
 def test_strategy_backtest_web_helper_reports_runner_errors(monkeypatch):
