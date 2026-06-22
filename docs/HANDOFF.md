@@ -19,6 +19,7 @@
 
 ## 本轮修复
 
+- 2026-06-21 修复批量参数回测页面参数语义：页面输入的 ATR/DMI/Swing、手续费/风险上限、止盈模式现在会直接参与主搜索完整组合，不再只作为精修阶段的单项变化；例如用户输入 `DMI=12` 后，主搜索日志会显示并执行 `DMI 12`，不会继续默认 `DMI 14`。
 - 2026-06-20 按 Binance USDⓈ-M Futures 官方文档修复连接链路：
   - WebSocket Kline 属于 Market stream，实时 K 线 URL 现在生成 `wss://fstream.binance.com/market/stream?streams=...`，不再使用 legacy `wss://fstream.binance.com/stream?...`。
   - 状态页顶部 BTCUSDT / ETHUSDT 价格已从成交/持仓/策略评估推导改为独立订阅 Binance `<symbol>@ticker` WebSocket；页面文案同步改为“永续实时价格”，实时价写入 `runtime/paper-state.json` 的 `market_prices`，策略快照保存时会保留该字段。

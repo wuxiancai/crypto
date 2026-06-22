@@ -269,7 +269,6 @@ def run_strategy_backtest_batch(
 
     primary_phase = "primary"
     primary_candidates = list(_build_primary_candidates(config))
-    estimated_refinement_runs = len(list(_build_refinement_candidates(primary_candidates[0], config))) if primary_candidates else 0
     primary_records = _run_phase(
         phase=primary_phase,
         candidates=primary_candidates,
@@ -282,7 +281,7 @@ def run_strategy_backtest_batch(
         history_period=config.history_period,
         rerun_completed=config.rerun_completed,
         retry_failed=config.retry_failed,
-        future_runs_estimate=estimated_refinement_runs,
+        future_runs_estimate=0,
         log_callback=log_callback,
         stop_event=stop_event,
     )
@@ -293,21 +292,25 @@ def run_strategy_backtest_batch(
     best_primary_params = _params_from_record(best_primary)
     refinement_phase = f"refinement:{best_primary['run_key']}"
     refinement_candidates = list(_build_refinement_candidates(best_primary_params, config))
-    refinement_records = _run_phase(
-        phase=refinement_phase,
-        candidates=refinement_candidates,
-        checkpoint=checkpoint,
-        workspace=workspace,
-        cache_dir=cache_dir,
-        session_factory=session_factory,
-        symbol=config.symbol,
-        window=window,
-        history_period=config.history_period,
-        rerun_completed=config.rerun_completed,
-        retry_failed=config.retry_failed,
-        future_runs_estimate=0,
-        log_callback=log_callback,
-        stop_event=stop_event,
+    refinement_records = (
+        _run_phase(
+            phase=refinement_phase,
+            candidates=refinement_candidates,
+            checkpoint=checkpoint,
+            workspace=workspace,
+            cache_dir=cache_dir,
+            session_factory=session_factory,
+            symbol=config.symbol,
+            window=window,
+            history_period=config.history_period,
+            rerun_completed=config.rerun_completed,
+            retry_failed=config.retry_failed,
+            future_runs_estimate=0,
+            log_callback=log_callback,
+            stop_event=stop_event,
+        )
+        if refinement_candidates
+        else []
     )
 
     analysis = _build_analysis(
@@ -715,40 +718,29 @@ def _build_primary_candidates(config: StrategyBacktestBatchConfig | bool) -> Ite
         for slow_period in config.slow_periods:
             if config.skip_fast_gte_slow and fast_period >= slow_period:
                 continue
-            yield ParameterSet(
-                fast_period=fast_period,
-                slow_period=slow_period,
-                fast_ma_type=config.fast_ma_type,
-                slow_ma_type=config.slow_ma_type,
-            )
+            for atr_period in config.atr_periods:
+                for dmi_period in config.dmi_periods:
+                    for swing_lookback in config.swing_lookbacks:
+                        for max_fee_to_risk_ratio in config.max_fee_to_risk_ratios:
+                            for take_profit_mode in config.take_profit_modes:
+                                yield ParameterSet(
+                                    fast_period=fast_period,
+                                    slow_period=slow_period,
+                                    fast_ma_type=config.fast_ma_type,
+                                    slow_ma_type=config.slow_ma_type,
+                                    atr_period=atr_period,
+                                    dmi_period=dmi_period,
+                                    swing_lookback=swing_lookback,
+                                    max_fee_to_risk_ratio=max_fee_to_risk_ratio,
+                                    trend_pullback_take_profit_mode=take_profit_mode,
+                                )
 
 
 def _build_refinement_candidates(
     base: ParameterSet,
     config: StrategyBacktestBatchConfig | None = None,
 ) -> Iterable[ParameterSet]:
-    batch_config = config or StrategyBacktestBatchConfig()
-    seen: set[str] = set()
-    candidates: list[ParameterSet] = []
-
-    def add(candidate: ParameterSet) -> None:
-        key = candidate.key()
-        if key == base.key() or key in seen:
-            return
-        seen.add(key)
-        candidates.append(candidate)
-
-    for atr_period in batch_config.atr_periods:
-        add(ParameterSet(**{**asdict(base), "atr_period": atr_period}))
-    for dmi_period in batch_config.dmi_periods:
-        add(ParameterSet(**{**asdict(base), "dmi_period": dmi_period}))
-    for swing_lookback in batch_config.swing_lookbacks:
-        add(ParameterSet(**{**asdict(base), "swing_lookback": swing_lookback}))
-    for max_fee_to_risk_ratio in batch_config.max_fee_to_risk_ratios:
-        add(ParameterSet(**{**asdict(base), "max_fee_to_risk_ratio": max_fee_to_risk_ratio}))
-    for take_profit_mode in batch_config.take_profit_modes:
-        add(ParameterSet(**{**asdict(base), "trend_pullback_take_profit_mode": take_profit_mode}))
-    return candidates
+    return []
 
 
 def _run_phase(

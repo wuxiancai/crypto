@@ -323,11 +323,7 @@ def test_archives_strategy_backtest_result_to_database():
 
 
 def test_strategy_backtest_batch_config_builds_user_selected_parameter_sets():
-    from scripts.run_strategy_backtest_batch import (
-        StrategyBacktestBatchConfig,
-        _build_primary_candidates,
-        _build_refinement_candidates,
-    )
+    from scripts.run_strategy_backtest_batch import StrategyBacktestBatchConfig, _build_primary_candidates
 
     config = StrategyBacktestBatchConfig(
         fast_ma_type="MA",
@@ -343,19 +339,48 @@ def test_strategy_backtest_batch_config_builds_user_selected_parameter_sets():
     )
 
     primary = list(_build_primary_candidates(config))
-    refinement = list(_build_refinement_candidates(primary[0], config))
 
-    assert [(item.fast_period, item.slow_period) for item in primary] == [
+    assert len(primary) == 32
+    assert {(item.fast_period, item.slow_period) for item in primary} == {
         (10, 30),
         (10, 40),
         (20, 30),
         (20, 40),
+    }
+    assert {item.fast_ma_type for item in primary} == {"MA"}
+    assert {item.slow_ma_type for item in primary} == {"EMA"}
+    assert {item.atr_period for item in primary} == {10, 14}
+    assert {item.dmi_period for item in primary} == {12}
+    assert {item.swing_lookback for item in primary} == {15}
+    assert {item.max_fee_to_risk_ratio for item in primary} == {"0.20", "0.25"}
+    assert {item.trend_pullback_take_profit_mode for item in primary} == {"TRAILING", "FIXED"}
+
+
+def test_strategy_backtest_batch_primary_candidates_honor_single_dmi_input():
+    from scripts.run_paper_status_web import _batch_config_from_query
+    from scripts.run_strategy_backtest_batch import _build_primary_candidates
+
+    config = _batch_config_from_query(
+        {
+            "fast_start": ["15"],
+            "fast_end": ["15"],
+            "slow_start": ["60"],
+            "slow_end": ["90"],
+            "slow_step": ["30"],
+            "atr_periods": ["14"],
+            "dmi_periods": ["12"],
+            "swing_lookbacks": ["20"],
+            "max_fee_to_risk_ratios": ["0.25"],
+            "take_profit_modes": ["TRAILING"],
+        }
+    )
+
+    primary = list(_build_primary_candidates(config))
+
+    assert [item.label() for item in primary] == [
+        "EMA15/MA60 | ATR 14 | DMI 12 | Swing 20 | Fee/Risk 0.25 | TP TRAILING",
+        "EMA15/MA90 | ATR 14 | DMI 12 | Swing 20 | Fee/Risk 0.25 | TP TRAILING",
     ]
-    assert primary[0].fast_ma_type == "MA"
-    assert primary[0].slow_ma_type == "EMA"
-    assert {item.atr_period for item in refinement} == {10, 14}
-    assert {item.max_fee_to_risk_ratio for item in refinement} == {"0.20", "0.25"}
-    assert {item.trend_pullback_take_profit_mode for item in refinement} == {"TRAILING", "FIXED"}
 
 
 def test_strategy_backtest_batch_query_defaults_match_page_defaults():
