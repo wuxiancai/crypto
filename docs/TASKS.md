@@ -21,6 +21,7 @@
 - [x] 多头趋势必须实现完全对称逻辑。
 - [x] 实时 Paper Trading 已新增最小复盘持久化，把信号评估、拒绝信号、成交和平仓后/每根 K 线持仓快照写入 `paper_runtime_events`。
 - [x] 新增 `scripts/show_paper_runtime_events.py`，可按 limit、event_type、symbol、strategy_type、bucket 查询最近 Paper 复盘事件。
+- [x] Web 状态页新增 `/paper/events` 只读复盘页，可按事件类型、交易对、策略和 bucket 查询 Paper Runtime 事件。
 
 说明：
 
@@ -33,6 +34,7 @@
 - 2026-06-24 策略回测页面已新增“参数组合对比”表，复用最近回测归档并按账户权益从高到低排序，便于横向比较均线、ATR、DMI、Swing、手续费/风险、周期、净盈亏、胜率、盈亏比、最大回撤、Bucket 净盈亏和交易次数。
 - 2026-06-24 实时 Paper Trading 已新增 `paper_runtime_events` 复盘事件表；`scripts/run_paper_realtime.py` 默认注入数据库 session factory，每根 K 线处理后写入 signal / snapshot，并在发生拒绝或成交时额外写入 rejected_signal / fill。
 - 2026-06-24 已新增 `scripts/show_paper_runtime_events.py` 最小复盘 CLI，用于直接查看 `paper_runtime_events` 里的 signal / rejected_signal / fill / snapshot 摘要。
+- 2026-06-24 已新增 Web 只读复盘页 `/paper/events`，模拟交易看板顶部提供“Paper复盘”入口，页面可按 `event_type`、`symbol`、`strategy_type`、`bucket` 过滤事件。
 - 2026-06-23 已新增截图语义对应的 BTC fixture 回归用例，验证日线空头主仓和日线空头下 4h 反弹多仓方向；真实 Binance 历史窗口回放以截图日期 `2026-05-13` 为准，避免误按文字中的 2025 年验证。
 - 2026-06-23 已新增 `scripts/validate_layered_btc_history.py`，复用真实 Binance K 线缓存和实时策略适配器验证默认 BTC probe：`SHORT_4H_HEDGE` 命中 `2026-05-13 23:59:59 UTC+8`，entry `78794.70`；`SHORT_DAY_CORE` 命中 `2026-06-01 07:59:59 UTC+8`，entry `73653.20`；`LONG_4H_HEDGE` 命中 `2026-06-13 10:59:59 UTC+8`，entry `63612.00`。
 

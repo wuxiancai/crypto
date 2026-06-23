@@ -161,6 +161,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       {_render_market_prices(payload.get("market_prices", {}))}
       <div class="header-meta">
         <a class="badge nav-button" href="/backtest" target="_blank" rel="noopener">策略回测</a>
+        <a class="badge" href="/paper/events" target="_blank" rel="noopener">Paper复盘</a>
         <div class="badge">系统运行时间：{_format_duration(payload.get("runtime_seconds"))}</div>
         <div class="badge">{_status_label(payload.get("status"))} · 5 秒自动刷新</div>
       </div>
@@ -559,6 +560,168 @@ def render_strategy_backtest_batch_html(
   </script>
 </body>
 </html>"""
+
+
+def render_paper_runtime_events_html(
+    events: list[Any] | None = None,
+    filters: dict[str, str] | None = None,
+    error: str | None = None,
+) -> str:
+    event_rows = events or []
+    active_filters = filters or {}
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paper 复盘</title>
+  <style>
+    :root {{ color-scheme: light; font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f7fb; color: #172033; }}
+    body {{ margin: 0; }}
+    main {{ max-width: 1180px; margin: 0 auto; padding: 24px; }}
+    header {{ display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }}
+    h1 {{ font-size: 24px; margin: 0; }}
+    .badge {{ font-size: 13px; padding: 6px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; color: #172033; text-decoration: none; }}
+    .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; margin-bottom: 16px; }}
+    .form-grid {{ display: grid; grid-template-columns: 90px repeat(4, minmax(0, 1fr)) 100px; gap: 10px; align-items: end; }}
+    .form-field {{ display: grid; gap: 6px; }}
+    .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
+    .form-field input, .form-field select {{ border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
+    .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
+    table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; overflow: hidden; }}
+    th, td {{ border-bottom: 1px solid #e6ebf2; padding: 9px 10px; text-align: left; font-size: 13px; white-space: nowrap; }}
+    th {{ background: #eef3f9; color: #344055; }}
+    tr:last-child td {{ border-bottom: 0; }}
+    .table-wrap {{ overflow-x: auto; }}
+    .empty {{ color: #65748b; padding: 14px; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; }}
+    .error {{ color: #b42318; margin-bottom: 12px; }}
+    @media (max-width: 820px) {{ main {{ padding: 14px; }} header {{ align-items: flex-start; flex-direction: column; }} .form-grid {{ grid-template-columns: 1fr; }} }}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Paper 复盘</h1>
+      <div><a class="badge" href="/">返回看板</a></div>
+    </header>
+    {_render_paper_runtime_event_filters(active_filters)}
+    {_render_backtest_error(error)}
+    {_render_paper_runtime_event_table(event_rows)}
+  </main>
+</body>
+</html>"""
+
+
+def _render_paper_runtime_event_filters(filters: dict[str, str]) -> str:
+    return f"""<section class="panel">
+  <form class="form-grid" action="/paper/events" method="get">
+    <div class="form-field">
+      <label>数量</label>
+      <input name="limit" value="{_escape(filters.get("limit", "50"))}">
+    </div>
+    <div class="form-field">
+      <label>事件类型</label>
+      <select name="event_type">
+        {_event_type_options(filters.get("event_type", ""))}
+      </select>
+    </div>
+    <div class="form-field">
+      <label>交易对</label>
+      <input name="symbol" value="{_escape(filters.get("symbol", ""))}" placeholder="BTCUSDT">
+    </div>
+    <div class="form-field">
+      <label>策略</label>
+      <input name="strategy_type" value="{_escape(filters.get("strategy_type", ""))}" placeholder="SHORT_DAY_CORE">
+    </div>
+    <div class="form-field">
+      <label>Bucket</label>
+      <input name="bucket" value="{_escape(filters.get("bucket", ""))}" placeholder="DAY_CORE">
+    </div>
+    <button class="primary-button" type="submit">查询</button>
+  </form>
+</section>"""
+
+
+def _event_type_options(selected: str) -> str:
+    options = [
+        ("", "全部"),
+        ("signal", "signal"),
+        ("rejected_signal", "rejected_signal"),
+        ("fill", "fill"),
+        ("snapshot", "snapshot"),
+    ]
+    return "\n".join(
+        f'<option value="{_escape(value)}"{" selected" if value == selected else ""}>{_escape(label)}</option>'
+        for value, label in options
+    )
+
+
+def _render_paper_runtime_event_table(events: list[Any]) -> str:
+    if not events:
+        return '<div class="empty">暂无 Paper 复盘事件</div>'
+    rows = "\n".join(_render_paper_runtime_event_row(event) for event in events)
+    return f"""<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>时间 UTC+8</th><th>类型</th><th>交易对</th><th>周期</th><th>策略</th><th>动作</th><th>Bucket</th><th>摘要</th>
+    </tr>
+  </thead>
+  <tbody>{rows}</tbody>
+</table>
+</div>"""
+
+
+def _render_paper_runtime_event_row(event: Any) -> str:
+    return f"""<tr>
+  <td>{_escape(_format_event_time_ms(getattr(event, "event_time", None)))}</td>
+  <td>{_escape(getattr(event, "event_type", "-"))}</td>
+  <td>{_escape(getattr(event, "symbol", "-"))}</td>
+  <td>{_escape(getattr(event, "interval", "-"))}</td>
+  <td>{_escape(getattr(event, "strategy_type", "-"))}</td>
+  <td>{_escape(getattr(event, "action", "-"))}</td>
+  <td>{_escape(getattr(event, "bucket", None) or "-")}</td>
+  <td>{_escape(_paper_runtime_event_summary(getattr(event, "event_type", ""), getattr(event, "payload", "")))}</td>
+</tr>"""
+
+
+def _paper_runtime_event_summary(event_type: str, payload: str) -> str:
+    decoded = _decode_event_payload(payload)
+    if event_type == "fill":
+        return (
+            f"net={decoded.get('net_pnl', '-')}, "
+            f"exit={decoded.get('exit_reason', '-')}, "
+            f"qty={decoded.get('quantity', '-')}"
+        )
+    if event_type == "rejected_signal":
+        return f"reason={','.join(decoded.get('reason', []) or []) or '-'}"
+    if event_type == "snapshot":
+        return (
+            f"equity={decoded.get('equity', '-')}, "
+            f"positions={len(decoded.get('open_positions', []) or [])}, "
+            f"rejected={decoded.get('rejected_signals', 0)}"
+        )
+    if event_type == "signal":
+        opened = decoded.get("opened_position")
+        opened_label = "yes" if opened else "no"
+        return f"opened={opened_label}, reason={','.join(decoded.get('reason', []) or []) or '-'}"
+    return "-"
+
+
+def _decode_event_payload(payload: str) -> dict[str, Any]:
+    try:
+        decoded = json.loads(payload)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
+
+
+def _format_event_time_ms(value: Any) -> str:
+    try:
+        timestamp = int(value) / 1000
+    except (TypeError, ValueError):
+        return "-"
+    return datetime.fromtimestamp(timestamp, tz=timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _render_position(position: dict[str, Any] | None) -> str:

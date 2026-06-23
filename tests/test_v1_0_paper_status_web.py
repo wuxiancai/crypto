@@ -115,6 +115,8 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "资金费" in html
     assert "使用策略" in html
     assert "当前策略详情" in html
+    assert "Paper复盘" in html
+    assert 'href="/paper/events"' in html
     assert "symbol = BTCUSDT" in html
     assert "fast_ma = EMA15" in html
     assert "slow_ma = MA60" in html

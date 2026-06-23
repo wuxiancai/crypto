@@ -21,6 +21,7 @@ from app.paper.strategy_backtest import StrategyBacktestConfig, run_strategy_bac
 from app.paper.web_status import (
     build_paper_status_payload,
     render_paper_status_html,
+    render_paper_runtime_events_html,
     render_strategy_backtest_batch_html,
     render_strategy_backtest_html,
 )
@@ -176,6 +177,16 @@ def make_handler(state_path: Path, error_log_path: Path):
                     )
                 )
                 return
+            if parsed.path == "/paper/events":
+                query = parse_qs(parsed.query)
+                events = _load_paper_runtime_events_for_web(query)
+                self._send_html(
+                    render_paper_runtime_events_html(
+                        events=events,
+                        filters=_paper_runtime_event_filters_from_query(query),
+                    )
+                )
+                return
             self.send_error(404)
 
         def log_message(self, format: str, *args) -> None:
@@ -316,6 +327,57 @@ def _load_recent_strategy_backtest_results(session_factory=None):
             return list_strategy_backtest_summaries(session, limit=100)
     except Exception:
         return []
+
+
+def _load_paper_runtime_events_for_web(query: dict[str, list[str]], session_factory=None):
+    try:
+        from app.config.settings import Settings
+        from app.database.db import build_session_factory
+        from scripts.show_paper_runtime_events import load_paper_runtime_events
+
+        factory = session_factory or build_session_factory(Settings())
+        with factory() as session:
+            return load_paper_runtime_events(
+                session,
+                limit=_query_int(query, "limit", 50, minimum=1, maximum=500),
+                event_type=_optional_query_choice(
+                    query,
+                    "event_type",
+                    {"signal", "rejected_signal", "fill", "snapshot"},
+                ),
+                symbol=_optional_query_text(query, "symbol"),
+                strategy_type=_optional_query_text(query, "strategy_type"),
+                bucket=_optional_query_text(query, "bucket"),
+            )
+    except Exception:
+        return []
+
+
+def _paper_runtime_event_filters_from_query(query: dict[str, list[str]]) -> dict[str, str]:
+    return {
+        "limit": str(_query_int(query, "limit", 50, minimum=1, maximum=500)),
+        "event_type": _optional_query_choice(
+            query,
+            "event_type",
+            {"signal", "rejected_signal", "fill", "snapshot"},
+        )
+        or "",
+        "symbol": _optional_query_text(query, "symbol") or "",
+        "strategy_type": _optional_query_text(query, "strategy_type") or "",
+        "bucket": _optional_query_text(query, "bucket") or "",
+    }
+
+
+def _optional_query_choice(query: dict[str, list[str]], key: str, allowed: set[str]) -> str | None:
+    value = _optional_query_text(query, key)
+    if value is None:
+        return None
+    return value if value in allowed else None
+
+
+def _optional_query_text(query: dict[str, list[str]], key: str) -> str | None:
+    value = str(query.get(key, [""])[0]).strip()
+    return value or None
 
 
 def _clear_strategy_backtest_records(session_factory=None) -> str:
