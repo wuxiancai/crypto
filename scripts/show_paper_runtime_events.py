@@ -27,6 +27,8 @@ def load_paper_runtime_events(
     symbol: str | None = None,
     strategy_type: str | None = None,
     bucket: str | None = None,
+    start_time_ms: int | None = None,
+    end_time_ms: int | None = None,
 ) -> list[PaperRuntimeEvent]:
     query = select(PaperRuntimeEvent).order_by(PaperRuntimeEvent.id.desc()).limit(max(1, limit))
     if event_type:
@@ -37,6 +39,10 @@ def load_paper_runtime_events(
         query = query.where(PaperRuntimeEvent.strategy_type == strategy_type)
     if bucket:
         query = query.where(PaperRuntimeEvent.bucket == bucket)
+    if start_time_ms is not None:
+        query = query.where(PaperRuntimeEvent.event_time >= start_time_ms)
+    if end_time_ms is not None:
+        query = query.where(PaperRuntimeEvent.event_time <= end_time_ms)
     return list(session.execute(query).scalars().all())
 
 

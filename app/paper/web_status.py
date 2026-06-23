@@ -583,7 +583,7 @@ def render_paper_runtime_events_html(
     h1 {{ font-size: 24px; margin: 0; }}
     .badge {{ font-size: 13px; padding: 6px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; color: #172033; text-decoration: none; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; margin-bottom: 16px; }}
-    .form-grid {{ display: grid; grid-template-columns: 90px repeat(4, minmax(0, 1fr)) 100px; gap: 10px; align-items: end; }}
+    .form-grid {{ display: grid; grid-template-columns: 90px repeat(6, minmax(0, 1fr)) 100px; gap: 10px; align-items: end; }}
     .form-field {{ display: grid; gap: 6px; }}
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
     .form-field input, .form-field select {{ border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
@@ -592,6 +592,8 @@ def render_paper_runtime_events_html(
     th, td {{ border-bottom: 1px solid #e6ebf2; padding: 9px 10px; text-align: left; font-size: 13px; white-space: nowrap; }}
     th {{ background: #eef3f9; color: #344055; }}
     tr:last-child td {{ border-bottom: 0; }}
+    details summary {{ cursor: pointer; color: #65748b; }}
+    pre {{ margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: Menlo, Consolas, monospace; font-size: 12px; color: #344055; }}
     .table-wrap {{ overflow-x: auto; }}
     .empty {{ color: #65748b; padding: 14px; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; }}
     .error {{ color: #b42318; margin-bottom: 12px; }}
@@ -637,6 +639,14 @@ def _render_paper_runtime_event_filters(filters: dict[str, str]) -> str:
       <label>Bucket</label>
       <input name="bucket" value="{_escape(filters.get("bucket", ""))}" placeholder="DAY_CORE">
     </div>
+    <div class="form-field">
+      <label>开始 UTC+8</label>
+      <input name="start_time" value="{_escape(filters.get("start_time", ""))}" placeholder="2026-06-24 08:00">
+    </div>
+    <div class="form-field">
+      <label>结束 UTC+8</label>
+      <input name="end_time" value="{_escape(filters.get("end_time", ""))}" placeholder="2026-06-24 23:59">
+    </div>
     <button class="primary-button" type="submit">查询</button>
   </form>
 </section>"""
@@ -681,8 +691,17 @@ def _render_paper_runtime_event_row(event: Any) -> str:
   <td>{_escape(getattr(event, "strategy_type", "-"))}</td>
   <td>{_escape(getattr(event, "action", "-"))}</td>
   <td>{_escape(getattr(event, "bucket", None) or "-")}</td>
-  <td>{_escape(_paper_runtime_event_summary(getattr(event, "event_type", ""), getattr(event, "payload", "")))}</td>
+  <td>{_render_paper_runtime_event_summary_cell(getattr(event, "event_type", ""), getattr(event, "payload", ""))}</td>
 </tr>"""
+
+
+def _render_paper_runtime_event_summary_cell(event_type: str, payload: str) -> str:
+    summary = _paper_runtime_event_summary(event_type, payload)
+    pretty_payload = _pretty_event_payload(payload)
+    return (
+        f"{_escape(summary)}"
+        f"<details><summary>完整 payload</summary><pre>{_escape(pretty_payload)}</pre></details>"
+    )
 
 
 def _paper_runtime_event_summary(event_type: str, payload: str) -> str:
@@ -714,6 +733,13 @@ def _decode_event_payload(payload: str) -> dict[str, Any]:
     except (TypeError, json.JSONDecodeError):
         return {}
     return decoded if isinstance(decoded, dict) else {}
+
+
+def _pretty_event_payload(payload: str) -> str:
+    decoded = _decode_event_payload(payload)
+    if not decoded:
+        return str(payload or "")
+    return json.dumps(decoded, ensure_ascii=False, indent=2, sort_keys=True)
 
 
 def _format_event_time_ms(value: Any) -> str:

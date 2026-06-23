@@ -4,6 +4,7 @@ import argparse
 import asyncio
 from collections import deque
 from dataclasses import replace
+from datetime import datetime
 from decimal import Decimal
 import json
 import sys
@@ -12,6 +13,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -121,6 +123,7 @@ def _is_countdown_log_line(line: str) -> bool:
 
 
 _BATCH_BACKTEST_JOBS = BatchBacktestJobManager()
+LOCAL_TZ = ZoneInfo("Asia/Shanghai")
 
 
 def make_handler(state_path: Path, error_log_path: Path):
@@ -348,6 +351,8 @@ def _load_paper_runtime_events_for_web(query: dict[str, list[str]], session_fact
                 symbol=_optional_query_text(query, "symbol"),
                 strategy_type=_optional_query_text(query, "strategy_type"),
                 bucket=_optional_query_text(query, "bucket"),
+                start_time_ms=_query_local_time_ms(query, "start_time"),
+                end_time_ms=_query_local_time_ms(query, "end_time"),
             )
     except Exception:
         return []
@@ -365,6 +370,8 @@ def _paper_runtime_event_filters_from_query(query: dict[str, list[str]]) -> dict
         "symbol": _optional_query_text(query, "symbol") or "",
         "strategy_type": _optional_query_text(query, "strategy_type") or "",
         "bucket": _optional_query_text(query, "bucket") or "",
+        "start_time": _optional_query_text(query, "start_time") or "",
+        "end_time": _optional_query_text(query, "end_time") or "",
     }
 
 
@@ -378,6 +385,19 @@ def _optional_query_choice(query: dict[str, list[str]], key: str, allowed: set[s
 def _optional_query_text(query: dict[str, list[str]], key: str) -> str | None:
     value = str(query.get(key, [""])[0]).strip()
     return value or None
+
+
+def _query_local_time_ms(query: dict[str, list[str]], key: str) -> int | None:
+    value = _optional_query_text(query, key)
+    if value is None:
+        return None
+    for pattern in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            parsed = datetime.strptime(value, pattern)
+        except ValueError:
+            continue
+        return int(parsed.replace(tzinfo=LOCAL_TZ).timestamp() * 1000)
+    return None
 
 
 def _clear_strategy_backtest_records(session_factory=None) -> str:
