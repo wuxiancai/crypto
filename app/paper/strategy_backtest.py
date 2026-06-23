@@ -86,6 +86,7 @@ class StrategyBacktestRunSummary:
     max_drawdown: str = "0.00"
     max_drawdown_pct: str = "0.00"
     profit_loss_ratio: str = "0.00"
+    bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
 
 
 async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) -> StrategyBacktestResult:

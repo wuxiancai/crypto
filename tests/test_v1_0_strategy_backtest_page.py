@@ -312,6 +312,11 @@ def test_strategy_backtest_archived_summary_derives_risk_metrics_from_trades():
     assert summaries[0].max_drawdown == "300.00"
     assert summaries[0].max_drawdown_pct == "25.00"
     assert summaries[0].profit_loss_ratio == "1.33"
+    assert summaries[0].bucket_metrics == {
+        "DAY_CORE": {"trade_count": 1, "wins": 1, "losses": 0, "net_pnl": "200.00"},
+        "FOUR_HOUR_ADDON": {"trade_count": 1, "wins": 0, "losses": 1, "net_pnl": "-50.00"},
+        "FOUR_HOUR_HEDGE": {"trade_count": 1, "wins": 0, "losses": 1, "net_pnl": "-250.00"},
+    }
 
 
 def test_strategy_backtest_page_shows_recent_results_newest_first():
@@ -427,6 +432,10 @@ def test_strategy_backtest_parameter_comparison_sorts_by_final_equity():
                 max_drawdown="120.00",
                 max_drawdown_pct="8.14",
                 profit_loss_ratio="1.80",
+                bucket_metrics={
+                    "DAY_CORE": {"trade_count": 100, "wins": 44, "losses": 56, "net_pnl": "400.00"},
+                    "FOUR_HOUR_HEDGE": {"trade_count": 22, "wins": 10, "losses": 12, "net_pnl": "73.15"},
+                },
             ),
         ]
     )
@@ -436,10 +445,13 @@ def test_strategy_backtest_parameter_comparison_sorts_by_final_equity():
     assert comparison_html.index("BTCUSDT") < comparison_html.index("ETHUSDT")
     assert "<th>盈亏比</th>" in comparison_html
     assert "<th>最大回撤</th>" in comparison_html
+    assert "<th>Bucket净盈亏</th>" in comparison_html
     assert "<td>1</td>" in comparison_html
     assert "1473.15" in comparison_html
     assert "1.80" in comparison_html
     assert "120.00 / 8.14%" in comparison_html
+    assert "DAY_CORE 400.00 (100)" in comparison_html
+    assert "FOUR_HOUR_HEDGE 73.15 (22)" in comparison_html
 
 
 def test_strategy_backtest_page_links_to_batch_parameter_page():

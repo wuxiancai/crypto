@@ -9,6 +9,17 @@ from app.backtest.engine import BacktestResult
 from app.data.quality import Kline
 from app.database.models import BacktestRun, BacktestTradeRecord, ConfigSnapshot, KlineRecord
 from app.paper.strategy_backtest import StrategyBacktestResult, StrategyBacktestRunSummary
+from app.strategy.layered_strategy import (
+    DAY_CORE,
+    FOUR_HOUR_ADDON,
+    FOUR_HOUR_HEDGE,
+    LONG_4H_1H_ADDON,
+    LONG_4H_HEDGE,
+    LONG_DAY_CORE,
+    SHORT_4H_1H_ADDON,
+    SHORT_4H_HEDGE,
+    SHORT_DAY_CORE,
+)
 
 
 def upsert_klines(session: Session, rows: list[Kline]) -> int:
@@ -301,6 +312,7 @@ def _strategy_backtest_summary(
         max_drawdown=max_drawdown,
         max_drawdown_pct=max_drawdown_pct,
         profit_loss_ratio=_summary_profit_loss_ratio(trades or []),
+        bucket_metrics=_summary_bucket_metrics(trades or []),
     )
 
 
@@ -335,6 +347,42 @@ def _summary_profit_loss_ratio(trades: list[BacktestTradeRecord]) -> str:
     if average_loss == 0:
         return "∞"
     return _decimal_string(average_win / average_loss)
+
+
+def _summary_bucket_metrics(trades: list[BacktestTradeRecord]) -> dict[str, dict[str, str | int]]:
+    metrics: dict[str, dict[str, Decimal | int]] = {}
+    for trade in trades:
+        bucket = _bucket_from_strategy_type(str(trade.strategy_type))
+        bucket_metrics = metrics.setdefault(
+            bucket,
+            {"trade_count": 0, "wins": 0, "losses": 0, "net_pnl": Decimal("0")},
+        )
+        net_pnl = Decimal(str(trade.net_pnl))
+        bucket_metrics["trade_count"] = int(bucket_metrics["trade_count"]) + 1
+        if net_pnl > 0:
+            bucket_metrics["wins"] = int(bucket_metrics["wins"]) + 1
+        elif net_pnl < 0:
+            bucket_metrics["losses"] = int(bucket_metrics["losses"]) + 1
+        bucket_metrics["net_pnl"] = Decimal(str(bucket_metrics["net_pnl"])) + net_pnl
+    return {
+        bucket: {
+            "trade_count": int(values["trade_count"]),
+            "wins": int(values["wins"]),
+            "losses": int(values["losses"]),
+            "net_pnl": _money_string(values["net_pnl"]),
+        }
+        for bucket, values in sorted(metrics.items())
+    }
+
+
+def _bucket_from_strategy_type(strategy_type: str) -> str:
+    if strategy_type in {SHORT_DAY_CORE, LONG_DAY_CORE}:
+        return DAY_CORE
+    if strategy_type in {SHORT_4H_1H_ADDON, LONG_4H_1H_ADDON}:
+        return FOUR_HOUR_ADDON
+    if strategy_type in {LONG_4H_HEDGE, SHORT_4H_HEDGE}:
+        return FOUR_HOUR_HEDGE
+    return "LEGACY"
 
 
 def _decode_config_content(content: str | None) -> dict[str, object]:

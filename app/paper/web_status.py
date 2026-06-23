@@ -799,7 +799,7 @@ def _render_parameter_comparison_table(results: list[Any]) -> str:
   <thead>
     <tr>
       <th>排名</th><th>交易对</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费/风险</th><th>周期</th>
-      <th>账户权益</th><th>净盈亏</th><th>胜率</th><th>盈亏比</th><th>最大回撤</th><th>交易次数</th>
+      <th>账户权益</th><th>净盈亏</th><th>胜率</th><th>盈亏比</th><th>最大回撤</th><th>Bucket净盈亏</th><th>交易次数</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -823,8 +823,20 @@ def _render_parameter_comparison_row(index: int, result: Any) -> str:
   <td>{_format_win_rate(getattr(result, "wins", 0), getattr(result, "losses", 0))}</td>
   <td>{_escape(getattr(result, "profit_loss_ratio", "0.00"))}</td>
   <td>{_format_decimal(getattr(result, "max_drawdown", "0"), 2)} / {_format_decimal(getattr(result, "max_drawdown_pct", "0"), 2)}%</td>
+  <td>{_escape(_bucket_comparison_label(getattr(result, "bucket_metrics", {}) or {}))}</td>
   <td>{_escape(getattr(result, "total_trades", 0))}</td>
 </tr>"""
+
+
+def _bucket_comparison_label(metrics: dict[str, dict[str, Any]]) -> str:
+    if not metrics:
+        return "-"
+    parts = []
+    for bucket, values in sorted(metrics.items()):
+        parts.append(
+            f"{bucket} {_format_decimal(values.get('net_pnl'), 2)} ({values.get('trade_count', 0)})"
+        )
+    return "；".join(parts)
 
 
 def _render_backtest_metric_tables(result: Any | None) -> str:
