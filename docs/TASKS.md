@@ -17,7 +17,7 @@
 - [x] Backtest engine 支持同一 symbol 多空子仓共存，并按 strategy_type / bucket 统计指标。
 - [x] Web 状态页改为展示日线主趋势、4h 子趋势、策略候选、子仓列表和动态均线名称。
 - [x] 回测页和批量回测页支持分层策略参数。
-- [ ] 用真实 BTCUSDT 历史验证：2025-05-13 后能捕捉日线空头主趋势，2026-06-12 20:00 后能捕捉日线空头下的 4h 反弹多仓。
+- [x] 用真实 BTCUSDT 历史验证：截图对应的 2026-05-13 后能捕捉日线空头主趋势，2026-06-12 20:00 后能捕捉日线空头下的 4h 反弹多仓。
 - [x] 多头趋势必须实现完全对称逻辑。
 
 说明：
@@ -25,7 +25,8 @@
 - 2026-06-23 已新增 `app.strategy.layered_strategy`，实时 Paper 默认开启分层策略；旧 4h/1h/15m 测试路径在没有 1d 数据时保持兼容。
 - 2026-06-23 Paper snapshot 新增 `open_positions`，同时保留旧 `open_position` 兼容字段；状态页可展示多个 strategy bucket 子仓。
 - 2026-06-23 回测页当前已通过 PaperTradingEngine 获得多子仓撮合能力，并默认拉取 1d/4h/1h/15m；`StrategyBacktestResult` 已提供 `strategy_metrics` 和 `bucket_metrics` 聚合结果，批量回测默认参数已同步为 `EMA15 / MA60, ATR14, Swing20, fee/risk=0, TRAILING, enable_reversal_probe=false`。
-- 2026-06-23 已新增截图语义对应的 BTC fixture 回归用例，验证日线空头主仓和日线空头下 4h 反弹多仓方向；真实 Binance 历史窗口回放仍保留为下一步验收项。
+- 2026-06-23 已新增截图语义对应的 BTC fixture 回归用例，验证日线空头主仓和日线空头下 4h 反弹多仓方向；真实 Binance 历史窗口回放以截图日期 `2026-05-13` 为准，避免误按文字中的 2025 年验证。
+- 2026-06-23 已新增 `scripts/validate_layered_btc_history.py`，复用真实 Binance K 线缓存和实时策略适配器验证默认 BTC probe：`SHORT_DAY_CORE` 命中 `2026-06-01 07:59:59 UTC+8`，`LONG_4H_HEDGE` 命中 `2026-06-13 10:59:59 UTC+8`。
 
 2026-06-20 Binance 连接修复：
 

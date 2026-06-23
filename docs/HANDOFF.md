@@ -28,8 +28,13 @@
   - `PaperTradingEngine` 从单仓位升级为 strategy bucket 多子仓模型，支持 `SHORT_DAY_CORE` 与 `LONG_4H_HEDGE` 等不同 bucket 共存；旧 `open_position` 字段继续保留兼容。
   - Paper 状态持久化新增 `open_positions`；Web 状态页可展示多个策略子仓和 bucket；成交记录和策略回测结果已带 `strategy_metrics` / `bucket_metrics` 聚合维度。
   - 回测默认参数同步为 `EMA15 / MA60, ATR14, DMI12, Swing20, fee/risk=0, TRAILING, enable_reversal_probe=false`；回测页和批量回测页已按 strategy / bucket 输出聚合统计。
-  - 新增 BTC 走势语义回归用例，覆盖 2025-05-13 后日线空头主仓方向，以及 2026-06-12 20:00 后日线空头下 4h 反弹多仓方向。
+  - 新增 BTC 走势语义回归用例，覆盖截图对应的 2026-05-13 后日线空头主仓方向，以及 2026-06-12 20:00 后日线空头下 4h 反弹多仓方向。
   - 本机验证：`.venv/bin/python -m pytest -q`，211 passed；`.venv/bin/python -m py_compile app/strategy/layered_strategy.py app/paper/strategy_adapter.py app/paper/trading.py app/paper/persistence.py app/paper/web_status.py app/paper/strategy_backtest.py app/paper/live_runner.py scripts/run_paper_realtime.py scripts/run_paper_status_web.py scripts/run_strategy_backtest_batch.py` 通过；`git diff --check` 通过。
+- 2026-06-23 BTC 分层策略真实历史验证入口：
+  - 新增 `scripts/validate_layered_btc_history.py`，按 `1d / 4h / 1h / 15m` 读取或拉取 BTCUSDT 历史 K 线，扫描 probe 窗口并调用现有 `build_realtime_strategy_signal()`，不复制策略规则。
+  - 已确认用户截图左上角是 `2026/05/13 20:00`，不是文字中的 2025 年；默认 probe 已按截图日期 `2026-05-13 20:00 UTC+8` 设置。
+  - 真实 Binance 历史验证结果：`SHORT_DAY_CORE` 在 `2026-06-01 07:59:59 UTC+8` 命中，entry `73653.20`；`LONG_4H_HEDGE` 在 `2026-06-13 10:59:59 UTC+8` 命中，entry `63612.00`。
+  - 本机验证：`.venv/bin/python scripts/validate_layered_btc_history.py --json` 通过；`.venv/bin/python -m pytest tests/test_v1_1_layered_history_validation.py -q`，2 passed。
 - 2026-06-23 分层策略系统文档收口：
   - 新增 `docs/superpowers/specs/2026-06-23-layered-strategy-system-design.md`，定义日线主趋势、4h 子趋势、1h 确认、15m 入场的独立策略系统。
   - 已同步修订 `README.md`、`prd.md`、`docs/PROJECT_CONTEXT.md`、`docs/DECISIONS.md`、`docs/TASKS.md`，把新增主线改为六类明确策略名和 Paper/Backtest strategy bucket 子仓模型。
