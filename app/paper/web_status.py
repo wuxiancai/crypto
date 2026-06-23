@@ -381,7 +381,7 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
       {_render_recent_backtest_results(recent)}
     </section>
     <section style="margin-top: 16px;">
-      <h2>策略 / Bucket 统计</h2>
+      <h2>策略 / Bucket / 交易对统计</h2>
       {_render_backtest_metric_tables(result)}
     </section>
     <section style="margin-top: 16px;">
@@ -788,12 +788,14 @@ def _render_backtest_metric_tables(result: Any | None) -> str:
         return '<div class="empty">暂无统计</div>'
     strategy_metrics = getattr(result, "strategy_metrics", {}) or {}
     bucket_metrics = getattr(result, "bucket_metrics", {}) or {}
-    if not strategy_metrics and not bucket_metrics:
+    symbol_metrics = getattr(result, "symbol_metrics", {}) or {}
+    if not strategy_metrics and not bucket_metrics and not symbol_metrics:
         return '<div class="empty">暂无统计</div>'
     return (
         '<div class="table-wrap" style="display: grid; gap: 12px;">'
         f"{_render_metric_table('按策略统计', strategy_metrics, '策略')}"
         f"{_render_metric_table('按 Bucket 统计', bucket_metrics, 'Bucket')}"
+        f"{_render_metric_table('按交易对统计', symbol_metrics, '交易对')}"
         "</div>"
     )
 

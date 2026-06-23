@@ -106,6 +106,8 @@ def test_strategy_backtest_fetches_history_and_runs_current_realtime_strategy(mo
     assert result.strategy_metrics["TREND_PULLBACK"]["trade_count"] == 1
     assert result.strategy_metrics["TREND_PULLBACK"]["wins"] == 1
     assert result.bucket_metrics["LEGACY"]["trade_count"] == 1
+    assert result.symbol_metrics["BTCUSDT"]["trade_count"] == 1
+    assert result.symbol_metrics["BTCUSDT"]["net_pnl"] == "10.00"
     assert result.max_drawdown == "0.00"
     assert result.max_drawdown_pct == "0.00"
     assert result.profit_loss_ratio == "∞"
@@ -217,6 +219,47 @@ def test_strategy_backtest_profit_loss_ratio_uses_average_win_and_loss():
     ]
 
     assert _profit_loss_ratio(fills) == "2.00"
+
+
+def test_strategy_backtest_symbol_metrics_group_fills_by_symbol():
+    from app.paper.strategy_backtest import _symbol_metrics
+    from app.paper.trading import PaperFill
+
+    fills = [
+        PaperFill(
+            symbol="BTCUSDT",
+            side="LONG",
+            strategy_type="SHORT_DAY_CORE",
+            entry_time=0,
+            exit_time=1,
+            entry_price=Decimal("100"),
+            exit_price=Decimal("120"),
+            quantity=Decimal("1"),
+            gross_pnl=Decimal("30"),
+            fees=Decimal("0"),
+            net_pnl=Decimal("30"),
+            exit_reason="TAKE_PROFIT",
+        ),
+        PaperFill(
+            symbol="ETHUSDT",
+            side="SHORT",
+            strategy_type="SHORT_DAY_CORE",
+            entry_time=0,
+            exit_time=2,
+            entry_price=Decimal("100"),
+            exit_price=Decimal("110"),
+            quantity=Decimal("1"),
+            gross_pnl=Decimal("-10"),
+            fees=Decimal("0"),
+            net_pnl=Decimal("-10"),
+            exit_reason="STOP_LOSS",
+        ),
+    ]
+
+    metrics = _symbol_metrics(fills)
+
+    assert metrics["BTCUSDT"] == {"trade_count": 1, "wins": 1, "losses": 0, "net_pnl": "30.00"}
+    assert metrics["ETHUSDT"] == {"trade_count": 1, "wins": 0, "losses": 1, "net_pnl": "-10.00"}
 
 
 def test_strategy_backtest_defaults_to_perpetual_contract_costs():

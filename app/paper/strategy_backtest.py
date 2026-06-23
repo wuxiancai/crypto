@@ -58,6 +58,7 @@ class StrategyBacktestResult:
     max_drawdown: str = "0.00"
     max_drawdown_pct: str = "0.00"
     profit_loss_ratio: str = "0.00"
+    symbol_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
     strategy_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
     error: str | None = None
@@ -150,6 +151,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         max_drawdown=max_drawdown,
         max_drawdown_pct=max_drawdown_pct,
         profit_loss_ratio=profit_loss_ratio,
+        symbol_metrics=_symbol_metrics(snapshot.fills),
         strategy_metrics=_strategy_metrics(snapshot.fills),
         bucket_metrics=_bucket_metrics(snapshot.fills),
         error=None,
@@ -333,6 +335,7 @@ def _empty_result(config: StrategyBacktestConfig, error: str | None = None) -> S
         max_drawdown=_money(Decimal("0")),
         max_drawdown_pct=_percent(Decimal("0")),
         profit_loss_ratio=_ratio(Decimal("0")),
+        symbol_metrics={},
         strategy_metrics={},
         bucket_metrics={},
         error=error,
@@ -342,33 +345,34 @@ def _empty_result(config: StrategyBacktestConfig, error: str | None = None) -> S
 def _strategy_metrics(fills: list) -> dict[str, dict[str, str | int]]:
     metrics: dict[str, dict[str, str | int]] = {}
     for strategy_type in sorted({fill.strategy_type for fill in fills}):
-        strategy_fills = [fill for fill in fills if fill.strategy_type == strategy_type]
-        wins = sum(1 for fill in strategy_fills if fill.net_pnl > 0)
-        losses = sum(1 for fill in strategy_fills if fill.net_pnl < 0)
-        net_pnl = sum((fill.net_pnl for fill in strategy_fills), Decimal("0"))
-        metrics[strategy_type] = {
-            "trade_count": len(strategy_fills),
-            "wins": wins,
-            "losses": losses,
-            "net_pnl": _money(net_pnl),
-        }
+        metrics[strategy_type] = _fills_metric([fill for fill in fills if fill.strategy_type == strategy_type])
     return metrics
 
 
 def _bucket_metrics(fills: list) -> dict[str, dict[str, str | int]]:
     metrics: dict[str, dict[str, str | int]] = {}
     for bucket in sorted({fill.bucket for fill in fills}):
-        bucket_fills = [fill for fill in fills if fill.bucket == bucket]
-        wins = sum(1 for fill in bucket_fills if fill.net_pnl > 0)
-        losses = sum(1 for fill in bucket_fills if fill.net_pnl < 0)
-        net_pnl = sum((fill.net_pnl for fill in bucket_fills), Decimal("0"))
-        metrics[bucket] = {
-            "trade_count": len(bucket_fills),
-            "wins": wins,
-            "losses": losses,
-            "net_pnl": _money(net_pnl),
-        }
+        metrics[bucket] = _fills_metric([fill for fill in fills if fill.bucket == bucket])
     return metrics
+
+
+def _symbol_metrics(fills: list) -> dict[str, dict[str, str | int]]:
+    metrics: dict[str, dict[str, str | int]] = {}
+    for symbol in sorted({fill.symbol for fill in fills}):
+        metrics[symbol] = _fills_metric([fill for fill in fills if fill.symbol == symbol])
+    return metrics
+
+
+def _fills_metric(fills: list) -> dict[str, str | int]:
+    wins = sum(1 for fill in fills if fill.net_pnl > 0)
+    losses = sum(1 for fill in fills if fill.net_pnl < 0)
+    net_pnl = sum((fill.net_pnl for fill in fills), Decimal("0"))
+    return {
+        "trade_count": len(fills),
+        "wins": wins,
+        "losses": losses,
+        "net_pnl": _money(net_pnl),
+    }
 
 
 def _drawdown_metrics(initial_equity: Decimal, fills: list) -> tuple[str, str]:

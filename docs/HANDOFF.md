@@ -44,8 +44,9 @@
 - 2026-06-23 策略回测最大回撤：
   - `StrategyBacktestResult` 新增 `max_drawdown` 和 `max_drawdown_pct`，按已平仓权益曲线计算，避免引入未实现的盘中浮亏估算。
   - `StrategyBacktestResult` 新增 `profit_loss_ratio`，按平均盈利单净利润 / 平均亏损单绝对净亏损计算；没有亏损且有盈利时显示 `∞`。
-  - Web 回测页顶部新增“最大回撤”和“盈亏比”指标卡。
-  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_strategy_backtest_page.py -q`，36 passed。
+  - `StrategyBacktestResult` 新增 `symbol_metrics`，按交易对聚合交易次数、胜负和净盈亏。
+  - Web 回测页顶部新增“最大回撤”和“盈亏比”指标卡；统计区改为“策略 / Bucket / 交易对统计”。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_strategy_backtest_page.py -q`，37 passed。
 - 2026-06-23 分层策略系统文档收口：
   - 新增 `docs/superpowers/specs/2026-06-23-layered-strategy-system-design.md`，定义日线主趋势、4h 子趋势、1h 确认、15m 入场的独立策略系统。
   - 已同步修订 `README.md`、`prd.md`、`docs/PROJECT_CONTEXT.md`、`docs/DECISIONS.md`、`docs/TASKS.md`，把新增主线改为六类明确策略名和 Paper/Backtest strategy bucket 子仓模型。
