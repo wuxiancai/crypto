@@ -608,6 +608,7 @@ def render_paper_runtime_events_html(
     </header>
     {_render_paper_runtime_event_filters(active_filters)}
     {_render_backtest_error(error)}
+    {_render_paper_runtime_event_counts(event_rows)}
     {_render_paper_runtime_event_table(event_rows)}
   </main>
 </body>
@@ -680,6 +681,19 @@ def _render_paper_runtime_event_table(events: list[Any]) -> str:
   <tbody>{rows}</tbody>
 </table>
 </div>"""
+
+
+def _render_paper_runtime_event_counts(events: list[Any]) -> str:
+    counts = {event_type: 0 for event_type in ("signal", "rejected_signal", "fill", "snapshot")}
+    for event in events:
+        event_type = str(getattr(event, "event_type", ""))
+        if event_type in counts:
+            counts[event_type] += 1
+    items = "".join(
+        f'<span class="badge">{_escape(event_type)}：{_escape(count)}</span>'
+        for event_type, count in counts.items()
+    )
+    return f'<section class="panel" style="display:flex;gap:8px;flex-wrap:wrap;">{items}</section>'
 
 
 def _render_paper_runtime_event_row(event: Any) -> str:

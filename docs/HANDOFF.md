@@ -65,6 +65,7 @@
 - 2026-06-24 Paper Runtime Web 复盘页：
   - 新增 `/paper/events` 只读页，复用 `paper_runtime_events`，支持按 `limit`、`event_type`、`symbol`、`strategy_type`、`bucket` 和 UTC+8 `start_time` / `end_time` 过滤，表格展示 signal / rejected_signal / fill / snapshot 摘要。
   - 每条事件支持展开“完整 payload”，用于查看完整 signal reason、condition_statuses、开仓参数和持仓快照 JSON。
+  - 页面顶部会按当前查询结果统计 signal、rejected_signal、fill、snapshot 数量，便于快速判断是否大量拒绝或是否已有成交。
   - 模拟交易看板顶部新增“Paper复盘”入口，方便从运行页直接跳转。
   - 本机验证：`.venv/bin/python -m pytest tests/test_v1_2_paper_runtime_events_web.py tests/test_v1_0_paper_status_web.py -q`，21 passed。
 - 2026-06-23 分层策略系统文档收口：
@@ -372,7 +373,7 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 下一步继续真实行情 Paper Trading：增强 `/paper/events` 的复盘效率，例如增加常用快捷过滤、按事件类型统计、或把 fill 与前序 signal/snapshot 串成一次交易时间线。
+3. 下一步继续真实行情 Paper Trading：增强 `/paper/events` 的复盘效率，例如增加常用快捷过滤，或把 fill 与前序 signal/snapshot 串成一次交易时间线。
 4. 使用 `/backtest` 或 `/backtest/batch` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果，并可在页面查看终端风格日志或请求停止。当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
 5. 下一步可继续增强 `/backtest`：增加参数组合详情展开、按 bucket / strategy 的排序筛选，以及更长历史窗口的统一口径对比。
 6. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
