@@ -106,7 +106,64 @@ def test_strategy_backtest_fetches_history_and_runs_current_realtime_strategy(mo
     assert result.strategy_metrics["TREND_PULLBACK"]["trade_count"] == 1
     assert result.strategy_metrics["TREND_PULLBACK"]["wins"] == 1
     assert result.bucket_metrics["LEGACY"]["trade_count"] == 1
+    assert result.max_drawdown == "0.00"
+    assert result.max_drawdown_pct == "0.00"
     assert result.trades[0]["strategy_type"] == "TREND_PULLBACK"
+
+
+def test_strategy_backtest_drawdown_metrics_follow_closed_equity_curve():
+    from app.paper.strategy_backtest import _drawdown_metrics
+    from app.paper.trading import PaperFill
+
+    fills = [
+        PaperFill(
+            symbol="BTCUSDT",
+            side="LONG",
+            strategy_type="SHORT_DAY_CORE",
+            entry_time=0,
+            exit_time=3,
+            entry_price=Decimal("100"),
+            exit_price=Decimal("90"),
+            quantity=Decimal("1"),
+            gross_pnl=Decimal("-100"),
+            fees=Decimal("0"),
+            net_pnl=Decimal("-100"),
+            exit_reason="STOP_LOSS",
+        ),
+        PaperFill(
+            symbol="BTCUSDT",
+            side="LONG",
+            strategy_type="SHORT_DAY_CORE",
+            entry_time=0,
+            exit_time=1,
+            entry_price=Decimal("100"),
+            exit_price=Decimal("120"),
+            quantity=Decimal("1"),
+            gross_pnl=Decimal("200"),
+            fees=Decimal("0"),
+            net_pnl=Decimal("200"),
+            exit_reason="TAKE_PROFIT",
+        ),
+        PaperFill(
+            symbol="BTCUSDT",
+            side="LONG",
+            strategy_type="SHORT_DAY_CORE",
+            entry_time=0,
+            exit_time=2,
+            entry_price=Decimal("100"),
+            exit_price=Decimal("80"),
+            quantity=Decimal("1"),
+            gross_pnl=Decimal("-250"),
+            fees=Decimal("0"),
+            net_pnl=Decimal("-250"),
+            exit_reason="STOP_LOSS",
+        ),
+    ]
+
+    max_drawdown, max_drawdown_pct = _drawdown_metrics(Decimal("1000"), fills)
+
+    assert max_drawdown == "350.00"
+    assert max_drawdown_pct == "29.17"
 
 
 def test_strategy_backtest_defaults_to_perpetual_contract_costs():

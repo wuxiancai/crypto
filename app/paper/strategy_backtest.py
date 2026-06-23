@@ -55,6 +55,8 @@ class StrategyBacktestResult:
     losses: int
     net_pnl: str
     trades: list[dict[str, str]]
+    max_drawdown: str = "0.00"
+    max_drawdown_pct: str = "0.00"
     strategy_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
     error: str | None = None
@@ -130,6 +132,10 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
     wins = sum(1 for fill in snapshot.fills if fill.net_pnl > 0)
     losses = sum(1 for fill in snapshot.fills if fill.net_pnl < 0)
     net_pnl = snapshot.equity - backtest_config.initial_equity
+    max_drawdown, max_drawdown_pct = _drawdown_metrics(
+        initial_equity=backtest_config.initial_equity,
+        fills=snapshot.fills,
+    )
     return StrategyBacktestResult(
         config=backtest_config,
         initial_equity=_money(backtest_config.initial_equity),
@@ -139,6 +145,8 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         losses=losses,
         net_pnl=_money(net_pnl),
         trades=trades,
+        max_drawdown=max_drawdown,
+        max_drawdown_pct=max_drawdown_pct,
         strategy_metrics=_strategy_metrics(snapshot.fills),
         bucket_metrics=_bucket_metrics(snapshot.fills),
         error=None,
@@ -319,6 +327,8 @@ def _empty_result(config: StrategyBacktestConfig, error: str | None = None) -> S
         losses=0,
         net_pnl=_money(Decimal("0")),
         trades=[],
+        max_drawdown=_money(Decimal("0")),
+        max_drawdown_pct=_percent(Decimal("0")),
         strategy_metrics={},
         bucket_metrics={},
         error=error,
@@ -357,9 +367,29 @@ def _bucket_metrics(fills: list) -> dict[str, dict[str, str | int]]:
     return metrics
 
 
+def _drawdown_metrics(initial_equity: Decimal, fills: list) -> tuple[str, str]:
+    peak = initial_equity
+    equity = initial_equity
+    max_drawdown = Decimal("0")
+    for fill in sorted(fills, key=lambda item: item.exit_time):
+        equity += fill.net_pnl
+        if equity > peak:
+            peak = equity
+            continue
+        drawdown = peak - equity
+        if drawdown > max_drawdown:
+            max_drawdown = drawdown
+    max_drawdown_pct = Decimal("0") if peak <= 0 else max_drawdown / peak * Decimal("100")
+    return _money(max_drawdown), _percent(max_drawdown_pct)
+
+
 def _normalise_trade(trade: dict[str, object]) -> dict[str, str]:
     return {key: str(value) for key, value in trade.items()}
 
 
 def _money(value: Decimal) -> str:
+    return format(value.quantize(Decimal("0.01")), "f")
+
+
+def _percent(value: Decimal) -> str:
     return format(value.quantize(Decimal("0.01")), "f")

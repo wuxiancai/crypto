@@ -41,6 +41,10 @@
   - 已启动本地 PostgreSQL Docker Compose 并执行 migration；`DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 1d 4h 1h 15m --limit 5 --write` 成功。
   - 写入后复查：`future_klines=0`；BTCUSDT 最新 `15m=2026-06-23 20:44:59 UTC+8`、`1h/4h=2026-06-23 19:59:59 UTC+8`、`1d=2026-06-23 07:59:59 UTC+8`；ETHUSDT 同周期也已写入。
   - 本机验证：`.venv/bin/python -m pytest tests/test_v0_1_database_and_binance.py tests/test_v1_1_sync_klines.py -q`，8 passed。
+- 2026-06-23 策略回测最大回撤：
+  - `StrategyBacktestResult` 新增 `max_drawdown` 和 `max_drawdown_pct`，按已平仓权益曲线计算，避免引入未实现的盘中浮亏估算。
+  - Web 回测页顶部新增“最大回撤”指标卡。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_strategy_backtest_page.py -q`，35 passed。
 - 2026-06-23 分层策略系统文档收口：
   - 新增 `docs/superpowers/specs/2026-06-23-layered-strategy-system-design.md`，定义日线主趋势、4h 子趋势、1h 确认、15m 入场的独立策略系统。
   - 已同步修订 `README.md`、`prd.md`、`docs/PROJECT_CONTEXT.md`、`docs/DECISIONS.md`、`docs/TASKS.md`，把新增主线改为六类明确策略名和 Paper/Backtest strategy bucket 子仓模型。
