@@ -57,6 +57,7 @@ class StrategyBacktestResult:
     trades: list[dict[str, str]]
     max_drawdown: str = "0.00"
     max_drawdown_pct: str = "0.00"
+    profit_loss_ratio: str = "0.00"
     strategy_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
     error: str | None = None
@@ -136,6 +137,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         initial_equity=backtest_config.initial_equity,
         fills=snapshot.fills,
     )
+    profit_loss_ratio = _profit_loss_ratio(snapshot.fills)
     return StrategyBacktestResult(
         config=backtest_config,
         initial_equity=_money(backtest_config.initial_equity),
@@ -147,6 +149,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         trades=trades,
         max_drawdown=max_drawdown,
         max_drawdown_pct=max_drawdown_pct,
+        profit_loss_ratio=profit_loss_ratio,
         strategy_metrics=_strategy_metrics(snapshot.fills),
         bucket_metrics=_bucket_metrics(snapshot.fills),
         error=None,
@@ -329,6 +332,7 @@ def _empty_result(config: StrategyBacktestConfig, error: str | None = None) -> S
         trades=[],
         max_drawdown=_money(Decimal("0")),
         max_drawdown_pct=_percent(Decimal("0")),
+        profit_loss_ratio=_ratio(Decimal("0")),
         strategy_metrics={},
         bucket_metrics={},
         error=error,
@@ -383,6 +387,20 @@ def _drawdown_metrics(initial_equity: Decimal, fills: list) -> tuple[str, str]:
     return _money(max_drawdown), _percent(max_drawdown_pct)
 
 
+def _profit_loss_ratio(fills: list) -> str:
+    wins = [fill.net_pnl for fill in fills if fill.net_pnl > 0]
+    losses = [abs(fill.net_pnl) for fill in fills if fill.net_pnl < 0]
+    if not wins:
+        return _ratio(Decimal("0"))
+    if not losses:
+        return "∞"
+    average_win = sum(wins, Decimal("0")) / Decimal(len(wins))
+    average_loss = sum(losses, Decimal("0")) / Decimal(len(losses))
+    if average_loss == 0:
+        return "∞"
+    return _ratio(average_win / average_loss)
+
+
 def _normalise_trade(trade: dict[str, object]) -> dict[str, str]:
     return {key: str(value) for key, value in trade.items()}
 
@@ -392,4 +410,8 @@ def _money(value: Decimal) -> str:
 
 
 def _percent(value: Decimal) -> str:
+    return format(value.quantize(Decimal("0.01")), "f")
+
+
+def _ratio(value: Decimal) -> str:
     return format(value.quantize(Decimal("0.01")), "f")

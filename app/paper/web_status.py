@@ -374,6 +374,7 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
       <div class="panel"><div class="label">总交易次数</div><div class="value">{_escape(getattr(result, "total_trades", 0))}</div></div>
       <div class="panel"><div class="label">胜 / 负 / 胜率</div><div class="value">{_escape(getattr(result, "wins", 0))} / {_escape(getattr(result, "losses", 0))} / 胜率 {_format_win_rate(getattr(result, "wins", 0), getattr(result, "losses", 0))}</div></div>
       <div class="panel"><div class="label">最大回撤</div><div class="value">{_format_decimal(getattr(result, "max_drawdown", "0"), 2)} / {_format_decimal(getattr(result, "max_drawdown_pct", "0"), 2)}%</div></div>
+      <div class="panel"><div class="label">盈亏比</div><div class="value">{_escape(getattr(result, "profit_loss_ratio", "0.00"))}</div></div>
     </section>
     <section style="margin-top: 16px;">
       <h2>最近回测结果</h2>

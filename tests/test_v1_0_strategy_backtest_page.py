@@ -46,6 +46,7 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
             net_pnl="30.25",
             max_drawdown="12.50",
             max_drawdown_pct="1.25",
+            profit_loss_ratio="2.40",
             strategy_metrics={"SHORT_DAY_CORE": {"trade_count": 2, "wins": 1, "losses": 1, "net_pnl": "30.25"}},
             bucket_metrics={"DAY_CORE": {"trade_count": 2, "wins": 1, "losses": 1, "net_pnl": "30.25"}},
             trades=[
@@ -90,6 +91,8 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     assert "1 / 1 / 胜率 50%" in html
     assert "最大回撤" in html
     assert "12.50 / 1.25%" in html
+    assert "盈亏比" in html
+    assert "2.40" in html
     assert "策略 / Bucket 统计" in html
     assert "SHORT_DAY_CORE" in html
     assert "DAY_CORE" in html

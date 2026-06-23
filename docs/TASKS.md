@@ -26,6 +26,7 @@
 - 2026-06-23 Paper snapshot 新增 `open_positions`，同时保留旧 `open_position` 兼容字段；状态页可展示多个 strategy bucket 子仓。
 - 2026-06-23 回测页当前已通过 PaperTradingEngine 获得多子仓撮合能力，并默认拉取 1d/4h/1h/15m；`StrategyBacktestResult` 已提供 `strategy_metrics` 和 `bucket_metrics` 聚合结果，批量回测默认参数已同步为 `EMA15 / MA60, ATR14, Swing20, fee/risk=0, TRAILING, enable_reversal_probe=false`。
 - 2026-06-23 策略回测结果已新增最大回撤指标，按已平仓权益曲线计算 `max_drawdown` 和 `max_drawdown_pct`，并在回测页面顶部展示。
+- 2026-06-23 策略回测结果已新增盈亏比 `profit_loss_ratio`，按平均盈利单净利润 / 平均亏损单绝对净亏损计算，并在回测页面顶部展示。
 - 2026-06-23 已新增截图语义对应的 BTC fixture 回归用例，验证日线空头主仓和日线空头下 4h 反弹多仓方向；真实 Binance 历史窗口回放以截图日期 `2026-05-13` 为准，避免误按文字中的 2025 年验证。
 - 2026-06-23 已新增 `scripts/validate_layered_btc_history.py`，复用真实 Binance K 线缓存和实时策略适配器验证默认 BTC probe：`SHORT_4H_HEDGE` 命中 `2026-05-13 23:59:59 UTC+8`，entry `78794.70`；`SHORT_DAY_CORE` 命中 `2026-06-01 07:59:59 UTC+8`，entry `73653.20`；`LONG_4H_HEDGE` 命中 `2026-06-13 10:59:59 UTC+8`，entry `63612.00`。
 
@@ -251,4 +252,4 @@
 - 当前策略回测页新增批量参数回测入口 `/backtest/batch`：页面可输入 EMA/MA 类型、快慢周期范围与步进、回测周期、ATR/DMI/Swing、手续费/风险上限和止盈模式，执行逻辑仍复用 `scripts/run_strategy_backtest_batch.py` 与现有 `run_strategy_backtest()`。
 - 当前批量回测会基于归档配置 hash 跳过数据库中已存在的同参数结果，并把已有 run 的 final_equity、net_pnl、胜负和胜率写入 checkpoint，保证全跳过时仍可选出 best primary。
 - 当前批量回测 Web 入口使用后台任务执行，页面提供停止按钮和运行日志面板；日志内容由脚本显式回调输出。所有组合完成后后台任务会自动停止并进入空闲状态；页面在完成后只刷新一次展示结果。`本轮倒计时` 会在 Web 日志中替换上一条倒计时行，表现为读秒而不是按秒新增日志。批量默认过滤快线>=慢线，并把 ATR/DMI 精修默认收敛为 12、14，Swing Lookback 默认收敛为 20、30，手续费/风险上限默认只比较 0.25 与关闭过滤。
-- 待做：策略回测继续补充盈亏比、按交易对统计和参数组合对比表。
+- 待做：策略回测继续补充按交易对统计和参数组合对比表。

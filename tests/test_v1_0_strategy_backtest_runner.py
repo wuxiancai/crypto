@@ -108,6 +108,7 @@ def test_strategy_backtest_fetches_history_and_runs_current_realtime_strategy(mo
     assert result.bucket_metrics["LEGACY"]["trade_count"] == 1
     assert result.max_drawdown == "0.00"
     assert result.max_drawdown_pct == "0.00"
+    assert result.profit_loss_ratio == "∞"
     assert result.trades[0]["strategy_type"] == "TREND_PULLBACK"
 
 
@@ -164,6 +165,58 @@ def test_strategy_backtest_drawdown_metrics_follow_closed_equity_curve():
 
     assert max_drawdown == "350.00"
     assert max_drawdown_pct == "29.17"
+
+
+def test_strategy_backtest_profit_loss_ratio_uses_average_win_and_loss():
+    from app.paper.strategy_backtest import _profit_loss_ratio
+    from app.paper.trading import PaperFill
+
+    fills = [
+        PaperFill(
+            symbol="BTCUSDT",
+            side="LONG",
+            strategy_type="SHORT_DAY_CORE",
+            entry_time=0,
+            exit_time=1,
+            entry_price=Decimal("100"),
+            exit_price=Decimal("120"),
+            quantity=Decimal("1"),
+            gross_pnl=Decimal("300"),
+            fees=Decimal("0"),
+            net_pnl=Decimal("300"),
+            exit_reason="TAKE_PROFIT",
+        ),
+        PaperFill(
+            symbol="BTCUSDT",
+            side="LONG",
+            strategy_type="SHORT_DAY_CORE",
+            entry_time=0,
+            exit_time=2,
+            entry_price=Decimal("100"),
+            exit_price=Decimal("120"),
+            quantity=Decimal("1"),
+            gross_pnl=Decimal("100"),
+            fees=Decimal("0"),
+            net_pnl=Decimal("100"),
+            exit_reason="TAKE_PROFIT",
+        ),
+        PaperFill(
+            symbol="BTCUSDT",
+            side="LONG",
+            strategy_type="SHORT_DAY_CORE",
+            entry_time=0,
+            exit_time=3,
+            entry_price=Decimal("100"),
+            exit_price=Decimal("90"),
+            quantity=Decimal("1"),
+            gross_pnl=Decimal("-100"),
+            fees=Decimal("0"),
+            net_pnl=Decimal("-100"),
+            exit_reason="STOP_LOSS",
+        ),
+    ]
+
+    assert _profit_loss_ratio(fills) == "2.00"
 
 
 def test_strategy_backtest_defaults_to_perpetual_contract_costs():
