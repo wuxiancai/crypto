@@ -124,3 +124,18 @@ class BacktestTradeRecord(Base):
     net_pnl: Mapped[float] = mapped_column(Numeric, nullable=False)
     exit_reason: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PaperRuntimeEvent(Base):
+    __tablename__ = "paper_runtime_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    interval: Mapped[str] = mapped_column(String(16), nullable=False)
+    event_time: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    strategy_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    bucket: Mapped[str | None] = mapped_column(String(64))
+    payload: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

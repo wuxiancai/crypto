@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.backtest.engine import BacktestResult
 from app.data.quality import Kline
-from app.database.models import BacktestRun, BacktestTradeRecord, ConfigSnapshot, KlineRecord
+from app.database.models import BacktestRun, BacktestTradeRecord, ConfigSnapshot, KlineRecord, PaperRuntimeEvent
 from app.paper.strategy_backtest import StrategyBacktestResult, StrategyBacktestRunSummary
 from app.strategy.layered_strategy import (
     DAY_CORE,
@@ -280,6 +280,33 @@ def clear_strategy_backtest_history(session: Session) -> dict[str, int]:
         "trades": trades_deleted,
         "config_snapshots": configs_deleted,
     }
+
+
+def record_paper_runtime_event(
+    session: Session,
+    *,
+    event_type: str,
+    symbol: str,
+    interval: str,
+    event_time: int,
+    strategy_type: str,
+    action: str,
+    bucket: str | None,
+    payload: dict[str, object],
+) -> int:
+    record = PaperRuntimeEvent(
+        event_type=event_type,
+        symbol=symbol,
+        interval=interval,
+        event_time=event_time,
+        strategy_type=strategy_type,
+        action=action,
+        bucket=bucket,
+        payload=json.dumps(payload, sort_keys=True, default=str),
+    )
+    session.add(record)
+    session.commit()
+    return int(record.id)
 
 
 def _strategy_backtest_summary(

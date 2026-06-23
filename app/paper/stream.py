@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterable, Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 import time
 
@@ -7,6 +7,8 @@ from app.data.quality import Kline
 from app.paper.persistence import load_paper_snapshot, save_paper_snapshot
 from app.paper.trading import (
     PaperConfig,
+    PaperFill,
+    PaperPosition,
     PaperSignalEvaluation,
     PaperSnapshot,
     PaperTradingEngine,
@@ -16,6 +18,17 @@ from app.strategy.signal_router import StrategySignal
 
 
 SignalFn = Callable[[Kline, bool], SignalLike]
+PaperStreamEventSink = Callable[["PaperStreamEvent"], None]
+
+
+@dataclass(frozen=True)
+class PaperStreamEvent:
+    kline: Kline
+    signal: SignalLike
+    snapshot: PaperSnapshot
+    closed_fill: PaperFill | None = None
+    opened_position: PaperPosition | None = None
+    rejected_signal: bool = False
 
 
 async def run_paper_kline_stream(
@@ -38,6 +51,7 @@ async def run_persistent_paper_kline_stream(
     source: AsyncIterable[Kline],
     signal_fn: SignalFn,
     state_path: Path,
+    event_sink: PaperStreamEventSink | None = None,
 ) -> PaperSnapshot:
     restored_snapshot = load_paper_snapshot(state_path)
     engine = (
@@ -55,9 +69,13 @@ async def run_persistent_paper_kline_stream(
     async for kline in source:
         closed_fill = engine.on_kline(kline)
         snapshot = engine.snapshot()
+        opened_position = None
+        rejected_signal = False
         if closed_fill is None:
             signal = signal_fn(kline, snapshot.open_position is not None)
-            engine.on_signal(kline=kline, signal=signal)
+            rejected_count_before = snapshot.rejected_signals
+            opened_position = engine.on_signal(kline=kline, signal=signal)
+            rejected_signal = engine.snapshot().rejected_signals > rejected_count_before
         else:
             signal = StrategySignal(
                 action="WAIT",
@@ -75,6 +93,17 @@ async def run_persistent_paper_kline_stream(
             signal_evaluations=signal_evaluations,
         )
         save_paper_snapshot(latest_snapshot, state_path)
+        if event_sink is not None:
+            event_sink(
+                PaperStreamEvent(
+                    kline=kline,
+                    signal=signal,
+                    snapshot=latest_snapshot,
+                    closed_fill=closed_fill,
+                    opened_position=opened_position,
+                    rejected_signal=rejected_signal,
+                )
+            )
     return latest_snapshot
 
 

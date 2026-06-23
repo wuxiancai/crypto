@@ -53,6 +53,11 @@
   - `list_strategy_backtest_summaries()` 会从同一批归档 `backtest_trades` 重新推导最大回撤和盈亏比，历史归档不需要新增数据库字段即可在参数对比表显示风险指标。
   - 参数对比表会按 `strategy_type` 推导 `DAY_CORE` / `FOUR_HOUR_ADDON` / `FOUR_HOUR_HEDGE` / `LEGACY`，展示每个 bucket 的净盈亏贡献和交易次数。
   - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py -q`，19 passed。
+- 2026-06-24 实时 Paper Trading 复盘持久化：
+  - 新增 migration `0004_paper_runtime_events` 和模型 `PaperRuntimeEvent`，用 `paper_runtime_events` 统一保存 signal、rejected_signal、fill、snapshot 四类复盘事件。
+  - `run_persistent_paper_kline_stream()` 新增可选 `event_sink` hook；`run_real_market_paper()` 通过 `event_session_factory` 注入数据库写入，默认测试/旧调用不传则行为不变。
+  - `scripts/run_paper_realtime.py` 默认传入 `build_session_factory()`，Ubuntu 启动脚本执行 migration 后，实时 Paper 会把每根 K 线处理结果写入数据库；写库异常只打印，不中断 Paper Trading 主循环。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v0_1_database_and_binance.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_real_market_paper_runner.py -q`，23 passed；`DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head` 通过。
 - 2026-06-23 分层策略系统文档收口：
   - 新增 `docs/superpowers/specs/2026-06-23-layered-strategy-system-design.md`，定义日线主趋势、4h 子趋势、1h 确认、15m 入场的独立策略系统。
   - 已同步修订 `README.md`、`prd.md`、`docs/PROJECT_CONTEXT.md`、`docs/DECISIONS.md`、`docs/TASKS.md`，把新增主线改为六类明确策略名和 Paper/Backtest strategy bucket 子仓模型。
@@ -358,7 +363,7 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 下一步继续真实行情 Paper Trading：把实时 Paper 的每次信号、拒绝原因、成交、持仓快照持久化到数据库表，便于连续 2 周稳定性验证和复盘统计。
+3. 下一步继续真实行情 Paper Trading：基于 `paper_runtime_events` 增加复盘 CLI 或 Web 只读页，按时间、交易对、策略、bucket 查询信号、拒绝、成交和持仓快照。
 4. 使用 `/backtest` 或 `/backtest/batch` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果，并可在页面查看终端风格日志或请求停止。当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
 5. 下一步可继续增强 `/backtest`：增加参数组合详情展开、按 bucket / strategy 的排序筛选，以及更长历史窗口的统一口径对比。
 6. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。

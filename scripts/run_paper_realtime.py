@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 from app.paper.live_runner import RealMarketPaperConfig, run_real_market_paper
 from app.paper.strategy_adapter import RealtimeStrategyConfig
 from app.paper.status import format_paper_status
+from app.database.db import build_session_factory
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,6 +77,7 @@ def main() -> None:
                     require_pullback_close_beyond_fast_ma=args.require_pullback_close_beyond_fast_ma,
                     enable_reversal_probe=args.enable_reversal_probe,
                 ),
+                event_session_factory=build_session_factory(),
             )
         )
     )

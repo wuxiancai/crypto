@@ -14,6 +14,7 @@ def test_database_metadata_contains_v0_1_tables():
         "klines",
         "indicator_snapshots",
         "config_snapshots",
+        "paper_runtime_events",
     }.issubset(table_names)
 
     indicator_columns = set(Base.metadata.tables["indicator_snapshots"].columns.keys())
@@ -23,6 +24,7 @@ def test_database_metadata_contains_v0_1_tables():
     assert isinstance(Base.metadata.tables["klines"].columns["open_time"].type, BigInteger)
     assert isinstance(Base.metadata.tables["klines"].columns["close_time"].type, BigInteger)
     assert isinstance(Base.metadata.tables["indicator_snapshots"].columns["open_time"].type, BigInteger)
+    assert isinstance(Base.metadata.tables["paper_runtime_events"].columns["event_time"].type, BigInteger)
 
 
 def test_binance_kline_payload_parses_to_closed_decimal_kline():

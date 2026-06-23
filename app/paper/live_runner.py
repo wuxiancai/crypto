@@ -15,9 +15,9 @@ from app.paper.binance_stream import (
     iter_binance_websocket_ticker_prices,
 )
 from app.paper.multitimeframe import MultiTimeframeKlineCache
-from app.paper.persistence import load_paper_snapshot
+from app.paper.persistence import _fill_to_payload, _position_to_payload, load_paper_snapshot
 from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
-from app.paper.stream import SignalFn, run_persistent_paper_kline_stream
+from app.paper.stream import PaperStreamEvent, PaperStreamEventSink, SignalFn, run_persistent_paper_kline_stream
 from app.paper.trading import PaperConfig, PaperSnapshot
 from app.strategy.signal_router import StrategySignal
 
@@ -57,6 +57,7 @@ class RealMarketPaperConfig:
     strategy_config: RealtimeStrategyConfig = field(default_factory=default_paper_strategy_config)
     historical_warmup_enabled: bool = True
     historical_warmup_limit: int = 250
+    event_session_factory: Any | None = None
 
 
 async def run_real_market_paper(
@@ -108,6 +109,7 @@ async def run_real_market_paper(
                 warmup_klines=historical_klines or [],
             ),
             state_path=config.state_path,
+            event_sink=_paper_runtime_event_sink(config.event_session_factory),
         )
     finally:
         if price_task is not None:
@@ -302,3 +304,117 @@ def wait_signal(kline: Kline, has_position: bool) -> StrategySignal:
         strategy_type="SYSTEM",
         reason=["real-market paper runner strategy not connected"],
     )
+
+
+def _paper_runtime_event_sink(session_factory: Any | None) -> PaperStreamEventSink | None:
+    if session_factory is None:
+        return None
+
+    def sink(event: PaperStreamEvent) -> None:
+        try:
+            from app.database.repositories import record_paper_runtime_event
+
+            with session_factory() as session:
+                for payload in _paper_runtime_event_payloads(event):
+                    record_paper_runtime_event(session, **payload)
+        except Exception as exc:
+            print(f"Paper runtime event persistence skipped: {exc}")
+
+    return sink
+
+
+def _paper_runtime_event_payloads(event: PaperStreamEvent) -> list[dict[str, object]]:
+    payloads = [
+        _paper_runtime_event_payload(
+            event_type="signal",
+            event=event,
+            strategy_type=str(event.signal.strategy_type),
+            action=str(event.signal.action),
+            bucket=getattr(event.signal, "bucket", None),
+            payload=_signal_payload(event),
+        ),
+        _paper_runtime_event_payload(
+            event_type="snapshot",
+            event=event,
+            strategy_type="SYSTEM",
+            action="SNAPSHOT",
+            bucket=None,
+            payload=_snapshot_payload(event),
+        ),
+    ]
+    if event.rejected_signal:
+        payloads.append(
+            _paper_runtime_event_payload(
+                event_type="rejected_signal",
+                event=event,
+                strategy_type=str(event.signal.strategy_type),
+                action=str(event.signal.action),
+                bucket=getattr(event.signal, "bucket", None),
+                payload=_signal_payload(event),
+            )
+        )
+    if event.closed_fill is not None:
+        payloads.append(
+            _paper_runtime_event_payload(
+                event_type="fill",
+                event=event,
+                strategy_type=event.closed_fill.strategy_type,
+                action="EXIT",
+                bucket=event.closed_fill.bucket,
+                payload=_fill_to_payload(event.closed_fill),
+            )
+        )
+    return payloads
+
+
+def _paper_runtime_event_payload(
+    *,
+    event_type: str,
+    event: PaperStreamEvent,
+    strategy_type: str,
+    action: str,
+    bucket: str | None,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "event_type": event_type,
+        "symbol": event.kline.symbol,
+        "interval": event.kline.interval,
+        "event_time": int(event.kline.close_time),
+        "strategy_type": strategy_type,
+        "action": action,
+        "bucket": bucket,
+        "payload": payload,
+    }
+
+
+def _signal_payload(event: PaperStreamEvent) -> dict[str, object]:
+    signal = event.signal
+    return {
+        "kline": {
+            "open_time": event.kline.open_time,
+            "close_time": event.kline.close_time,
+            "close": str(event.kline.close),
+        },
+        "action": str(signal.action),
+        "strategy_type": str(signal.strategy_type),
+        "bucket": getattr(signal, "bucket", None),
+        "reason": list(getattr(signal, "reason", []) or []),
+        "core_rules": list(getattr(signal, "core_rules", []) or []),
+        "condition_statuses": list(getattr(signal, "condition_statuses", []) or []),
+        "opened_position": _position_to_payload(event.opened_position),
+        "rejected_signal": event.rejected_signal,
+    }
+
+
+def _snapshot_payload(event: PaperStreamEvent) -> dict[str, object]:
+    return {
+        "equity": str(event.snapshot.equity),
+        "open_positions": [
+            _position_to_payload(position)
+            for position in event.snapshot.open_positions
+        ],
+        "rejected_signals": event.snapshot.rejected_signals,
+        "last_update_at_ms": event.snapshot.last_update_at_ms,
+        "fills_count": len(event.snapshot.fills),
+    }
