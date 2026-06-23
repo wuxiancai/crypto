@@ -52,6 +52,7 @@
   - 对比列包含交易对、均线组合、ATR、DMI、Swing、手续费/风险、周期、账户权益、净盈亏、胜率、盈亏比、最大回撤、Bucket 净盈亏、交易次数。
   - `list_strategy_backtest_summaries()` 会从同一批归档 `backtest_trades` 重新推导最大回撤和盈亏比，历史归档不需要新增数据库字段即可在参数对比表显示风险指标。
   - 参数对比表会按 `strategy_type` 推导 `DAY_CORE` / `FOUR_HOUR_ADDON` / `FOUR_HOUR_HEDGE` / `LEGACY`，展示每个 bucket 的净盈亏贡献和交易次数。
+  - Bucket 净盈亏列支持展开“Bucket明细”，可查看每个 bucket 的交易次数、胜负和净盈亏。
   - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py -q`，19 passed。
 - 2026-06-24 实时 Paper Trading 复盘持久化：
   - 新增 migration `0004_paper_runtime_events` 和模型 `PaperRuntimeEvent`，用 `paper_runtime_events` 统一保存 signal、rejected_signal、fill、snapshot 四类复盘事件。
@@ -377,7 +378,7 @@
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
 3. 下一步继续真实行情 Paper Trading：在真实运行环境观察 `/paper/events` 是否能稳定呈现连续事件；若事件量增长过快，再增加保留策略或分页。
 4. 使用 `/backtest` 或 `/backtest/batch` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果，并可在页面查看终端风格日志或请求停止。当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
-5. 下一步可继续增强 `/backtest`：增加参数组合详情展开、按 bucket / strategy 的排序筛选，以及更长历史窗口的统一口径对比。
+5. 下一步可继续增强 `/backtest`：增加按 bucket / strategy 的排序筛选，以及更长历史窗口的统一口径对比。
 6. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
 
 ## 最近提交

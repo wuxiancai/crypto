@@ -1114,9 +1114,17 @@ def _render_parameter_comparison_row(index: int, result: Any) -> str:
   <td>{_format_win_rate(getattr(result, "wins", 0), getattr(result, "losses", 0))}</td>
   <td>{_escape(getattr(result, "profit_loss_ratio", "0.00"))}</td>
   <td>{_format_decimal(getattr(result, "max_drawdown", "0"), 2)} / {_format_decimal(getattr(result, "max_drawdown_pct", "0"), 2)}%</td>
-  <td>{_escape(_bucket_comparison_label(getattr(result, "bucket_metrics", {}) or {}))}</td>
+  <td>{_render_bucket_comparison_cell(getattr(result, "bucket_metrics", {}) or {})}</td>
   <td>{_escape(getattr(result, "total_trades", 0))}</td>
 </tr>"""
+
+
+def _render_bucket_comparison_cell(metrics: dict[str, dict[str, Any]]) -> str:
+    label = _bucket_comparison_label(metrics)
+    if not metrics:
+        return _escape(label)
+    details = "<br>".join(_escape(line) for line in _bucket_comparison_details(metrics))
+    return f"{_escape(label)}<details><summary>Bucket明细</summary>{details}</details>"
 
 
 def _bucket_comparison_label(metrics: dict[str, dict[str, Any]]) -> str:
@@ -1128,6 +1136,17 @@ def _bucket_comparison_label(metrics: dict[str, dict[str, Any]]) -> str:
             f"{bucket} {_format_decimal(values.get('net_pnl'), 2)} ({values.get('trade_count', 0)})"
         )
     return "；".join(parts)
+
+
+def _bucket_comparison_details(metrics: dict[str, dict[str, Any]]) -> list[str]:
+    return [
+        (
+            f"{bucket}：交易 {values.get('trade_count', 0)}，"
+            f"胜/负 {values.get('wins', 0)}/{values.get('losses', 0)}，"
+            f"净盈亏 {_format_decimal(values.get('net_pnl'), 2)}"
+        )
+        for bucket, values in sorted(metrics.items())
+    ]
 
 
 def _render_backtest_metric_tables(result: Any | None) -> str:

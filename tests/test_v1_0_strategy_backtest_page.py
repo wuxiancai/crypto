@@ -452,6 +452,9 @@ def test_strategy_backtest_parameter_comparison_sorts_by_final_equity():
     assert "120.00 / 8.14%" in comparison_html
     assert "DAY_CORE 400.00 (100)" in comparison_html
     assert "FOUR_HOUR_HEDGE 73.15 (22)" in comparison_html
+    assert "<summary>Bucket明细</summary>" in comparison_html
+    assert "DAY_CORE：交易 100，胜/负 44/56，净盈亏 400.00" in comparison_html
+    assert "FOUR_HOUR_HEDGE：交易 22，胜/负 10/12，净盈亏 73.15" in comparison_html
 
 
 def test_strategy_backtest_page_links_to_batch_parameter_page():

@@ -32,6 +32,7 @@
 - 2026-06-23 策略回测结果已新增盈亏比 `profit_loss_ratio`，按平均盈利单净利润 / 平均亏损单绝对净亏损计算，并在回测页面顶部展示。
 - 2026-06-23 策略回测结果已新增 `symbol_metrics`，按交易对聚合交易次数、胜负和净盈亏，并在回测页面“策略 / Bucket / 交易对统计”区展示。
 - 2026-06-24 策略回测页面已新增“参数组合对比”表，复用最近回测归档并按账户权益从高到低排序，便于横向比较均线、ATR、DMI、Swing、手续费/风险、周期、净盈亏、胜率、盈亏比、最大回撤、Bucket 净盈亏和交易次数。
+- 2026-06-24 策略回测“参数组合对比”的 Bucket 净盈亏列已支持展开明细，可查看每个 bucket 的交易次数、胜负和净盈亏。
 - 2026-06-24 实时 Paper Trading 已新增 `paper_runtime_events` 复盘事件表；`scripts/run_paper_realtime.py` 默认注入数据库 session factory，每根 K 线处理后写入 signal / snapshot，并在发生拒绝或成交时额外写入 rejected_signal / fill。
 - 2026-06-24 已新增 `scripts/show_paper_runtime_events.py` 最小复盘 CLI，用于直接查看 `paper_runtime_events` 里的 signal / rejected_signal / fill / snapshot 摘要。
 - 2026-06-24 已新增 Web 只读复盘页 `/paper/events`，模拟交易看板顶部提供“Paper复盘”入口，页面可按 `event_type`、`symbol`、`strategy_type`、`bucket` 和 UTC+8 时间范围过滤事件，并支持快捷过滤、展开完整 payload、查看事件类型统计，以及把 fill 与前序 signal/snapshot 串成交易时间线。
