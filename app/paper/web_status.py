@@ -381,6 +381,10 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
       {_render_recent_backtest_results(recent)}
     </section>
     <section style="margin-top: 16px;">
+      <h2>参数组合对比</h2>
+      {_render_parameter_comparison_table(recent)}
+    </section>
+    <section style="margin-top: 16px;">
       <h2>策略 / Bucket / 交易对统计</h2>
       {_render_backtest_metric_tables(result)}
     </section>
@@ -783,6 +787,44 @@ def _render_recent_backtest_results(results: list[Any]) -> str:
 </div>"""
 
 
+def _render_parameter_comparison_table(results: list[Any]) -> str:
+    if not results:
+        return '<div class="empty">暂无参数组合对比</div>'
+    rows = "\n".join(
+        _render_parameter_comparison_row(index, result)
+        for index, result in enumerate(_sort_backtest_results_by_equity(results), start=1)
+    )
+    return f"""<div class="table-wrap recent-results-scroll">
+<table>
+  <thead>
+    <tr>
+      <th>排名</th><th>交易对</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费/风险</th><th>周期</th>
+      <th>账户权益</th><th>净盈亏</th><th>胜率</th><th>交易次数</th>
+    </tr>
+  </thead>
+  <tbody>{rows}</tbody>
+</table>
+</div>"""
+
+
+def _render_parameter_comparison_row(index: int, result: Any) -> str:
+    net_pnl = getattr(result, "net_pnl", "0")
+    return f"""<tr>
+  <td>{_escape(index)}</td>
+  <td>{_escape(getattr(result, "symbol", "-"))}</td>
+  <td>{_escape(_average_combo_label(result))}</td>
+  <td>{_escape(getattr(result, "atr_period", "-"))}</td>
+  <td>{_escape(getattr(result, "dmi_period", "-"))}</td>
+  <td>{_escape(getattr(result, "swing_lookback", "-"))}</td>
+  <td>{_escape(_fee_to_risk_label(getattr(result, "max_fee_to_risk_ratio", "-")))}</td>
+  <td>{_escape(_history_period_label(getattr(result, "history_period", "")))}</td>
+  <td>{_format_decimal(getattr(result, "final_equity", "0"), 2)}</td>
+  <td class="{_pnl_class(net_pnl)}">{_format_decimal(net_pnl, 2)}</td>
+  <td>{_format_win_rate(getattr(result, "wins", 0), getattr(result, "losses", 0))}</td>
+  <td>{_escape(getattr(result, "total_trades", 0))}</td>
+</tr>"""
+
+
 def _render_backtest_metric_tables(result: Any | None) -> str:
     if result is None:
         return '<div class="empty">暂无统计</div>'
@@ -863,6 +905,21 @@ def _sort_recent_backtest_results(results: list[Any]) -> list[Any]:
         key=lambda item: _datetime_sort_key(getattr(item, "created_at", None)),
         reverse=True,
     )
+
+
+def _sort_backtest_results_by_equity(results: list[Any]) -> list[Any]:
+    return sorted(
+        results,
+        key=lambda item: _decimal_sort_key(getattr(item, "final_equity", "0")),
+        reverse=True,
+    )
+
+
+def _decimal_sort_key(value: Any) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return Decimal("0")
 
 
 def _datetime_sort_key(value: Any) -> datetime:

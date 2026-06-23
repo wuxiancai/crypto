@@ -284,6 +284,7 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
     )
 
     assert "最近回测结果" in html
+    assert "参数组合对比" in html
     assert "recent-results-scroll" in html
     assert "EMA50 / MA200" in html
     assert "<th>ATR</th><th>DMI</th><th>Swing</th><th>手续费/风险</th>" in html
@@ -293,6 +294,62 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
     assert "<td>关闭</td>" in html
     assert "11 / 14 / 胜率 44%" in html
     assert html.index("BTCUSDT") < html.index("ETHUSDT")
+
+
+def test_strategy_backtest_parameter_comparison_sorts_by_final_equity():
+    from datetime import datetime, timezone
+
+    from app.paper.strategy_backtest import StrategyBacktestRunSummary
+    from app.paper.web_status import render_strategy_backtest_html
+
+    html = render_strategy_backtest_html(
+        recent_results=[
+            StrategyBacktestRunSummary(
+                created_at=datetime(2026, 6, 20, 10, 0, tzinfo=timezone.utc),
+                symbol="ETHUSDT",
+                fast_ma_type="EMA",
+                fast_period=15,
+                slow_ma_type="MA",
+                slow_period=60,
+                atr_period=14,
+                dmi_period=12,
+                swing_lookback=20,
+                max_fee_to_risk_ratio="0",
+                history_period="1y",
+                initial_equity="1000.00",
+                final_equity="980.00",
+                total_trades=10,
+                wins=4,
+                losses=6,
+                net_pnl="-20.00",
+            ),
+            StrategyBacktestRunSummary(
+                created_at=datetime(2026, 6, 20, 9, 0, tzinfo=timezone.utc),
+                symbol="BTCUSDT",
+                fast_ma_type="EMA",
+                fast_period=18,
+                slow_ma_type="MA",
+                slow_period=40,
+                atr_period=12,
+                dmi_period=12,
+                swing_lookback=20,
+                max_fee_to_risk_ratio="0",
+                history_period="1y",
+                initial_equity="1000.00",
+                final_equity="1473.15",
+                total_trades=122,
+                wins=54,
+                losses=68,
+                net_pnl="473.15",
+            ),
+        ]
+    )
+
+    comparison_html = html[html.index("参数组合对比") :]
+
+    assert comparison_html.index("BTCUSDT") < comparison_html.index("ETHUSDT")
+    assert "<td>1</td>" in comparison_html
+    assert "1473.15" in comparison_html
 
 
 def test_strategy_backtest_page_links_to_batch_parameter_page():
