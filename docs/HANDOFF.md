@@ -67,8 +67,9 @@
   - 页面提供“全部 / 只看成交 / 只看拒绝 / 只看信号 / 只看快照”快捷过滤链接。
   - 每条事件支持展开“完整 payload”，用于查看完整 signal reason、condition_statuses、开仓参数和持仓快照 JSON。
   - 页面顶部会按当前查询结果统计 signal、rejected_signal、fill、snapshot 数量，便于快速判断是否大量拒绝或是否已有成交。
+  - 当前查询结果包含 fill 时，页面会生成“交易时间线”，把退出成交与同一 symbol / strategy / bucket 的最近开仓 signal，以及同一 symbol 最近 snapshot 串起来，减少人工对照事件表。
   - 模拟交易看板顶部新增“Paper复盘”入口，方便从运行页直接跳转。
-  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_2_paper_runtime_events_web.py tests/test_v1_0_paper_status_web.py -q`，21 passed。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_2_paper_runtime_events_web.py tests/test_v1_0_paper_status_web.py -q`，22 passed。
 - 2026-06-23 分层策略系统文档收口：
   - 新增 `docs/superpowers/specs/2026-06-23-layered-strategy-system-design.md`，定义日线主趋势、4h 子趋势、1h 确认、15m 入场的独立策略系统。
   - 已同步修订 `README.md`、`prd.md`、`docs/PROJECT_CONTEXT.md`、`docs/DECISIONS.md`、`docs/TASKS.md`，把新增主线改为六类明确策略名和 Paper/Backtest strategy bucket 子仓模型。
@@ -374,7 +375,7 @@
 
 1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
 2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 下一步继续真实行情 Paper Trading：把 `/paper/events` 的 fill 与前序 signal/snapshot 串成一次交易时间线，减少人工在事件表里来回对照。
+3. 下一步继续真实行情 Paper Trading：在真实运行环境观察 `/paper/events` 是否能稳定呈现连续事件；若事件量增长过快，再增加保留策略或分页。
 4. 使用 `/backtest` 或 `/backtest/batch` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果，并可在页面查看终端风格日志或请求停止。当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
 5. 下一步可继续增强 `/backtest`：增加参数组合详情展开、按 bucket / strategy 的排序筛选，以及更长历史窗口的统一口径对比。
 6. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。

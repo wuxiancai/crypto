@@ -168,3 +168,51 @@ def test_loads_paper_runtime_events_for_web_with_time_range():
     )
 
     assert [event.symbol for event in events] == ["BTCUSDT"]
+
+
+def test_paper_runtime_events_page_links_fill_to_prior_signal_timeline():
+    from types import SimpleNamespace
+
+    from app.paper.web_status import render_paper_runtime_events_html
+
+    html = render_paper_runtime_events_html(
+        [
+            SimpleNamespace(
+                event_time=1_800_000,
+                event_type="signal",
+                symbol="BTCUSDT",
+                interval="15m",
+                strategy_type="SHORT_DAY_CORE",
+                action="SHORT_ENTRY",
+                bucket="DAY_CORE",
+                payload='{"reason":["daily bearish"],"opened_position":{"side":"SHORT","entry_price":"64000"}}',
+            ),
+            SimpleNamespace(
+                event_time=2_100_000,
+                event_type="snapshot",
+                symbol="BTCUSDT",
+                interval="15m",
+                strategy_type="SYSTEM",
+                action="SNAPSHOT",
+                bucket=None,
+                payload='{"equity":"1005","open_positions":[{"strategy_type":"SHORT_DAY_CORE"}],"rejected_signals":0}',
+            ),
+            SimpleNamespace(
+                event_time=2_700_000,
+                event_type="fill",
+                symbol="BTCUSDT",
+                interval="15m",
+                strategy_type="SHORT_DAY_CORE",
+                action="EXIT",
+                bucket="DAY_CORE",
+                payload='{"net_pnl":"25.50","exit_reason":"TAKE_PROFIT","quantity":"0.01"}',
+            ),
+        ],
+        filters={},
+    )
+
+    assert "交易时间线" in html
+    assert "BTCUSDT SHORT_DAY_CORE DAY_CORE" in html
+    assert "开仓信号：opened=yes, reason=daily bearish" in html
+    assert "持仓快照：equity=1005, positions=1, rejected=0" in html
+    assert "退出成交：net=25.50, exit=TAKE_PROFIT, qty=0.01" in html

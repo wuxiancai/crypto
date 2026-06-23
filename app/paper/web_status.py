@@ -610,6 +610,7 @@ def render_paper_runtime_events_html(
     {_render_paper_runtime_event_filters(active_filters)}
     {_render_backtest_error(error)}
     {_render_paper_runtime_event_counts(event_rows)}
+    {_render_paper_runtime_timelines(event_rows)}
     {_render_paper_runtime_event_table(event_rows)}
   </main>
 </body>
@@ -710,6 +711,77 @@ def _render_paper_runtime_event_counts(events: list[Any]) -> str:
         for event_type, count in counts.items()
     )
     return f'<section class="panel" style="display:flex;gap:8px;flex-wrap:wrap;">{items}</section>'
+
+
+def _render_paper_runtime_timelines(events: list[Any]) -> str:
+    fill_events = [event for event in events if getattr(event, "event_type", "") == "fill"]
+    if not fill_events:
+        return ""
+    sorted_events = sorted(events, key=lambda event: int(getattr(event, "event_time", 0) or 0))
+    rows = []
+    for fill in fill_events[:20]:
+        signal = _nearest_prior_event(sorted_events, fill, "signal")
+        snapshot = _nearest_prior_event(sorted_events, fill, "snapshot")
+        rows.append(
+            "<tr>"
+            f"<td>{_escape(_timeline_title(fill))}</td>"
+            f"<td>{_escape(_format_event_time_ms(getattr(fill, 'event_time', None)))}</td>"
+            f"<td>{_escape(_timeline_signal_summary(signal))}</td>"
+            f"<td>{_escape(_timeline_snapshot_summary(snapshot))}</td>"
+            f"<td>{_escape('退出成交：' + _paper_runtime_event_summary('fill', getattr(fill, 'payload', '')))}</td>"
+            "</tr>"
+        )
+    return (
+        '<section class="panel"><h2 style="font-size:16px;margin:0 0 10px;">交易时间线</h2>'
+        '<div class="table-wrap"><table><thead><tr>'
+        '<th>交易</th><th>退出时间 UTC+8</th><th>开仓信号</th><th>持仓快照</th><th>退出成交</th>'
+        f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>'
+    )
+
+
+def _nearest_prior_event(events: list[Any], fill: Any, event_type: str) -> Any | None:
+    fill_time = int(getattr(fill, "event_time", 0) or 0)
+    fill_symbol = getattr(fill, "symbol", None)
+    fill_strategy = getattr(fill, "strategy_type", None)
+    fill_bucket = getattr(fill, "bucket", None)
+    candidates = []
+    for event in events:
+        event_time = int(getattr(event, "event_time", 0) or 0)
+        if event_time > fill_time or getattr(event, "event_type", "") != event_type:
+            continue
+        if getattr(event, "symbol", None) != fill_symbol:
+            continue
+        if event_type == "signal":
+            if getattr(event, "strategy_type", None) != fill_strategy:
+                continue
+            if getattr(event, "bucket", None) != fill_bucket:
+                continue
+        candidates.append(event)
+    return candidates[-1] if candidates else None
+
+
+def _timeline_title(fill: Any) -> str:
+    return " ".join(
+        part
+        for part in (
+            str(getattr(fill, "symbol", "") or ""),
+            str(getattr(fill, "strategy_type", "") or ""),
+            str(getattr(fill, "bucket", "") or "-"),
+        )
+        if part
+    )
+
+
+def _timeline_signal_summary(event: Any | None) -> str:
+    if event is None:
+        return "开仓信号：-"
+    return "开仓信号：" + _paper_runtime_event_summary("signal", getattr(event, "payload", ""))
+
+
+def _timeline_snapshot_summary(event: Any | None) -> str:
+    if event is None:
+        return "持仓快照：-"
+    return "持仓快照：" + _paper_runtime_event_summary("snapshot", getattr(event, "payload", ""))
 
 
 def _render_paper_runtime_event_row(event: Any) -> str:
