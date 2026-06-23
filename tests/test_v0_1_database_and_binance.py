@@ -162,3 +162,47 @@ def test_fetch_klines_retries_http_503_with_backoff(monkeypatch):
     assert attempts == 2
     assert sleeps == [0.2]
     assert rows[0].close == Decimal("100")
+
+
+def test_fetch_klines_filters_out_current_unclosed_kline(monkeypatch):
+    from app.config.settings import Settings
+    from app.data import binance
+    from app.data.binance import fetch_klines
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return [
+                [0, "100", "101", "99", "100", "10", 899_999],
+                [900_000, "101", "102", "100", "101", "10", 1_799_999],
+            ]
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        async def get(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(binance.httpx, "AsyncClient", FakeClient)
+
+    rows = asyncio.run(
+        fetch_klines(
+            "BTCUSDT",
+            "15m",
+            settings=Settings(binance_base_url="https://fapi.binance.com"),
+            now_ms=1_000_000,
+        )
+    )
+
+    assert [row.open_time for row in rows] == [0]

@@ -1,6 +1,7 @@
 from decimal import Decimal
 from typing import Any
 import asyncio
+import time
 
 import httpx
 
@@ -39,6 +40,7 @@ async def fetch_klines(
     end_time: int | None = None,
     max_attempts: int = 3,
     retry_initial_delay: float = 0.2,
+    now_ms: int | None = None,
 ) -> list[Kline]:
     config = settings or Settings()
     params: dict[str, int | str] = {"symbol": symbol, "interval": interval, "limit": limit}
@@ -73,4 +75,9 @@ async def fetch_klines(
                 raise BinanceDataError(f"Binance kline request failed after retries: {exc}") from exc
         await asyncio.sleep(delay)
         delay *= 2
-    return [parse_binance_kline(symbol, interval, item) for item in payload]
+    effective_now_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+    return [
+        row
+        for row in (parse_binance_kline(symbol, interval, item) for item in payload)
+        if row.close_time <= effective_now_ms
+    ]

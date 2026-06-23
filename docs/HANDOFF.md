@@ -34,7 +34,13 @@
   - 新增 `scripts/validate_layered_btc_history.py`，按 `1d / 4h / 1h / 15m` 读取或拉取 BTCUSDT 历史 K 线，扫描 probe 窗口并调用现有 `build_realtime_strategy_signal()`，不复制策略规则。
   - 已确认用户截图左上角是 `2026/05/13 20:00`，不是文字中的 2025 年；默认 probe 已按截图日期 `2026-05-13 20:00 UTC+8` 设置。
   - 真实 Binance 历史验证结果：`SHORT_4H_HEDGE` 在 `2026-05-13 23:59:59 UTC+8` 命中，entry `78794.70`；`SHORT_DAY_CORE` 在 `2026-06-01 07:59:59 UTC+8` 命中，entry `73653.20`；`LONG_4H_HEDGE` 在 `2026-06-13 10:59:59 UTC+8` 命中，entry `63612.00`。
-  - 本机验证：`.venv/bin/python scripts/validate_layered_btc_history.py --json` 通过；`.venv/bin/python -m pytest tests/test_v1_1_layered_history_validation.py -q`，2 passed。
+  - 本机验证：`.venv/bin/python scripts/validate_layered_btc_history.py --json` 通过；`.venv/bin/python -m pytest tests/test_v1_1_layered_history_validation.py -q`，3 passed。
+- 2026-06-23 真实 K 线写入与未收盘过滤：
+  - `scripts/sync_klines.py` 默认同步周期已改为分层策略所需 `1d / 4h / 1h / 15m`。
+  - 修复 `app.data.binance.fetch_klines()`：Binance REST 返回的最新正在形成 K 线不再作为已收盘历史返回，避免把未来 close_time 的 K 线写入数据库或参与策略。
+  - 已启动本地 PostgreSQL Docker Compose 并执行 migration；`DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 1d 4h 1h 15m --limit 5 --write` 成功。
+  - 写入后复查：`future_klines=0`；BTCUSDT 最新 `15m=2026-06-23 20:44:59 UTC+8`、`1h/4h=2026-06-23 19:59:59 UTC+8`、`1d=2026-06-23 07:59:59 UTC+8`；ETHUSDT 同周期也已写入。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v0_1_database_and_binance.py tests/test_v1_1_sync_klines.py -q`，8 passed。
 - 2026-06-23 分层策略系统文档收口：
   - 新增 `docs/superpowers/specs/2026-06-23-layered-strategy-system-design.md`，定义日线主趋势、4h 子趋势、1h 确认、15m 入场的独立策略系统。
   - 已同步修订 `README.md`、`prd.md`、`docs/PROJECT_CONTEXT.md`、`docs/DECISIONS.md`、`docs/TASKS.md`，把新增主线改为六类明确策略名和 Paper/Backtest strategy bucket 子仓模型。

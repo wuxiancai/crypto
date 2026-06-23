@@ -15,6 +15,10 @@ from app.data.binance import BinanceDataError, fetch_klines
 from app.data.quality import validate_kline_sequence
 from app.database.db import build_session_factory
 from app.database.repositories import upsert_klines
+from sqlalchemy.exc import SQLAlchemyError
+
+
+DEFAULT_SYNC_INTERVALS = ("1d", "4h", "1h", "15m")
 
 
 async def sync_klines(symbols: Sequence[str], intervals: Sequence[str], limit: int, dry_run: bool) -> None:
@@ -35,18 +39,24 @@ async def sync_klines(symbols: Sequence[str], intervals: Sequence[str], limit: i
                 print(f"DRY-RUN {symbol} {interval}: fetched {len(rows)} closed klines")
                 continue
             assert session_factory is not None
-            with session_factory() as session:
-                written = upsert_klines(session, rows)
+            try:
+                with session_factory() as session:
+                    written = upsert_klines(session, rows)
+            except SQLAlchemyError as exc:
+                raise RuntimeError(
+                    "failed to write klines to DATABASE_URL. "
+                    "Start PostgreSQL first or set DATABASE_URL to a reachable database."
+                ) from exc
             print(f"WROTE {symbol} {interval}: {written} klines")
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Fetch Binance USDT-M klines and optionally upsert them.")
     parser.add_argument("--symbols", nargs="+", default=["BTCUSDT", "ETHUSDT"])
-    parser.add_argument("--intervals", nargs="+", default=["15m", "1h", "4h"])
+    parser.add_argument("--intervals", nargs="+", default=list(DEFAULT_SYNC_INTERVALS))
     parser.add_argument("--limit", type=int, default=100)
     parser.add_argument("--write", action="store_true", help="Write to DATABASE_URL instead of dry-run.")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> None:

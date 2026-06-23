@@ -73,7 +73,7 @@
 - [x] 建立 Alembic migration。
 - [x] 创建 `symbols`、`klines`、`indicator_snapshots`、`config_snapshots` 基础表。
 - [x] 实现 Binance USDⓈ-M K 线拉取。
-- [ ] 写入 BTCUSDT、ETHUSDT 真实 K 线。
+- [x] 写入 BTCUSDT、ETHUSDT 真实 K 线。
 - [x] 实现 K 线完整性验证。
 - [x] 实现多周期已收盘数据对齐函数。
 - [x] 实现 EMA、ATR、ADX、DI_PLUS、DI_MINUS、Bollinger Bands。
@@ -83,9 +83,9 @@
 
 - 当前已实现 EMA、ATR、ADX、DI_PLUS、DI_MINUS、Bollinger Bands。
 - 当前已添加 `tests/fixtures/indicator_golden.json` 固定样本校验。
-- Binance 主网 futures endpoint 在当前网络返回 HTTP 451；已用 `BINANCE_BASE_URL=https://testnet.binancefuture.com` 完成 dry-run 验证。
-- 本地 PostgreSQL 已启动并完成 migration；已用 Binance futures 测试网写入 BTCUSDT、ETHUSDT 各 5 根 15m K 线。
-- 主网真实 K 线写入仍待可访问 Binance 主网 futures endpoint 的环境验证。
+- Binance 主网 futures endpoint 当前本机可访问；`scripts/sync_klines.py` 默认同步分层策略所需 `1d / 4h / 1h / 15m`。
+- 2026-06-23 已启动本地 PostgreSQL Docker Compose 并完成 migration；已用 Binance 主网 futures 写入 BTCUSDT、ETHUSDT 各 `1d / 4h / 1h / 15m` 最近已收盘 K 线。
+- 2026-06-23 已修复 Binance REST 最新未收盘 K 线误标为 `is_closed=True` 的问题：`fetch_klines()` 现在只返回 `close_time <= now_ms` 的已收盘 K 线。本地库已清理未来 K 线，复查 `future_klines=0`。
 
 ## V0.2 策略信号
 
