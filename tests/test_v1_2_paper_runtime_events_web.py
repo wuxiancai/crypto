@@ -45,6 +45,8 @@ def test_renders_paper_runtime_events_page():
     assert "DAY_CORE" in html
     assert "signal：1" in html
     assert "fill：1" in html
+    assert 'href="/paper/events?event_type=fill"' in html
+    assert 'href="/paper/events?event_type=rejected_signal"' in html
     assert "net=25.50, exit=TAKE_PROFIT, qty=0.01" in html
     assert "opened=yes, reason=daily bearish" in html
 

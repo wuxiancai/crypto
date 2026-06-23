@@ -606,6 +606,7 @@ def render_paper_runtime_events_html(
       <h1>Paper 复盘</h1>
       <div><a class="badge" href="/">返回看板</a></div>
     </header>
+    {_render_paper_runtime_event_shortcuts()}
     {_render_paper_runtime_event_filters(active_filters)}
     {_render_backtest_error(error)}
     {_render_paper_runtime_event_counts(event_rows)}
@@ -651,6 +652,21 @@ def _render_paper_runtime_event_filters(filters: dict[str, str]) -> str:
     <button class="primary-button" type="submit">查询</button>
   </form>
 </section>"""
+
+
+def _render_paper_runtime_event_shortcuts() -> str:
+    links = [
+        ("/paper/events", "全部"),
+        ("/paper/events?event_type=fill", "只看成交"),
+        ("/paper/events?event_type=rejected_signal", "只看拒绝"),
+        ("/paper/events?event_type=signal", "只看信号"),
+        ("/paper/events?event_type=snapshot", "只看快照"),
+    ]
+    rendered = "".join(
+        f'<a class="badge" href="{_escape(href)}">{_escape(label)}</a>'
+        for href, label in links
+    )
+    return f'<section class="panel" style="display:flex;gap:8px;flex-wrap:wrap;">{rendered}</section>'
 
 
 def _event_type_options(selected: str) -> str:
