@@ -19,6 +19,7 @@ def build_paper_status_payload(
             "state_path": str(state_path),
             "equity": None,
             "open_position": None,
+            "open_positions": [],
             "fills": [],
             "rejected_signals": 0,
             "runtime_seconds": 0,
@@ -34,11 +35,17 @@ def build_paper_status_payload(
     signal_evaluations = payload.get("signal_evaluations", [])
     fills = payload.get("fills", [])
     open_position = payload.get("open_position")
+    open_positions = payload.get("open_positions")
+    if not isinstance(open_positions, list):
+        open_positions = [open_position] if isinstance(open_position, dict) else []
+    if open_position is None and open_positions:
+        open_position = open_positions[0]
     return {
         "status": "RUNNING",
         "state_path": str(state_path),
         "equity": payload.get("equity"),
         "open_position": open_position,
+        "open_positions": open_positions,
         "fills": fills,
         "rejected_signals": payload.get("rejected_signals", 0),
         "runtime_seconds": _runtime_seconds(started_at, now_ms),
@@ -49,6 +56,7 @@ def build_paper_status_payload(
         or _latest_market_prices(
             evaluations=signal_evaluations,
             open_position=open_position,
+            open_positions=open_positions,
             fills=fills,
         ),
         "strategy_details": _strategy_details_from_payload(payload.get("strategy_details")),
@@ -57,6 +65,7 @@ def build_paper_status_payload(
 
 def render_paper_status_html(payload: dict[str, Any]) -> str:
     position = payload.get("open_position")
+    positions = payload.get("open_positions") or ([position] if position is not None else [])
     fills = list(reversed(payload.get("fills", [])))
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -158,14 +167,14 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     </header>
     <section class="grid">
       <div class="panel"><div class="label">账户权益 USDT</div><div class="value">{_format_decimal(payload.get("equity"), 2)}</div></div>
-      <div class="panel"><div class="label">持仓情况</div><div class="value">{_position_title(position)}</div></div>
+      <div class="panel"><div class="label">持仓情况</div><div class="value">{_position_title(positions)}</div></div>
       <div class="panel"><div class="label">模拟成交次数</div><div class="value">{len(fills)}</div></div>
       <div class="panel"><div class="label" id="rejected-signals">拒绝信号</div><div class="value">{_escape(payload.get("rejected_signals"))}</div></div>
       {_render_strategy_details(payload.get("strategy_details", []))}
     </section>
     <section class="panel">
       <h2>持仓情况</h2>
-      {_render_position(position)}
+      {_render_positions(positions)}
     </section>
     <section style="margin-top: 16px;">
       <h2>全部模拟交易记录</h2>
@@ -370,6 +379,10 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
       {_render_recent_backtest_results(recent)}
     </section>
     <section style="margin-top: 16px;">
+      <h2>策略 / Bucket 统计</h2>
+      {_render_backtest_metric_tables(result)}
+    </section>
+    <section style="margin-top: 16px;">
       <h2>全部回测交易记录</h2>
       {_render_backtest_trades(trades)}
     </section>
@@ -562,6 +575,33 @@ def _render_position(position: dict[str, Any] | None) -> str:
     return f'<div class="table-wrap"><table class="compact-position"><thead><tr>{headers}</tr></thead><tbody><tr>{values}</tr></tbody></table></div>'
 
 
+def _render_positions(positions: list[dict[str, Any]]) -> str:
+    valid_positions = [position for position in positions if isinstance(position, dict)]
+    if not valid_positions:
+        return '<div class="empty">当前无持仓</div>'
+    rows = []
+    for position in valid_positions:
+        rows.append(
+            "<tr>"
+            f"<td>{_escape(position.get('symbol'))}</td>"
+            f"<td>{_side_label(position.get('side'))}</td>"
+            f"<td>{_escape(position.get('strategy_type'))}</td>"
+            f"<td>{_escape(position.get('bucket') or '-')}</td>"
+            f"<td>{_format_decimal(position.get('entry_price'), 2)}</td>"
+            f"<td>{_format_decimal(position.get('stop_loss'), 2)}</td>"
+            f"<td>{_format_decimal(position.get('take_profit'), 2)}</td>"
+            f"<td>{'移动止盈中' if position.get('trailing_active') else '等待触发'}</td>"
+            f"<td>{_format_decimal(position.get('quantity'), 4)}</td>"
+            "</tr>"
+        )
+    return (
+        '<div class="table-wrap"><table class="compact-position">'
+        "<thead><tr><th>交易对</th><th>方向</th><th>使用策略</th><th>Bucket</th>"
+        "<th>入场</th><th>止损</th><th>止盈</th><th>止盈状态</th><th>数量</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table></div>"
+    )
+
+
 def _render_history_period_options(selected: Any) -> str:
     options = [
         ("3m", "最近3个月"),
@@ -739,6 +779,43 @@ def _render_recent_backtest_results(results: list[Any]) -> str:
   <tbody>{rows}</tbody>
 </table>
 </div>"""
+
+
+def _render_backtest_metric_tables(result: Any | None) -> str:
+    if result is None:
+        return '<div class="empty">暂无统计</div>'
+    strategy_metrics = getattr(result, "strategy_metrics", {}) or {}
+    bucket_metrics = getattr(result, "bucket_metrics", {}) or {}
+    if not strategy_metrics and not bucket_metrics:
+        return '<div class="empty">暂无统计</div>'
+    return (
+        '<div class="table-wrap" style="display: grid; gap: 12px;">'
+        f"{_render_metric_table('按策略统计', strategy_metrics, '策略')}"
+        f"{_render_metric_table('按 Bucket 统计', bucket_metrics, 'Bucket')}"
+        "</div>"
+    )
+
+
+def _render_metric_table(title: str, metrics: dict[str, dict[str, Any]], first_column: str) -> str:
+    if not metrics:
+        return f'<div class="empty">{_escape(title)}暂无数据</div>'
+    rows = []
+    for name, values in sorted(metrics.items()):
+        rows.append(
+            "<tr>"
+            f"<td>{_escape(name)}</td>"
+            f"<td>{_escape(values.get('trade_count', 0))}</td>"
+            f"<td>{_escape(values.get('wins', 0))}</td>"
+            f"<td>{_escape(values.get('losses', 0))}</td>"
+            f"<td>{_format_decimal(values.get('net_pnl'), 2)}</td>"
+            "</tr>"
+        )
+    return (
+        f'<div><h3 style="font-size:14px;margin:0 0 8px;">{_escape(title)}</h3>'
+        "<table><thead><tr>"
+        f"<th>{_escape(first_column)}</th><th>交易次数</th><th>胜</th><th>负</th><th>净盈亏</th>"
+        f"</tr></thead><tbody>{''.join(rows)}</tbody></table></div>"
+    )
 
 
 def _render_recent_backtest_result_row(result: Any) -> str:
@@ -952,6 +1029,7 @@ def _latest_evaluations_by_symbol_interval(evaluations: list[dict[str, Any]]) ->
 def _latest_market_prices(
     evaluations: Any,
     open_position: Any,
+    open_positions: Any,
     fills: Any,
 ) -> dict[str, Any]:
     prices: dict[str, Any] = {}
@@ -971,6 +1049,16 @@ def _latest_market_prices(
         if symbol:
             prices[symbol] = open_position.get("entry_price")
             timestamps[symbol] = int(open_position.get("entry_time") or 0)
+    for position in open_positions if isinstance(open_positions, list) else []:
+        if not isinstance(position, dict):
+            continue
+        symbol = str(position.get("symbol") or "")
+        if not symbol:
+            continue
+        entry_time = int(position.get("entry_time") or 0)
+        if entry_time >= timestamps.get(symbol, -1):
+            prices[symbol] = position.get("entry_price")
+            timestamps[symbol] = entry_time
     for evaluation in evaluations if isinstance(evaluations, list) else []:
         if not isinstance(evaluation, dict):
             continue
@@ -1426,10 +1514,14 @@ def _render_fill_row(fill: dict[str, Any]) -> str:
 </tr>"""
 
 
-def _position_title(position: dict[str, Any] | None) -> str:
-    if position is None:
+def _position_title(positions: Any) -> str:
+    valid_positions = [position for position in positions if isinstance(position, dict)] if isinstance(positions, list) else []
+    if not valid_positions:
         return "无"
-    return f"{_escape(position.get('symbol'))} {_side_label(position.get('side'))}"
+    if len(valid_positions) == 1:
+        position = valid_positions[0]
+        return f"{_escape(position.get('symbol'))} {_side_label(position.get('side'))}"
+    return f"{len(valid_positions)} 个策略子仓"
 
 
 def _side_label(side: Any) -> str:

@@ -1,6 +1,6 @@
 # Decisions
 
-更新时间：2026-06-16
+更新时间：2026-06-23
 
 ## 已冻结决策
 
@@ -8,9 +8,20 @@
 
 MVP 默认只做 Backtest + Paper Trading。Live Trading 必须等回测、Paper、Stop Order Guard、Liquidation Guard、测试网和小资金配置全部通过后再开启。
 
-### D2. 趋势转换试仓是核心策略
+### D2. 分层策略系统是新的策略主线
 
-趋势转换试仓不是边缘扩展。它必须进入 MVP 的信号识别、回测统计和 Paper 验证，但 Live 实盘执行默认关闭。
+下一阶段策略主线从 `TREND_PULLBACK` / `REVERSAL_PROBE` 升级为独立的分层策略系统。策略系统以日线为主趋势、4h 为子趋势、1h 为确认、15m 为入场触发，并输出明确的 `strategy_type`。
+
+必须支持的策略名：
+
+- `SHORT_DAY_CORE`
+- `SHORT_4H_1H_ADDON`
+- `LONG_4H_HEDGE`
+- `LONG_DAY_CORE`
+- `LONG_4H_1H_ADDON`
+- `SHORT_4H_HEDGE`
+
+旧 `TREND_PULLBACK` / `REVERSAL_PROBE` 只保留历史兼容语义，不再作为新增策略系统的核心命名。
 
 ### D3. 趋势转换风险上限分级
 
@@ -25,25 +36,31 @@ ADX 只表示趋势强度，不表示趋势方向。趋势判断必须使用：
 - 多头：`ADX >= min_adx AND DI_PLUS > DI_MINUS`
 - 空头：`ADX >= min_adx AND DI_MINUS > DI_PLUS`
 
-### D5. TRANSITION 不阻断趋势转换
+### D5. 日线主趋势不阻断 4h hedge
 
-4h 与 1h 冲突时，主趋势策略进入 WAIT，但趋势转换策略继续评估。
+当日线为空头时，4h/1h 转多不代表必须平掉日线空头主仓；系统应允许 `LONG_4H_HEDGE` 与 `SHORT_DAY_CORE` 共存。当日线为多头时，对称允许 `SHORT_4H_HEDGE` 与 `LONG_DAY_CORE` 共存。
 
-### D6. 回测和实盘共享多周期数据对齐
+### D6. 回测、Paper 和未来 Live 共享策略系统与多周期对齐
 
-15m 信号只能使用最近已收盘的 15m、1h、4h K 线。禁止使用正在形成中的高周期 K 线。
+策略系统只能使用最近已收盘的 1d、4h、1h、15m K 线。禁止使用正在形成中的高周期 K 线。
 
-### D7. 默认执行模式
+Backtest、Paper、Web 状态页和未来 Live 执行都必须调用同一套策略系统。其他模块不能复制策略条件，只能消费策略系统输出的 `StrategyDecision` / `StrategySignal` / diagnostics。
 
-MVP 默认：
+### D7. Paper/Backtest 先支持策略子仓，Live HEDGE 单独门槛
+
+Paper 和 Backtest 必须从单仓位模型升级为策略子仓模型，至少支持同一 symbol 下主趋势 core 仓与反向 hedge 仓共存。
+
+Live 仍默认关闭。未来真实下单若要支持同一 symbol 多空共存，必须使用 Binance Futures HEDGE position mode，并通过独立自检、API 权限、小资金配置和用户确认。
 
 ```yaml
-execution:
-  position_mode: ONE_WAY
+paper_backtest:
+  position_model: STRATEGY_BUCKETS
+  allow_long_and_short_same_symbol: true
   margin_type: ISOLATED
+live:
+  default_enabled: false
+  required_position_mode_for_hedge: HEDGE
 ```
-
-HEDGE 模式不作为 MVP 默认实现。
 
 ### D8. AI 默认关闭
 

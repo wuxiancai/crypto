@@ -31,6 +31,7 @@ class PaperPosition:
     take_profit: Decimal
     quantity: Decimal
     entry_fee: Decimal
+    bucket: str = "LEGACY"
     initial_stop_loss: Decimal | None = None
     trailing_active: bool = False
     interval: str = "15m"
@@ -54,6 +55,7 @@ class PaperFill:
     fees: Decimal
     net_pnl: Decimal
     exit_reason: str
+    bucket: str = "LEGACY"
     funding_fee: Decimal = Decimal("0")
     exit_detail: str = ""
 
@@ -80,9 +82,14 @@ class PaperSnapshot:
     open_position: PaperPosition | None
     fills: list[PaperFill]
     rejected_signals: int
+    open_positions: list[PaperPosition] = field(default_factory=list)
     runtime_started_at_ms: int | None = None
     last_update_at_ms: int | None = None
     signal_evaluations: list[PaperSignalEvaluation] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.open_positions and self.open_position is not None:
+            object.__setattr__(self, "open_positions", [self.open_position])
 
 
 class SignalLike:
@@ -97,7 +104,7 @@ class PaperTradingEngine:
     def __init__(self, config: PaperConfig) -> None:
         self._config = config
         self._equity = config.initial_equity
-        self._position: PaperPosition | None = None
+        self._positions: list[PaperPosition] = []
         self._fills: list[PaperFill] = []
         self._rejected_signals = 0
 
@@ -105,7 +112,9 @@ class PaperTradingEngine:
     def from_snapshot(cls, config: PaperConfig, snapshot: PaperSnapshot) -> "PaperTradingEngine":
         engine = cls(config)
         engine._equity = snapshot.equity
-        engine._position = snapshot.open_position
+        engine._positions = list(snapshot.open_positions or [])
+        if not engine._positions and snapshot.open_position is not None:
+            engine._positions = [snapshot.open_position]
         engine._fills = list(snapshot.fills)
         engine._rejected_signals = snapshot.rejected_signals
         return engine
@@ -113,36 +122,48 @@ class PaperTradingEngine:
     def on_signal(self, kline: Kline, signal: SignalLike) -> PaperPosition | None:
         if signal.action not in {"LONG_ENTRY", "SHORT_ENTRY", "REVERSAL_LONG_ENTRY", "REVERSAL_SHORT_ENTRY"}:
             return None
-        if self._position is not None:
+        if self._has_conflicting_position(kline.symbol, signal):
             self._rejected_signals += 1
             return None
         position = self._open_position(kline, signal)
         if position is None:
             self._rejected_signals += 1
             return None
-        self._position = position
-        return self._position
+        self._positions.append(position)
+        return position
 
     def on_kline(self, kline: Kline) -> PaperFill | None:
-        if self._position is None:
-            return None
-        if self._position.symbol != kline.symbol or self._position.interval != kline.interval:
-            return None
-        fill = self._maybe_close_position(self._position, kline)
-        if fill is None:
-            return None
-        self._fills.append(fill)
-        self._equity += fill.net_pnl
-        self._position = None
-        return fill
+        for position in list(self._positions):
+            if position.symbol != kline.symbol or position.interval != kline.interval:
+                continue
+            fill = self._maybe_close_position(position, kline)
+            if fill is None:
+                continue
+            self._fills.append(fill)
+            self._equity += fill.net_pnl
+            self._positions.remove(position)
+            return fill
+        return None
 
     def snapshot(self) -> PaperSnapshot:
         return PaperSnapshot(
             equity=self._equity,
-            open_position=self._position,
+            open_position=self._positions[0] if self._positions else None,
+            open_positions=list(self._positions),
             fills=list(self._fills),
             rejected_signals=self._rejected_signals,
         )
+
+    def _has_conflicting_position(self, symbol: str, signal: SignalLike) -> bool:
+        bucket = _bucket_from_signal(signal)
+        for position in self._positions:
+            if position.symbol != symbol:
+                continue
+            if position.bucket == bucket:
+                return True
+            if bucket == "LEGACY" or position.bucket == "LEGACY":
+                return True
+        return False
 
     def _open_position(self, kline: Kline, signal: SignalLike) -> PaperPosition | None:
         side = _side_from_action(signal.action)
@@ -175,6 +196,7 @@ class PaperTradingEngine:
             symbol=kline.symbol,
             side=side,
             strategy_type=signal.strategy_type,
+            bucket=_bucket_from_signal(signal),
             entry_time=kline.open_time,
             entry_price=entry_price,
             stop_loss=stop_loss,
@@ -197,7 +219,7 @@ class PaperTradingEngine:
                 )
             if kline.high >= position.take_profit:
                 return self._handle_take_profit(position, kline)
-            self._position = _trail_position(position, kline)
+            self._replace_position(position, _trail_position(position, kline))
             return None
         if kline.high >= position.stop_loss:
             return self._close_position(
@@ -209,12 +231,12 @@ class PaperTradingEngine:
             )
         if kline.low <= position.take_profit:
             return self._handle_take_profit(position, kline)
-        self._position = _trail_position(position, kline)
+        self._replace_position(position, _trail_position(position, kline))
         return None
 
     def _handle_take_profit(self, position: PaperPosition, kline: Kline) -> PaperFill | None:
         if _uses_trailing_take_profit(position, self._config):
-            self._position = _activate_trailing_take_profit(position, kline)
+            self._replace_position(position, _activate_trailing_take_profit(position, kline))
             return None
         return self._close_position(
             position,
@@ -245,6 +267,7 @@ class PaperTradingEngine:
             symbol=position.symbol,
             side=position.side,
             strategy_type=position.strategy_type,
+            bucket=position.bucket,
             entry_time=position.entry_time,
             exit_time=kline.close_time,
             entry_price=position.entry_price,
@@ -257,6 +280,20 @@ class PaperTradingEngine:
             exit_reason=exit_reason,
             exit_detail=exit_detail,
         )
+
+    def _replace_position(self, old: PaperPosition, new: PaperPosition) -> None:
+        for index, position in enumerate(self._positions):
+            if position is old:
+                self._positions[index] = new
+                return
+        for index, position in enumerate(self._positions):
+            if (
+                position.symbol == old.symbol
+                and position.bucket == old.bucket
+                and position.entry_time == old.entry_time
+            ):
+                self._positions[index] = new
+                return
 
 
 def _side_from_action(action: str) -> str:
@@ -316,6 +353,20 @@ def _fees_too_high_for_planned_risk(
     if max_ratio is None or max_ratio <= 0 or planned_risk <= 0:
         return False
     return fees / planned_risk > max_ratio
+
+
+def _bucket_from_signal(signal: SignalLike) -> str:
+    explicit_bucket = getattr(signal, "bucket", None)
+    if explicit_bucket:
+        return str(explicit_bucket)
+    strategy_type = getattr(signal, "strategy_type", "")
+    if strategy_type in {"SHORT_DAY_CORE", "LONG_DAY_CORE"}:
+        return "DAY_CORE"
+    if strategy_type in {"SHORT_4H_1H_ADDON", "LONG_4H_1H_ADDON"}:
+        return "FOUR_HOUR_ADDON"
+    if strategy_type in {"LONG_4H_HEDGE", "SHORT_4H_HEDGE"}:
+        return "FOUR_HOUR_HEDGE"
+    return "LEGACY"
 
 
 def _uses_trailing_take_profit(position: PaperPosition, config: PaperConfig) -> bool:

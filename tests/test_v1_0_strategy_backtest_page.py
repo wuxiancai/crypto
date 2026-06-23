@@ -44,6 +44,8 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
             wins=1,
             losses=1,
             net_pnl="30.25",
+            strategy_metrics={"SHORT_DAY_CORE": {"trade_count": 2, "wins": 1, "losses": 1, "net_pnl": "30.25"}},
+            bucket_metrics={"DAY_CORE": {"trade_count": 2, "wins": 1, "losses": 1, "net_pnl": "30.25"}},
             trades=[
                 {
                     "symbol": "BTCUSDT",
@@ -78,12 +80,15 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     assert "历史K线根数" in html
     assert "手续费/风险上限" in html
     assert 'name="max_fee_to_risk_ratio"' in html
-    assert 'value="0.25"' in html
+    assert 'value="0"' in html
     assert "账户权益 USDT" in html
     assert "1030.25" in html
     assert "总交易次数" in html
     assert "胜 / 负 / 胜率" in html
     assert "1 / 1 / 胜率 50%" in html
+    assert "策略 / Bucket 统计" in html
+    assert "SHORT_DAY_CORE" in html
+    assert "DAY_CORE" in html
     assert "BTCUSDT" in html
     assert "策略K线图" not in html
     assert "持仓情况" not in html
@@ -351,10 +356,10 @@ def test_strategy_backtest_batch_page_defaults_to_smaller_refinement_grid():
     assert 'name="atr_periods" value="12,14"' in html
     assert 'name="dmi_periods" value="12,14"' in html
     assert 'name="swing_lookbacks" value="20,30"' in html
-    assert 'name="max_fee_to_risk_ratios" value="0.25,0"' in html
+    assert 'name="max_fee_to_risk_ratios" value="0"' in html
     assert 'name="pullback_zone_atr_multipliers" value="1"' in html
     assert 'name="require_pullback_close_beyond_fast_ma_options" value="false"' in html
-    assert 'name="enable_reversal_probe_options" value="true"' in html
+    assert 'name="enable_reversal_probe_options" value="false"' in html
     assert '<option value="1" selected>是</option>' in html
 
 

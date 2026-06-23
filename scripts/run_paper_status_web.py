@@ -222,15 +222,15 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
     return StrategyBacktestConfig(
         symbols=(symbol,),
         fast_ma_type=_query_choice(query, "fast_ma_type", "EMA", {"EMA", "MA"}),
-        slow_ma_type=_query_choice(query, "slow_ma_type", "EMA", {"EMA", "MA"}),
-        ema_fast_period=_query_int(query, "ema_fast", 50, minimum=2, maximum=500),
-        ema_slow_period=_query_int(query, "ema_slow", 200, minimum=3, maximum=1000),
+        slow_ma_type=_query_choice(query, "slow_ma_type", "MA", {"EMA", "MA"}),
+        ema_fast_period=_query_int(query, "ema_fast", 15, minimum=2, maximum=500),
+        ema_slow_period=_query_int(query, "ema_slow", 60, minimum=3, maximum=1000),
         limit=_query_int(query, "limit", 1500, minimum=50, maximum=1500),
         history_period=_query_choice(query, "history_period", "3m", {"3m", "6m", "1y", "2y"}),
         max_fee_to_risk_ratio=_query_decimal(
             query,
             "max_fee_to_risk_ratio",
-            Decimal("0.25"),
+            Decimal("0"),
             minimum=Decimal("0"),
             maximum=Decimal("2"),
         ),
@@ -253,7 +253,7 @@ def _batch_config_from_query(query: dict[str, list[str]]):
         max_fee_to_risk_ratios=_query_decimal_list(
             query,
             "max_fee_to_risk_ratios",
-            ("0.25", "0"),
+            ("0",),
             minimum=Decimal("0"),
             maximum=Decimal("2"),
         ),
@@ -273,7 +273,7 @@ def _batch_config_from_query(query: dict[str, list[str]]):
         enable_reversal_probe_options=_query_bool_list(
             query,
             "enable_reversal_probe_options",
-            (True,),
+            (False,),
         ),
         history_period=history_period,
         history_window_ms=HISTORY_WINDOWS_MS[history_period],

@@ -61,7 +61,7 @@ class ParameterSet:
     trend_pullback_take_profit_mode: str = "TRAILING"
     pullback_zone_atr_multiplier: str = "1"
     require_pullback_close_beyond_fast_ma: bool = False
-    enable_reversal_probe: bool = True
+    enable_reversal_probe: bool = False
 
     def key(self) -> str:
         key = (
@@ -138,11 +138,11 @@ class StrategyBacktestBatchConfig:
     atr_periods: tuple[int, ...] = (12, 14)
     dmi_periods: tuple[int, ...] = (12, 14)
     swing_lookbacks: tuple[int, ...] = (20, 30)
-    max_fee_to_risk_ratios: tuple[str, ...] = ("0.25", "0")
+    max_fee_to_risk_ratios: tuple[str, ...] = ("0",)
     take_profit_modes: tuple[str, ...] = ("TRAILING", "FIXED")
     pullback_zone_atr_multipliers: tuple[str, ...] = ("1",)
     require_pullback_close_beyond_fast_ma_options: tuple[bool, ...] = (False,)
-    enable_reversal_probe_options: tuple[bool, ...] = (True,)
+    enable_reversal_probe_options: tuple[bool, ...] = (False,)
     history_period: str = HISTORY_PERIOD
     history_window_ms: int = HISTORY_WINDOW_MS
     skip_fast_gte_slow: bool = True
@@ -1117,7 +1117,7 @@ def _params_from_record(record: dict[str, Any]) -> ParameterSet:
             params.get("require_pullback_close_beyond_fast_ma"),
             default=False,
         ),
-        enable_reversal_probe=_record_bool(params.get("enable_reversal_probe"), default=True),
+        enable_reversal_probe=_record_bool(params.get("enable_reversal_probe"), default=False),
     )
 
 
@@ -1264,7 +1264,7 @@ def _record_params_label(record: dict[str, Any]) -> str:
         f", TP {params.get('trend_pullback_take_profit_mode', '-')}"
         f", ZoneATR {params.get('pullback_zone_atr_multiplier', '1')}"
         f", CloseBeyondMA {params.get('require_pullback_close_beyond_fast_ma', False)}"
-        f", Reversal {params.get('enable_reversal_probe', True)}"
+        f", Reversal {params.get('enable_reversal_probe', False)}"
     )
 
 

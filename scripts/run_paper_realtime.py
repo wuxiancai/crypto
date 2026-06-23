@@ -18,7 +18,7 @@ from app.paper.status import format_paper_status
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run persistent Paper Trading on Binance WebSocket klines.")
     parser.add_argument("--symbols", nargs="+", default=["BTCUSDT", "ETHUSDT"])
-    parser.add_argument("--intervals", nargs="+", default=["15m", "1h", "4h"])
+    parser.add_argument("--intervals", nargs="+", default=["15m", "1h", "4h", "1d"])
     parser.add_argument("--websocket-base-url", default="wss://fstream.binance.com/market")
     parser.add_argument("--state-path", type=Path, default=Path("runtime/paper-state.json"))
     parser.add_argument("--initial-equity", default="1000")

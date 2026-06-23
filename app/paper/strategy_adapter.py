@@ -8,6 +8,13 @@ from app.strategy.pullback_strategy import EntryFrame, PullbackTriggerConfig, Tr
 from app.strategy.reversal_strategy import ReversalSetup, build_reversal_signal
 from app.strategy.signal_router import SignalInputs, StrategySignal, select_signal
 from app.strategy.trend_detector import TrendFrame, detect_trend
+from app.strategy.layered_strategy import (
+    LayeredEntryFrame,
+    LayeredStrategyConfig,
+    LayeredStrategyInput,
+    TrendSnapshot,
+    build_layered_strategy_decision,
+)
 
 
 @dataclass(frozen=True)
@@ -25,6 +32,8 @@ class RealtimeStrategyConfig:
     pullback_zone_atr_multiplier: Decimal = Decimal("1")
     require_pullback_close_beyond_fast_ma: bool = False
     enable_reversal_probe: bool = True
+    enable_layered_strategy: bool = False
+    main_trend_interval: str = "1d"
     trend_intervals: tuple[str, str] = ("4h", "1h")
     entry_interval: str = "15m"
 
@@ -40,6 +49,13 @@ def build_realtime_strategy_signal(
             strategy_type="SYSTEM",
             reason=["not enough closed klines for realtime indicators"],
         )
+    layered_signal = (
+        _build_layered_signal_if_available(frame=frame, config=strategy_config)
+        if strategy_config.enable_layered_strategy
+        else None
+    )
+    if layered_signal is not None:
+        return _attach_realtime_diagnostics(signal=layered_signal, frame=frame, config=strategy_config)
 
     four_hour_interval, one_hour_interval = strategy_config.trend_intervals
     four_hour = _build_trend_frame(frame.history(four_hour_interval), strategy_config)
@@ -96,7 +112,101 @@ def _has_required_history(frame: MultiTimeframeFrame, config: RealtimeStrategyCo
     for interval in config.trend_intervals:
         if len(frame.history(interval)) < min_trend_bars:
             return False
+    if (
+        config.enable_layered_strategy
+        and _has_interval(frame, config.main_trend_interval)
+        and len(frame.history(config.main_trend_interval)) < min_trend_bars
+    ):
+        return False
     return len(frame.history(config.entry_interval)) >= min_entry_bars
+
+
+def _has_interval(frame: MultiTimeframeFrame, interval: str) -> bool:
+    return interval in frame.klines_by_interval
+
+
+def _build_layered_signal_if_available(
+    frame: MultiTimeframeFrame,
+    config: RealtimeStrategyConfig,
+) -> StrategySignal | None:
+    if not _has_interval(frame, config.main_trend_interval):
+        return None
+    four_hour_interval, one_hour_interval = config.trend_intervals
+    daily = _build_trend_frame(frame.history(config.main_trend_interval), config)
+    four_hour = _build_trend_frame(frame.history(four_hour_interval), config)
+    one_hour = _build_trend_frame(frame.history(one_hour_interval), config)
+    entry_frame = _build_entry_frame(frame.history(config.entry_interval), config)
+    if daily is None or four_hour is None or one_hour is None or entry_frame is None:
+        return StrategySignal(
+            action="WAIT",
+            strategy_type="SYSTEM",
+            reason=["layered strategy indicators unavailable"],
+        )
+    decision = build_layered_strategy_decision(
+        LayeredStrategyInput(
+            symbol=frame.symbol,
+            daily=_trend_snapshot_from(daily),
+            four_hour=_trend_snapshot_from(four_hour),
+            one_hour=_trend_snapshot_from(one_hour),
+            entry=LayeredEntryFrame(
+                close=entry_frame.close,
+                open=entry_frame.open or entry_frame.close,
+                high=entry_frame.high or entry_frame.close,
+                low=entry_frame.low or entry_frame.close,
+                fast_ma=entry_frame.ema50,
+                atr=entry_frame.atr,
+                recent_swing_low=entry_frame.recent_swing_low,
+                recent_swing_high=entry_frame.recent_swing_high,
+            ),
+        ),
+        LayeredStrategyConfig(
+            min_adx=config.min_adx,
+            target_risk_reward=config.target_risk_reward,
+        ),
+    )
+    if decision.signal is None:
+        return StrategySignal(
+            action="WAIT",
+            strategy_type="SYSTEM",
+            reason=["no layered strategy candidate ready"],
+            condition_statuses=list(decision.diagnostics),
+            nearest_strategy={
+                "name": decision.candidates[0] if decision.candidates else "SYSTEM",
+                "matched": 0,
+                "total": 0,
+                "action": "WAIT",
+            },
+        )
+    return StrategySignal(
+        action=decision.signal.action,
+        strategy_type=decision.signal.strategy_type,
+        bucket=decision.signal.bucket,
+        reason=[*decision.signal.reason, f"candidates={','.join(decision.candidates)}"],
+        entry_price=decision.signal.entry_price,
+        stop_loss=decision.signal.stop_loss,
+        take_profit=decision.signal.take_profit,
+        risk_reward=decision.signal.risk_reward,
+        risk_pct=decision.signal.risk_pct,
+        condition_statuses=list(decision.diagnostics),
+        nearest_strategy={
+            "name": decision.signal.strategy_type,
+            "matched": 1,
+            "total": 1,
+            "action": decision.signal.action,
+        },
+    )
+
+
+def _trend_snapshot_from(frame: TrendFrame) -> TrendSnapshot:
+    return TrendSnapshot(
+        close=frame.close,
+        fast_ma=frame.ema50,
+        slow_ma=frame.ema200,
+        fast_ma_slope=frame.ema50_slope,
+        adx=frame.adx,
+        di_plus=frame.di_plus,
+        di_minus=frame.di_minus,
+    )
 
 
 def _moving_average(values: list[Decimal], period: int, average_type: str) -> list[Decimal | None]:
@@ -250,10 +360,11 @@ def _attach_realtime_diagnostics(
     frame: MultiTimeframeFrame,
     config: RealtimeStrategyConfig,
 ) -> StrategySignal:
-    condition_statuses = _condition_statuses(frame=frame, config=config)
+    condition_statuses = signal.condition_statuses or _condition_statuses(frame=frame, config=config)
     return StrategySignal(
         action=signal.action,
         strategy_type=signal.strategy_type,
+        bucket=signal.bucket,
         reason=signal.reason,
         entry_price=signal.entry_price,
         stop_loss=signal.stop_loss,
@@ -267,13 +378,16 @@ def _attach_realtime_diagnostics(
         chart_points=_chart_points(frame.history(config.entry_interval), config=config),
         chart_timeframes=_chart_timeframes(frame=frame, config=config),
         condition_statuses=condition_statuses,
-        nearest_strategy=_nearest_strategy(condition_statuses),
+        nearest_strategy=signal.nearest_strategy or _nearest_strategy(condition_statuses),
     )
 
 
 def _core_rules(frame: MultiTimeframeFrame, config: RealtimeStrategyConfig) -> list[str]:
     rules: list[str] = []
-    for interval in (*config.trend_intervals, config.entry_interval):
+    intervals = (
+        (config.main_trend_interval,) if _has_interval(frame, config.main_trend_interval) else ()
+    ) + (*config.trend_intervals, config.entry_interval)
+    for interval in intervals:
         klines = frame.history(interval)
         closes = [kline.close for kline in klines]
         if not closes:
@@ -291,9 +405,9 @@ def _core_rules(frame: MultiTimeframeFrame, config: RealtimeStrategyConfig) -> l
         else:
             rules.append(f"{interval} {fast_label} = {slow_label}：方向不明")
     rules.append(
-        f"主策略：4h/1h 同向趋势 + 15m 回踩/反弹 {_average_label(config.fast_ma_type, config.ema_fast_period)} 区域 + 确认 K 线"
+        f"分层策略：1d 主趋势 + 4h 子趋势 + 1h 确认 + 15m {_average_label(config.fast_ma_type, config.ema_fast_period)} 入场"
     )
-    rules.append("趋势转换：4h/1h 冲突时评估 REVERSAL_PROBE 试仓")
+    rules.append("策略候选：DAY_CORE / FOUR_HOUR_ADDON / FOUR_HOUR_HEDGE")
     return rules
 
 
@@ -336,7 +450,10 @@ def _chart_timeframes(
 ) -> dict[str, list[dict[str, str]]]:
     return {
         interval: _chart_points(frame.history(interval), config=config)
-        for interval in (*config.trend_intervals, config.entry_interval)
+        for interval in (
+            ((config.main_trend_interval,) if _has_interval(frame, config.main_trend_interval) else ())
+            + (*config.trend_intervals, config.entry_interval)
+        )
     }
 
 

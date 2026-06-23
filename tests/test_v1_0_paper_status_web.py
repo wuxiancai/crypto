@@ -197,6 +197,57 @@ def test_status_page_formats_numbers_times_and_compact_trade_list(tmp_path):
     assert html.find("2,700,005") < html.find("2,700,000")
 
 
+def test_status_page_shows_multiple_strategy_bucket_positions(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "open_positions": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "side": "SHORT",
+                        "strategy_type": "SHORT_DAY_CORE",
+                        "bucket": "DAY_CORE",
+                        "entry_time": 1000,
+                        "entry_price": "62000",
+                        "stop_loss": "65000",
+                        "take_profit": "56000",
+                        "quantity": "0.01",
+                        "entry_fee": "0",
+                    },
+                    {
+                        "symbol": "BTCUSDT",
+                        "side": "LONG",
+                        "strategy_type": "LONG_4H_HEDGE",
+                        "bucket": "FOUR_HOUR_HEDGE",
+                        "entry_time": 2000,
+                        "entry_price": "64000",
+                        "stop_loss": "63000",
+                        "take_profit": "66000",
+                        "quantity": "0.02",
+                        "entry_fee": "0",
+                    },
+                ],
+                "fills": [],
+                "rejected_signals": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "2 个策略子仓" in html
+    assert "SHORT_DAY_CORE" in html
+    assert "LONG_4H_HEDGE" in html
+    assert "DAY_CORE" in html
+    assert "FOUR_HOUR_HEDGE" in html
+
+
 def test_status_page_uses_soft_refresh_without_full_page_meta_reload(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 

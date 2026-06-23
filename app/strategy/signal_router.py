@@ -14,6 +14,7 @@ class StrategySignal:
     action: str
     strategy_type: str
     reason: list[str]
+    bucket: str | None = None
     entry_price: Decimal | None = None
     stop_loss: Decimal | None = None
     take_profit: Decimal | None = None
@@ -60,6 +61,7 @@ def _from_candidate(signal: EntryCandidate) -> StrategySignal:
     return StrategySignal(
         action=signal.action,
         strategy_type=signal.strategy_type,
+        bucket=getattr(signal, "bucket", None),
         entry_price=getattr(signal, "entry_price", None),
         stop_loss=getattr(signal, "stop_loss", None),
         take_profit=getattr(signal, "take_profit", None),

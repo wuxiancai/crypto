@@ -4,7 +4,9 @@
 
 ## 当前状态
 
-- 已再次审查并优化 `prd.md`，当前版本为 `v0.3-dev-ready`。
+- 2026-06-23 用户已确认分层策略方向，并已进入第一轮实现。当前策略主线已从旧 `TREND_PULLBACK` / `REVERSAL_PROBE` 单仓位模型，调整为独立的分层策略系统：`SHORT_DAY_CORE`、`SHORT_4H_1H_ADDON`、`LONG_4H_HEDGE`、`LONG_DAY_CORE`、`LONG_4H_1H_ADDON`、`SHORT_4H_HEDGE`。
+- Paper/Backtest 已支持 strategy bucket 多策略子仓；同一 symbol 可以持有日线主趋势仓和 4h hedge 仓。Live HEDGE 模式仍需在 Binance API Key 可用后另做账户模式自检与确认。
+- 已再次审查并优化 `prd.md`，当前版本为 `v0.4-layered-strategy-draft`，并与分层策略实现口径对齐。
 - 已将长期上下文拆分为：
   - `docs/PROJECT_CONTEXT.md`
   - `docs/DECISIONS.md`
@@ -19,6 +21,20 @@
 
 ## 本轮修复
 
+- 2026-06-23 分层策略系统第一轮实现：
+  - 新增 `app/strategy/layered_strategy.py`，提供 `LayeredStrategyConfig`、`LayeredStrategyInput`、`TrendSnapshot`、`LayeredEntryFrame` 和 `build_layered_strategy_decision()`。
+  - 实时策略适配器在启用 `enable_layered_strategy` 且存在 `1d` 历史时走分层策略；旧 4h/1h/15m 路径在无 `1d` 时保持兼容。
+  - 默认实时 Paper 策略开启分层策略，订阅/预热周期改为 `1d / 4h / 1h / 15m`；回测拉数也加入 `1d`，若没有日线历史则兼容回退旧策略路径。
+  - `PaperTradingEngine` 从单仓位升级为 strategy bucket 多子仓模型，支持 `SHORT_DAY_CORE` 与 `LONG_4H_HEDGE` 等不同 bucket 共存；旧 `open_position` 字段继续保留兼容。
+  - Paper 状态持久化新增 `open_positions`；Web 状态页可展示多个策略子仓和 bucket；成交记录和策略回测结果已带 `strategy_metrics` / `bucket_metrics` 聚合维度。
+  - 回测默认参数同步为 `EMA15 / MA60, ATR14, DMI12, Swing20, fee/risk=0, TRAILING, enable_reversal_probe=false`；回测页和批量回测页已按 strategy / bucket 输出聚合统计。
+  - 新增 BTC 走势语义回归用例，覆盖 2025-05-13 后日线空头主仓方向，以及 2026-06-12 20:00 后日线空头下 4h 反弹多仓方向。
+  - 本机验证：`.venv/bin/python -m pytest -q`，211 passed；`.venv/bin/python -m py_compile app/strategy/layered_strategy.py app/paper/strategy_adapter.py app/paper/trading.py app/paper/persistence.py app/paper/web_status.py app/paper/strategy_backtest.py app/paper/live_runner.py scripts/run_paper_realtime.py scripts/run_paper_status_web.py scripts/run_strategy_backtest_batch.py` 通过；`git diff --check` 通过。
+- 2026-06-23 分层策略系统文档收口：
+  - 新增 `docs/superpowers/specs/2026-06-23-layered-strategy-system-design.md`，定义日线主趋势、4h 子趋势、1h 确认、15m 入场的独立策略系统。
+  - 已同步修订 `README.md`、`prd.md`、`docs/PROJECT_CONTEXT.md`、`docs/DECISIONS.md`、`docs/TASKS.md`，把新增主线改为六类明确策略名和 Paper/Backtest strategy bucket 子仓模型。
+  - 旧 `TREND_PULLBACK` / `REVERSAL_PROBE` / `EMA50 / EMA200` / 单仓位 `ONE_WAY` 描述已标记为历史兼容或 Live 默认约束，不再作为下一阶段策略实现主线。
+  - 文档阶段已完成；用户确认后已进入并完成第一轮分层策略实现。
 - 2026-06-23 模拟交易看板策略详情与实时触发参数：
   - 已在模拟交易看板顶部统计行新增“当前策略详情”显示框，按 BTCUSDT / ETHUSDT 分别展示当前实时 Paper 策略参数：`symbol`、`fast_ma`、`slow_ma`、`atr_period`、`dmi_period`、`swing_lookback`、`max_fee_to_risk_ratio`、`trend_pullback_take_profit_mode`、`pullback_zone_atr_multiplier`、`require_pullback_close_beyond_fast_ma`、`enable_reversal_probe`。
   - 真实行情模拟交易默认触发参数已改为：`EMA15 / MA60, ATR14, DMI12, Swing20, fee/risk=0, TRAILING`；`pullback_zone_atr_multiplier=1`、`require_pullback_close_beyond_fast_ma=false`、`enable_reversal_probe=false`。
@@ -200,7 +216,7 @@
 - Web 状态页仍保持 5 秒自动刷新，但已从浏览器级 `<meta refresh>` 改为后台软刷新：每 5 秒拉取最新页面 HTML 并替换主体内容，避免整页闪烁，同时保留当前选中的交易对和 K 线周期。
 - 已定位“运行 11 小时仍 0 成交且页面无输出”的主要问题：当前成交计数为 0 不等于程序停了，`rejected_signals` 也只统计已有入场信号但被 Paper 撮合拒绝的情况；普通策略 `WAIT` 原因以前没有持久化。现在 Paper 状态文件会保留最近 50 条策略评估结果。早期 Web 状态页显示过“最近策略输出”调试表；当前主页面已隐藏该表，避免 `SYSTEM / no actionable signal` 干扰用户阅读。
 - 已修复最近策略输出只看到 5m 的可观察性问题：根因是 5m K 线更新频率最高，会挤掉 15m/1h/4h 记录；现在状态文件按“交易对 + 周期”保留最新输出，页面可同时看到各周期最新状态。
-- Web 状态页已新增“策略K线图”：用内嵌 SVG 绘制 4h / 1h / 15m 三套 K 线图并叠加 EMA50、EMA200；用户可点击周期按钮切换图表，交互方式接近交易所周期切换。页面同时展示核心规则摘要，如 `EMA200 > EMA50：空头基础`、主趋势回踩/反弹规则和趋势转换试仓规则。当前策略 K 线图已支持 BTCUSDT / ETHUSDT 交易对切换，并把核心规则压缩为单行横向展示，避免 BTC/ETH 同跑时只展示最新更新交易对导致用户拿错图对照。图表数据来自 Binance USDT-M Futures 已收盘 K 线，不包含正在形成中的实时蜡烛。
+- 历史实现中，Web 状态页曾新增“策略K线图”：用内嵌 SVG 绘制 4h / 1h / 15m 三套 K 线图并叠加 EMA50、EMA200；下一阶段必须改为 1d / 4h / 1h / 15m 分层策略图，并按当前配置动态显示 EMA15 / MA60 或其他快慢线名称。当前策略 K 线图已支持 BTCUSDT / ETHUSDT 交易对切换，并把核心规则压缩为单行横向展示，避免 BTC/ETH 同跑时只展示最新更新交易对导致用户拿错图对照。图表数据来自 Binance USDT-M Futures 已收盘 K 线，不包含正在形成中的实时蜡烛。
 - Web 状态页已新增精简版“策略触发条件”：状态文件仍持久化每次策略评估的完整条件明细，但页面只展示当前最接近触发的策略方向，例如主趋势做空时隐藏主趋势做多和不相关趋势转换组；页面顶部显示交易对，例如 `当前趋势：BTCUSDT 主趋势做空 · 已满足 4/8` 和 `还差：...`。主趋势诊断已拆分为“空头/多头结构”和“动能确认”；空头/多头结构只按 EMA50/EMA200 排列判断，价格是否已经低于/高于 EMA50 不再混入结构条件。
 - 已修复策略触发条件可能误显示反向主趋势的问题：此前“当前趋势”只按已满足条件数量选择最近策略，可能在 4h 空头结构成立时，因为多头的 15m/止损/RR 等辅助条件数量更多而显示“主趋势做多”。现在当前趋势优先尊重 4h 主结构：4h 空头结构成立优先显示主趋势做空，4h 多头结构成立优先显示主趋势做多；无明确 4h 主结构时才回退到满足数量排序。
 - Web 状态页的“策略触发条件”已按交易对分组展示：BTCUSDT 和 ETHUSDT 会各自显示最新条件卡。此前页面只取全局最新一条策略评估，容易出现页面显示 ETHUSDT、用户拿 BTCUSDT Binance 图对照的误判。

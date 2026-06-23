@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 import json
@@ -19,11 +19,11 @@ from app.paper.trading import PaperConfig, PaperTradingEngine
 class StrategyBacktestConfig:
     symbols: tuple[str, ...] = ("BTCUSDT",)
     fast_ma_type: str = "EMA"
-    slow_ma_type: str = "EMA"
-    ema_fast_period: int = 50
-    ema_slow_period: int = 200
+    slow_ma_type: str = "MA"
+    ema_fast_period: int = 15
+    ema_slow_period: int = 60
     atr_period: int = 14
-    dmi_period: int = 14
+    dmi_period: int = 12
     swing_lookback: int = 20
     limit: int = 1500
     history_period: str = "3m"
@@ -39,10 +39,10 @@ class StrategyBacktestConfig:
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     trend_pullback_take_profit_mode: str = "TRAILING"
-    max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
+    max_fee_to_risk_ratio: Decimal | None = Decimal("0")
     pullback_zone_atr_multiplier: Decimal = Decimal("1")
     require_pullback_close_beyond_fast_ma: bool = False
-    enable_reversal_probe: bool = True
+    enable_reversal_probe: bool = False
 
 
 @dataclass(frozen=True)
@@ -55,6 +55,8 @@ class StrategyBacktestResult:
     losses: int
     net_pnl: str
     trades: list[dict[str, str]]
+    strategy_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
+    bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
     error: str | None = None
 
 
@@ -97,6 +99,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         pullback_zone_atr_multiplier=backtest_config.pullback_zone_atr_multiplier,
         require_pullback_close_beyond_fast_ma=backtest_config.require_pullback_close_beyond_fast_ma,
         enable_reversal_probe=backtest_config.enable_reversal_probe,
+        enable_layered_strategy=any(kline.interval == "1d" for kline in historical_klines),
     )
     engine = PaperTradingEngine(
         PaperConfig(
@@ -136,12 +139,14 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         losses=losses,
         net_pnl=_money(net_pnl),
         trades=trades,
+        strategy_metrics=_strategy_metrics(snapshot.fills),
+        bucket_metrics=_bucket_metrics(snapshot.fills),
         error=None,
     )
 
 
 async def _fetch_backtest_klines(config: StrategyBacktestConfig) -> list[Kline]:
-    intervals = ("4h", "1h", "15m")
+    intervals = ("1d", "4h", "1h", "15m")
     end_time = config.history_end_time_ms or int(time.time() * 1000)
     start_time = config.history_start_time_ms
     if start_time is None:
@@ -314,8 +319,42 @@ def _empty_result(config: StrategyBacktestConfig, error: str | None = None) -> S
         losses=0,
         net_pnl=_money(Decimal("0")),
         trades=[],
+        strategy_metrics={},
+        bucket_metrics={},
         error=error,
     )
+
+
+def _strategy_metrics(fills: list) -> dict[str, dict[str, str | int]]:
+    metrics: dict[str, dict[str, str | int]] = {}
+    for strategy_type in sorted({fill.strategy_type for fill in fills}):
+        strategy_fills = [fill for fill in fills if fill.strategy_type == strategy_type]
+        wins = sum(1 for fill in strategy_fills if fill.net_pnl > 0)
+        losses = sum(1 for fill in strategy_fills if fill.net_pnl < 0)
+        net_pnl = sum((fill.net_pnl for fill in strategy_fills), Decimal("0"))
+        metrics[strategy_type] = {
+            "trade_count": len(strategy_fills),
+            "wins": wins,
+            "losses": losses,
+            "net_pnl": _money(net_pnl),
+        }
+    return metrics
+
+
+def _bucket_metrics(fills: list) -> dict[str, dict[str, str | int]]:
+    metrics: dict[str, dict[str, str | int]] = {}
+    for bucket in sorted({fill.bucket for fill in fills}):
+        bucket_fills = [fill for fill in fills if fill.bucket == bucket]
+        wins = sum(1 for fill in bucket_fills if fill.net_pnl > 0)
+        losses = sum(1 for fill in bucket_fills if fill.net_pnl < 0)
+        net_pnl = sum((fill.net_pnl for fill in bucket_fills), Decimal("0"))
+        metrics[bucket] = {
+            "trade_count": len(bucket_fills),
+            "wins": wins,
+            "losses": losses,
+            "net_pnl": _money(net_pnl),
+        }
+    return metrics
 
 
 def _normalise_trade(trade: dict[str, object]) -> dict[str, str]:

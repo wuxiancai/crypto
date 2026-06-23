@@ -103,6 +103,9 @@ def test_strategy_backtest_fetches_history_and_runs_current_realtime_strategy(mo
     assert result.config.ema_slow_period == 5
     assert result.total_trades == 1
     assert result.final_equity == "1010.00"
+    assert result.strategy_metrics["TREND_PULLBACK"]["trade_count"] == 1
+    assert result.strategy_metrics["TREND_PULLBACK"]["wins"] == 1
+    assert result.bucket_metrics["LEGACY"]["trade_count"] == 1
     assert result.trades[0]["strategy_type"] == "TREND_PULLBACK"
 
 
@@ -117,8 +120,8 @@ def test_strategy_backtest_defaults_to_perpetual_contract_costs():
     assert config.funding_rate == Decimal("0")
     assert config.funding_interval_ms == 8 * 60 * 60 * 1000
     assert config.trend_pullback_take_profit_mode == "TRAILING"
-    assert config.max_fee_to_risk_ratio == Decimal("0.25")
-    assert config.enable_reversal_probe is True
+    assert config.max_fee_to_risk_ratio == Decimal("0")
+    assert config.enable_reversal_probe is False
     assert config.pullback_zone_atr_multiplier == Decimal("1")
     assert config.require_pullback_close_beyond_fast_ma is False
 
@@ -381,8 +384,8 @@ def test_archives_strategy_backtest_result_to_database():
     assert saved_config.content is not None
     config_payload = json.loads(saved_config.content)
     assert config_payload["ema_fast_period"] == "30"
-    assert config_payload["max_fee_to_risk_ratio"] == "0.25"
-    assert config_payload["enable_reversal_probe"] == "True"
+    assert config_payload["max_fee_to_risk_ratio"] == "0"
+    assert config_payload["enable_reversal_probe"] == "False"
     assert config_payload["pullback_zone_atr_multiplier"] == "1"
     assert config_payload["require_pullback_close_beyond_fast_ma"] == "False"
     assert saved_trade.backtest_run_id == run_id
@@ -475,10 +478,10 @@ def test_strategy_backtest_batch_query_defaults_match_page_defaults():
     assert config.atr_periods == (12, 14)
     assert config.dmi_periods == (12, 14)
     assert config.swing_lookbacks == (20, 30)
-    assert config.max_fee_to_risk_ratios == ("0.25", "0")
+    assert config.max_fee_to_risk_ratios == ("0",)
     assert config.pullback_zone_atr_multipliers == ("1",)
     assert config.require_pullback_close_beyond_fast_ma_options == (False,)
-    assert config.enable_reversal_probe_options == (True,)
+    assert config.enable_reversal_probe_options == (False,)
     assert config.skip_fast_gte_slow is True
 
 
@@ -565,6 +568,7 @@ def test_strategy_backtest_batch_skips_parameter_set_already_archived_in_databas
             history_cache_dir=tmp_path / "cache",
             max_fee_to_risk_ratio=Decimal("0.25"),
             trend_pullback_take_profit_mode="TRAILING",
+            enable_reversal_probe=False,
         ),
         initial_equity="1000.00",
         final_equity="1111.00",
@@ -632,11 +636,12 @@ def test_strategy_backtest_batch_reruns_stale_checkpoint_success_missing_from_da
         max_fee_to_risk_ratio="0.25",
         trend_pullback_take_profit_mode="TRAILING",
     )
+    run_key = batch._run_key("primary", params)
     checkpoint = {
         "records": {
-            "primary|ema15-ma60-atr14-dmi14-swing20-feerisk0.25-tptrailing": {
+            run_key: {
                 "phase": "primary",
-                "run_key": "primary|ema15-ma60-atr14-dmi14-swing20-feerisk0.25-tptrailing",
+                "run_key": run_key,
                 "status": "success",
                 "params": {},
             }

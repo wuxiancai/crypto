@@ -104,6 +104,50 @@ def test_realtime_strategy_builds_trend_pullback_long_signal_from_multitimeframe
     assert signal.chart_timeframes["15m"][0]["open"] == "120"
 
 
+def test_realtime_strategy_uses_layered_strategy_when_daily_history_is_present():
+    from app.paper.multitimeframe import MultiTimeframeFrame
+    from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
+
+    frame = MultiTimeframeFrame(
+        symbol="BTCUSDT",
+        klines_by_interval={
+            "1d": tuple(
+                _kline("BTCUSDT", "1d", index, close)
+                for index, close in enumerate(["130", "125", "120", "115", "110", "105"])
+            ),
+            "4h": tuple(
+                _kline("BTCUSDT", "4h", index, close)
+                for index, close in enumerate(["120", "116", "112", "108", "104", "100"])
+            ),
+            "1h": tuple(
+                _kline("BTCUSDT", "1h", index, close)
+                for index, close in enumerate(["114", "110", "106", "102", "98", "94"])
+            ),
+            "15m": (
+                *_klines("BTCUSDT", "15m", ["104", "102", "100", "98"]),
+                _kline("BTCUSDT", "15m", 4, "96", open_price="99", high="100", low="95"),
+            ),
+        },
+    )
+
+    signal = build_realtime_strategy_signal(
+        frame,
+        config=RealtimeStrategyConfig(
+            ema_fast_period=3,
+            ema_slow_period=5,
+            atr_period=3,
+            dmi_period=3,
+            swing_lookback=5,
+            enable_layered_strategy=True,
+        ),
+    )
+
+    assert signal.action == "SHORT_ENTRY"
+    assert signal.strategy_type == "SHORT_DAY_CORE"
+    assert signal.bucket == "DAY_CORE"
+    assert "1d" in signal.chart_timeframes
+
+
 def test_realtime_strategy_builds_reversal_long_signal_when_4h_down_and_1h_turns_up():
     from app.paper.multitimeframe import MultiTimeframeFrame
     from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal

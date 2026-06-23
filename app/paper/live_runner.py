@@ -34,6 +34,7 @@ def default_paper_strategy_config() -> RealtimeStrategyConfig:
         pullback_zone_atr_multiplier=Decimal("1"),
         require_pullback_close_beyond_fast_ma=False,
         enable_reversal_probe=False,
+        enable_layered_strategy=True,
     )
 
 
@@ -181,7 +182,7 @@ async def fetch_realtime_warmup_klines(config: RealMarketPaperConfig) -> list[Kl
     now_ms = int(time.time() * 1000)
     warmup: list[Kline] = []
     for symbol in config.symbols:
-        for interval in dict.fromkeys((*config.strategy_config.trend_intervals, config.strategy_config.entry_interval)):
+        for interval in _required_strategy_intervals(config.strategy_config):
             try:
                 klines = await fetch_klines(symbol=symbol, interval=interval, limit=limit)
             except Exception as exc:
@@ -229,7 +230,7 @@ def build_default_realtime_signal_fn(
 ) -> SignalFn:
     max_history = _required_history_limit(config)
     cache = MultiTimeframeKlineCache(
-        required_intervals=dict.fromkeys((*config.trend_intervals, config.entry_interval)).keys(),
+        required_intervals=_required_strategy_intervals(config),
         max_klines_per_interval=max_history,
     )
     for kline in warmup_klines:
@@ -248,12 +249,6 @@ def build_default_realtime_signal_fn(
                 action="WAIT",
                 strategy_type="SYSTEM",
                 reason=["non-entry interval observed"],
-            )
-        if has_position:
-            return StrategySignal(
-                action="WAIT",
-                strategy_type="SYSTEM",
-                reason=["paper position already open"],
             )
         return build_realtime_strategy_signal(frame, config=config)
 
@@ -289,6 +284,15 @@ def _required_history_limit(config: RealtimeStrategyConfig) -> int:
         config.dmi_period,
         config.swing_lookback,
         2,
+    )
+
+
+def _required_strategy_intervals(config: RealtimeStrategyConfig) -> tuple[str, ...]:
+    intervals = (
+        (config.main_trend_interval,) if config.enable_layered_strategy else ()
+    ) + (*config.trend_intervals, config.entry_interval)
+    return tuple(
+        dict.fromkeys(intervals)
     )
 
 
