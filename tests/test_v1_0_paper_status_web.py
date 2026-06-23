@@ -64,6 +64,34 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
                 "rejected_signals": 1,
                 "runtime_started_at_ms": 1_000,
                 "last_update_at_ms": 121_000,
+                "strategy_details": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "fast_ma": "EMA15",
+                        "slow_ma": "MA60",
+                        "atr_period": "14",
+                        "dmi_period": "12",
+                        "swing_lookback": "20",
+                        "max_fee_to_risk_ratio": "0",
+                        "trend_pullback_take_profit_mode": "TRAILING",
+                        "pullback_zone_atr_multiplier": "1",
+                        "require_pullback_close_beyond_fast_ma": False,
+                        "enable_reversal_probe": False,
+                    },
+                    {
+                        "symbol": "ETHUSDT",
+                        "fast_ma": "EMA15",
+                        "slow_ma": "MA60",
+                        "atr_period": "14",
+                        "dmi_period": "12",
+                        "swing_lookback": "20",
+                        "max_fee_to_risk_ratio": "0",
+                        "trend_pullback_take_profit_mode": "TRAILING",
+                        "pullback_zone_atr_multiplier": "1",
+                        "require_pullback_close_beyond_fast_ma": False,
+                        "enable_reversal_probe": False,
+                    },
+                ],
             }
         ),
         encoding="utf-8",
@@ -86,6 +114,17 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "手续费" in html
     assert "资金费" in html
     assert "使用策略" in html
+    assert "当前策略详情" in html
+    assert "symbol = BTCUSDT" in html
+    assert "fast_ma = EMA15" in html
+    assert "slow_ma = MA60" in html
+    assert "atr_period = 14" in html
+    assert "dmi_period = 12" in html
+    assert "swing_lookback = 20" in html
+    assert "max_fee_to_risk_ratio = 0" in html
+    assert "trend_pullback_take_profit_mode = TRAILING" in html
+    assert "require_pullback_close_beyond_fast_ma = false" in html
+    assert "enable_reversal_probe = false" in html
     assert "ETHUSDT" in html
     assert "做空" in html
     assert "BTCUSDT" in html

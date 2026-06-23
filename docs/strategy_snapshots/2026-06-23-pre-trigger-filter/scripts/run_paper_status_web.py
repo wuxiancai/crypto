@@ -258,23 +258,6 @@ def _batch_config_from_query(query: dict[str, list[str]]):
             maximum=Decimal("2"),
         ),
         take_profit_modes=_query_choice_list(query, "take_profit_modes", ("TRAILING", "FIXED"), {"TRAILING", "FIXED"}),
-        pullback_zone_atr_multipliers=_query_decimal_list(
-            query,
-            "pullback_zone_atr_multipliers",
-            ("1",),
-            minimum=Decimal("0"),
-            maximum=Decimal("3"),
-        ),
-        require_pullback_close_beyond_fast_ma_options=_query_bool_list(
-            query,
-            "require_pullback_close_beyond_fast_ma_options",
-            (False,),
-        ),
-        enable_reversal_probe_options=_query_bool_list(
-            query,
-            "enable_reversal_probe_options",
-            (True,),
-        ),
         history_period=history_period,
         history_window_ms=HISTORY_WINDOWS_MS[history_period],
         skip_fast_gte_slow=_query_bool(query, "skip_fast_gte_slow", True),
@@ -452,30 +435,6 @@ def _query_choice_list(
 def _query_bool(query: dict[str, list[str]], key: str, default: bool) -> bool:
     value = str(query.get(key, ["1" if default else "0"])[0]).strip().lower()
     return value in {"1", "true", "yes", "on"}
-
-
-def _query_bool_list(
-    query: dict[str, list[str]],
-    key: str,
-    default: tuple[bool, ...],
-) -> tuple[bool, ...]:
-    mapping = {
-        "1": True,
-        "true": True,
-        "yes": True,
-        "on": True,
-        "0": False,
-        "false": False,
-        "no": False,
-        "off": False,
-    }
-    values: list[bool] = []
-    default_text = ",".join("true" if value else "false" for value in default)
-    for part in query.get(key, [default_text])[0].split(","):
-        text = part.strip().lower()
-        if text in mapping:
-            values.append(mapping[text])
-    return tuple(values) or default
 
 
 def main() -> None:

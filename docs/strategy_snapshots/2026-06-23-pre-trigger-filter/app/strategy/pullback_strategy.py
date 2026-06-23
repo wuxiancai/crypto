@@ -18,12 +18,6 @@ class EntryFrame:
 
 
 @dataclass(frozen=True)
-class PullbackTriggerConfig:
-    zone_atr_multiplier: Decimal = Decimal("1")
-    require_close_beyond_ema: bool = False
-
-
-@dataclass(frozen=True)
 class TradeSignal:
     action: str
     strategy_type: str
@@ -39,24 +33,17 @@ def build_pullback_signal(
     frame: EntryFrame,
     min_risk_reward: Decimal = Decimal("1.5"),
     target_risk_reward: Decimal = Decimal("2"),
-    trigger_config: PullbackTriggerConfig | None = None,
 ) -> TradeSignal:
-    effective_trigger_config = trigger_config or PullbackTriggerConfig()
     if trend.allow_long and trend.main_strategy_action == "EVALUATE_LONG":
-        return _build_long_signal(frame, min_risk_reward, target_risk_reward, effective_trigger_config)
+        return _build_long_signal(frame, min_risk_reward, target_risk_reward)
     if trend.allow_short and trend.main_strategy_action == "EVALUATE_SHORT":
-        return _build_short_signal(frame, min_risk_reward, target_risk_reward, effective_trigger_config)
+        return _build_short_signal(frame, min_risk_reward, target_risk_reward)
     return _wait(["main trend not eligible"])
 
 
-def _build_long_signal(
-    frame: EntryFrame,
-    min_risk_reward: Decimal,
-    target_risk_reward: Decimal,
-    trigger_config: PullbackTriggerConfig,
-) -> TradeSignal:
+def _build_long_signal(frame: EntryFrame, min_risk_reward: Decimal, target_risk_reward: Decimal) -> TradeSignal:
     reason = ["main trend uptrend"]
-    if not _pullback_to_ema50_zone(frame, trigger_config):
+    if not _pullback_to_ema50_zone(frame):
         return _wait(reason + ["price not in ema50 pullback zone"])
     reason.append("price pulled back to ema50 zone")
     if not _bullish_confirmation(frame):
@@ -84,14 +71,9 @@ def _build_long_signal(
     )
 
 
-def _build_short_signal(
-    frame: EntryFrame,
-    min_risk_reward: Decimal,
-    target_risk_reward: Decimal,
-    trigger_config: PullbackTriggerConfig,
-) -> TradeSignal:
+def _build_short_signal(frame: EntryFrame, min_risk_reward: Decimal, target_risk_reward: Decimal) -> TradeSignal:
     reason = ["main trend downtrend"]
-    if not _rebound_to_ema50_zone(frame, trigger_config):
+    if not _rebound_to_ema50_zone(frame):
         return _wait(reason + ["price not in ema50 rebound zone"])
     reason.append("price rebounded to ema50 zone")
     if not _bearish_confirmation(frame):
@@ -119,28 +101,14 @@ def _build_short_signal(
     )
 
 
-def _pullback_to_ema50_zone(
-    frame: EntryFrame,
-    trigger_config: PullbackTriggerConfig | None = None,
-) -> bool:
-    effective_config = trigger_config or PullbackTriggerConfig()
+def _pullback_to_ema50_zone(frame: EntryFrame) -> bool:
     low = frame.low if frame.low is not None else frame.close
-    zone = frame.atr * effective_config.zone_atr_multiplier
-    if effective_config.require_close_beyond_ema:
-        return low <= frame.ema50 + zone and frame.close >= frame.ema50
-    return low <= frame.ema50 + zone and frame.close >= frame.ema50 - zone
+    return low <= frame.ema50 + frame.atr and frame.close >= frame.ema50 - frame.atr
 
 
-def _rebound_to_ema50_zone(
-    frame: EntryFrame,
-    trigger_config: PullbackTriggerConfig | None = None,
-) -> bool:
-    effective_config = trigger_config or PullbackTriggerConfig()
+def _rebound_to_ema50_zone(frame: EntryFrame) -> bool:
     high = frame.high if frame.high is not None else frame.close
-    zone = frame.atr * effective_config.zone_atr_multiplier
-    if effective_config.require_close_beyond_ema:
-        return high >= frame.ema50 - zone and frame.close <= frame.ema50
-    return high >= frame.ema50 - zone and frame.close <= frame.ema50 + zone
+    return high >= frame.ema50 - frame.atr and frame.close <= frame.ema50 + frame.atr
 
 
 def _bullish_confirmation(frame: EntryFrame) -> bool:

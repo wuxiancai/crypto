@@ -118,6 +118,71 @@ def test_strategy_backtest_defaults_to_perpetual_contract_costs():
     assert config.funding_interval_ms == 8 * 60 * 60 * 1000
     assert config.trend_pullback_take_profit_mode == "TRAILING"
     assert config.max_fee_to_risk_ratio == Decimal("0.25")
+    assert config.enable_reversal_probe is True
+    assert config.pullback_zone_atr_multiplier == Decimal("1")
+    assert config.require_pullback_close_beyond_fast_ma is False
+
+
+def test_strategy_backtest_config_passes_trigger_options_to_realtime_config(monkeypatch):
+    from app.paper import strategy_backtest
+    from app.paper.strategy_backtest import StrategyBacktestConfig, run_strategy_backtest
+
+    captured = {}
+
+    async def fake_fetch_backtest_klines(config):
+        return []
+
+    class FakeEngine:
+        def __init__(self, config):
+            self._config = config
+
+        def on_kline(self, kline):
+            return None
+
+        def on_signal(self, kline, signal):
+            return None
+
+        def snapshot(self):
+            from app.paper.persistence import PaperSnapshot
+
+            return PaperSnapshot(
+                equity=Decimal("1000"),
+                open_position=None,
+                fills=[],
+                rejected_signals=0,
+                last_update_at_ms=None,
+                runtime_started_at_ms=None,
+                signal_evaluations=[],
+            )
+
+    def fake_build_default_realtime_signal_fn(config, warmup_klines=()):
+        captured["config"] = config
+
+        def signal_fn(kline, has_position):
+            from app.strategy.signal_router import StrategySignal
+
+            return StrategySignal(action="WAIT", strategy_type="SYSTEM", reason=[])
+
+        return signal_fn
+
+    monkeypatch.setattr(strategy_backtest, "_fetch_backtest_klines", fake_fetch_backtest_klines)
+    monkeypatch.setattr(strategy_backtest, "PaperTradingEngine", FakeEngine)
+    monkeypatch.setattr(strategy_backtest, "build_default_realtime_signal_fn", fake_build_default_realtime_signal_fn)
+
+    result = asyncio.run(
+        run_strategy_backtest(
+            StrategyBacktestConfig(
+                pullback_zone_atr_multiplier=Decimal("0.5"),
+                require_pullback_close_beyond_fast_ma=True,
+                enable_reversal_probe=False,
+            )
+        )
+    )
+
+    assert result.error is None
+    assert captured["config"].pullback_zone_atr_multiplier == Decimal("0.5")
+    assert captured["config"].require_pullback_close_beyond_fast_ma is True
+    assert captured["config"].enable_reversal_probe is False
 
 
 def test_strategy_backtest_returns_error_when_historical_fetch_fails(monkeypatch):
@@ -317,6 +382,9 @@ def test_archives_strategy_backtest_result_to_database():
     config_payload = json.loads(saved_config.content)
     assert config_payload["ema_fast_period"] == "30"
     assert config_payload["max_fee_to_risk_ratio"] == "0.25"
+    assert config_payload["enable_reversal_probe"] == "True"
+    assert config_payload["pullback_zone_atr_multiplier"] == "1"
+    assert config_payload["require_pullback_close_beyond_fast_ma"] == "False"
     assert saved_trade.backtest_run_id == run_id
     assert saved_trade.symbol == "BTCUSDT"
     assert saved_trade.net_pnl == Decimal("19")
@@ -335,12 +403,15 @@ def test_strategy_backtest_batch_config_builds_user_selected_parameter_sets():
         swing_lookbacks=(15,),
         max_fee_to_risk_ratios=("0.20", "0.25"),
         take_profit_modes=("TRAILING", "FIXED"),
+        pullback_zone_atr_multipliers=("1", "0.5"),
+        require_pullback_close_beyond_fast_ma_options=(False, True),
+        enable_reversal_probe_options=(True, False),
         skip_fast_gte_slow=True,
     )
 
     primary = list(_build_primary_candidates(config))
 
-    assert len(primary) == 32
+    assert len(primary) == 256
     assert {(item.fast_period, item.slow_period) for item in primary} == {
         (10, 30),
         (10, 40),
@@ -354,6 +425,9 @@ def test_strategy_backtest_batch_config_builds_user_selected_parameter_sets():
     assert {item.swing_lookback for item in primary} == {15}
     assert {item.max_fee_to_risk_ratio for item in primary} == {"0.20", "0.25"}
     assert {item.trend_pullback_take_profit_mode for item in primary} == {"TRAILING", "FIXED"}
+    assert {item.pullback_zone_atr_multiplier for item in primary} == {"1", "0.5"}
+    assert {item.require_pullback_close_beyond_fast_ma for item in primary} == {False, True}
+    assert {item.enable_reversal_probe for item in primary} == {False, True}
 
 
 def test_strategy_backtest_batch_primary_candidates_honor_single_dmi_input():
@@ -372,14 +446,23 @@ def test_strategy_backtest_batch_primary_candidates_honor_single_dmi_input():
             "swing_lookbacks": ["20"],
             "max_fee_to_risk_ratios": ["0.25"],
             "take_profit_modes": ["TRAILING"],
+            "pullback_zone_atr_multipliers": ["0.5"],
+            "require_pullback_close_beyond_fast_ma_options": ["true"],
+            "enable_reversal_probe_options": ["false"],
         }
     )
 
     primary = list(_build_primary_candidates(config))
 
     assert [item.label() for item in primary] == [
-        "EMA15/MA60 | ATR 14 | DMI 12 | Swing 20 | Fee/Risk 0.25 | TP TRAILING",
-        "EMA15/MA90 | ATR 14 | DMI 12 | Swing 20 | Fee/Risk 0.25 | TP TRAILING",
+        (
+            "EMA15/MA60 | ATR 14 | DMI 12 | Swing 20 | Fee/Risk 0.25 | TP TRAILING"
+            " | ZoneATR 0.5 | CloseBeyondMA True | Reversal False"
+        ),
+        (
+            "EMA15/MA90 | ATR 14 | DMI 12 | Swing 20 | Fee/Risk 0.25 | TP TRAILING"
+            " | ZoneATR 0.5 | CloseBeyondMA True | Reversal False"
+        ),
     ]
 
 
@@ -393,6 +476,9 @@ def test_strategy_backtest_batch_query_defaults_match_page_defaults():
     assert config.dmi_periods == (12, 14)
     assert config.swing_lookbacks == (20, 30)
     assert config.max_fee_to_risk_ratios == ("0.25", "0")
+    assert config.pullback_zone_atr_multipliers == ("1",)
+    assert config.require_pullback_close_beyond_fast_ma_options == (False,)
+    assert config.enable_reversal_probe_options == (True,)
     assert config.skip_fast_gte_slow is True
 
 

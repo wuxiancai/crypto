@@ -4,7 +4,7 @@ from decimal import Decimal
 from app.data.quality import Kline
 from app.indicators.core import atr, directional_movement_index, ema, ma
 from app.paper.multitimeframe import MultiTimeframeFrame
-from app.strategy.pullback_strategy import EntryFrame, PullbackTriggerConfig, TradeSignal, build_pullback_signal
+from app.strategy.pullback_strategy import EntryFrame, TradeSignal, build_pullback_signal
 from app.strategy.reversal_strategy import ReversalSetup, build_reversal_signal
 from app.strategy.signal_router import SignalInputs, StrategySignal, select_signal
 from app.strategy.trend_detector import TrendFrame, detect_trend
@@ -22,9 +22,6 @@ class RealtimeStrategyConfig:
     min_adx: Decimal = Decimal("20")
     min_risk_reward: Decimal = Decimal("1.5")
     target_risk_reward: Decimal = Decimal("2")
-    pullback_zone_atr_multiplier: Decimal = Decimal("1")
-    require_pullback_close_beyond_fast_ma: bool = False
-    enable_reversal_probe: bool = True
     trend_intervals: tuple[str, str] = ("4h", "1h")
     entry_interval: str = "15m"
 
@@ -68,24 +65,8 @@ def build_realtime_strategy_signal(
         frame=entry_frame,
         min_risk_reward=strategy_config.min_risk_reward,
         target_risk_reward=strategy_config.target_risk_reward,
-        trigger_config=PullbackTriggerConfig(
-            zone_atr_multiplier=strategy_config.pullback_zone_atr_multiplier,
-            require_close_beyond_ema=strategy_config.require_pullback_close_beyond_fast_ma,
-        ),
     )
-    reversal_signal = (
-        build_reversal_signal(trend=trend, setup=reversal_setup)
-        if strategy_config.enable_reversal_probe
-        else TradeSignal(
-            action="WAIT",
-            strategy_type="REVERSAL_PROBE",
-            entry_price=None,
-            stop_loss=None,
-            take_profit=None,
-            risk_reward=None,
-            reason=["reversal probe disabled"],
-        )
-    )
+    reversal_signal = build_reversal_signal(trend=trend, setup=reversal_setup)
     signal = select_signal(SignalInputs(main_signal=main_signal, reversal_signal=reversal_signal))
     return _attach_realtime_diagnostics(signal=signal, frame=frame, config=strategy_config)
 

@@ -26,6 +26,7 @@ def build_paper_status_payload(
             "error_logs": _read_error_logs(error_log_path),
             "signal_evaluations": [],
             "market_prices": {},
+            "strategy_details": _default_strategy_details(),
         }
 
     payload = json.loads(state_path.read_text(encoding="utf-8"))
@@ -50,6 +51,7 @@ def build_paper_status_payload(
             open_position=open_position,
             fills=fills,
         ),
+        "strategy_details": _strategy_details_from_payload(payload.get("strategy_details")),
     }
 
 
@@ -80,8 +82,11 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .ticker-item {{ display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 10px; border: 1px solid #d9e0ec; border-radius: 4px; background: #fff; }}
     .ticker-symbol {{ color: #65748b; font-size: 12px; font-weight: 700; }}
     .ticker-price {{ color: #172033; font-size: 16px; font-weight: 700; }}
-    .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(230px, 1fr); gap: 12px; margin-bottom: 16px; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
+    .strategy-detail-panel {{ padding: 10px 12px; max-height: 86px; overflow-y: auto; }}
+    .strategy-detail-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }}
+    .strategy-detail-block {{ font-family: Menlo, Consolas, monospace; font-size: 11px; line-height: 1.35; color: #344055; white-space: pre-wrap; }}
     .form-grid {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: end; }}
     .form-field {{ display: grid; gap: 6px; }}
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
@@ -132,6 +137,8 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       .header-meta {{ justify-content: flex-start; }}
       .ticker-strip {{ justify-content: flex-start; width: 100%; }}
       .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .strategy-detail-panel {{ grid-column: 1 / -1; max-height: none; }}
+      .strategy-detail-grid {{ grid-template-columns: 1fr; }}
       .condition-list {{ grid-template-columns: 1fr; }}
       .condition-cards {{ grid-template-columns: 1fr; }}
       .table-wrap {{ overflow-x: auto; }}
@@ -154,6 +161,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       <div class="panel"><div class="label">持仓情况</div><div class="value">{_position_title(position)}</div></div>
       <div class="panel"><div class="label">模拟成交次数</div><div class="value">{len(fills)}</div></div>
       <div class="panel"><div class="label" id="rejected-signals">拒绝信号</div><div class="value">{_escape(payload.get("rejected_signals"))}</div></div>
+      {_render_strategy_details(payload.get("strategy_details", []))}
     </section>
     <section class="panel">
       <h2>持仓情况</h2>
@@ -470,6 +478,9 @@ def render_strategy_backtest_batch_html(
         <div class="form-field"><label for="swing_lookbacks">Swing Lookback</label><input id="swing_lookbacks" name="swing_lookbacks" value="{_escape(_join_values(getattr(config, "swing_lookbacks", (20, 30))))}"></div>
         <div class="form-field"><label for="max_fee_to_risk_ratios">手续费/风险上限</label><input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0.25", "0"))))}"></div>
         <div class="form-field"><label for="take_profit_modes">止盈模式</label><input id="take_profit_modes" name="take_profit_modes" value="{_escape(_join_values(getattr(config, "take_profit_modes", ("TRAILING", "FIXED"))))}"></div>
+        <div class="form-field"><label for="pullback_zone_atr_multipliers">快线区域ATR倍数</label><input id="pullback_zone_atr_multipliers" name="pullback_zone_atr_multipliers" value="{_escape(_join_values(getattr(config, "pullback_zone_atr_multipliers", ("1",))))}"></div>
+        <div class="form-field"><label for="require_pullback_close_beyond_fast_ma_options">收盘回到快线方向侧</label><input id="require_pullback_close_beyond_fast_ma_options" name="require_pullback_close_beyond_fast_ma_options" value="{_escape(_join_values(getattr(config, "require_pullback_close_beyond_fast_ma_options", (False,))))}"></div>
+        <div class="form-field"><label for="enable_reversal_probe_options">启用趋势转换试仓</label><input id="enable_reversal_probe_options" name="enable_reversal_probe_options" value="{_escape(_join_values(getattr(config, "enable_reversal_probe_options", (True,))))}"></div>
         <div class="form-field">
           <label for="skip_fast_gte_slow">过滤快线>=慢线</label>
           <select id="skip_fast_gte_slow" name="skip_fast_gte_slow">{_render_bool_options(getattr(config, "skip_fast_gte_slow", True))}</select>
@@ -622,8 +633,14 @@ def _series_bounds(values: Any) -> tuple[int, int, int]:
 
 def _join_values(values: Any) -> str:
     if not isinstance(values, (list, tuple)):
-        return str(values or "")
-    return ",".join(str(value) for value in values)
+        return _join_value(values)
+    return ",".join(_join_value(value) for value in values)
+
+
+def _join_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value or "")
 
 
 def _render_batch_analysis(analysis: dict[str, Any] | None) -> str:
@@ -817,6 +834,77 @@ def _render_market_prices(prices: dict[str, Any]) -> str:
         for symbol in symbols
     )
     return f'<div class="ticker-strip">{items}</div>'
+
+
+def _render_strategy_details(details: list[dict[str, Any]]) -> str:
+    effective_details = details or _default_strategy_details()
+    blocks = "".join(
+        f'<div class="strategy-detail-block">{_escape(_strategy_detail_text(detail))}</div>'
+        for detail in effective_details
+    )
+    return f"""<div class="panel strategy-detail-panel">
+  <div class="label">当前策略详情</div>
+  <div class="strategy-detail-grid">{blocks}</div>
+</div>"""
+
+
+def _strategy_detail_text(detail: dict[str, Any]) -> str:
+    ordered_keys = (
+        "symbol",
+        "fast_ma",
+        "slow_ma",
+        "atr_period",
+        "dmi_period",
+        "swing_lookback",
+        "max_fee_to_risk_ratio",
+        "trend_pullback_take_profit_mode",
+        "pullback_zone_atr_multiplier",
+        "require_pullback_close_beyond_fast_ma",
+        "enable_reversal_probe",
+    )
+    lines = [
+        f"{key} = {_strategy_detail_value(detail.get(key))}"
+        for key in ordered_keys
+    ]
+    return "\n".join(lines)
+
+
+def _strategy_detail_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "-"
+    return str(value)
+
+
+def _strategy_details_from_payload(raw_details: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw_details, list):
+        return _default_strategy_details()
+    details = [
+        detail
+        for detail in raw_details
+        if isinstance(detail, dict)
+    ]
+    return details or _default_strategy_details()
+
+
+def _default_strategy_details() -> list[dict[str, Any]]:
+    return [
+        {
+            "symbol": symbol,
+            "fast_ma": "EMA15",
+            "slow_ma": "MA60",
+            "atr_period": "14",
+            "dmi_period": "12",
+            "swing_lookback": "20",
+            "max_fee_to_risk_ratio": "0",
+            "trend_pullback_take_profit_mode": "TRAILING",
+            "pullback_zone_atr_multiplier": "1",
+            "require_pullback_close_beyond_fast_ma": False,
+            "enable_reversal_probe": False,
+        }
+        for symbol in ("BTCUSDT", "ETHUSDT")
+    ]
 
 
 def _stored_market_prices(raw_prices: Any) -> dict[str, Any]:

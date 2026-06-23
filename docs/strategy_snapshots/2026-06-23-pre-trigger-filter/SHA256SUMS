@@ -1,0 +1,11 @@
+fdc71a3f0774ba2c85891df46713046793ce48a3b9fc2da48d4c27728d6d77a6  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/app/strategy/pullback_strategy.py
+031e907cbf2baceef81a7d54c771c32c80c84f10f25faa15cc18e92741f363c4  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/app/strategy/reversal_strategy.py
+a682b0646f108bfef100f36536086e68dd86a0a5ad429bb91e7d3bbe3a8ea0a8  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/app/strategy/signal_router.py
+d380de5c3b0c5547eb42d0ddd1c296eb66cb7b9110c77befb80e4e818d5bcab8  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/app/strategy/trend_detector.py
+d73550d4a4d5eda36b26ead74109cf249f304187b89c0f3d2b3f7207734c3a0a  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/app/paper/live_runner.py
+a25eb827741c835b4b10e71c107e13161046dbb1b8652d37ec6c2151626eff10  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/app/paper/strategy_adapter.py
+fa672fedfa9b2521b1bdb71191f1f270910683e0536a8ea26fe7fc5c563496ec  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/app/paper/strategy_backtest.py
+f2ee1900def73f2327df4260ac26215e6f90ac42eee0b4f92af6416c9513c35d  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/app/paper/trading.py
+4455e81e7297bb98bc8fd856a159df20cdec9122a9b7e1402ee374e29e78b125  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/app/database/repositories.py
+1735ba5551a836659377f9345b819637e32fa690ad9901b71054aacec889938f  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/scripts/run_paper_status_web.py
+8104eef0fd693a21a358dec4a961086d11498770f0f295b51993a166e5327fca  docs/strategy_snapshots/2026-06-23-pre-trigger-filter/scripts/run_strategy_backtest_batch.py

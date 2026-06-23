@@ -307,6 +307,9 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
             swing_lookbacks=(15, 20),
             max_fee_to_risk_ratios=("0.20", "0.25"),
             take_profit_modes=("TRAILING", "FIXED"),
+            pullback_zone_atr_multipliers=("1", "0.5"),
+            require_pullback_close_beyond_fast_ma_options=(False, True),
+            enable_reversal_probe_options=(True, False),
             history_period="6m",
         )
     )
@@ -326,6 +329,15 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     assert "Swing Lookback" in html
     assert "手续费/风险上限" in html
     assert "止盈模式" in html
+    assert "快线区域ATR倍数" in html
+    assert 'name="pullback_zone_atr_multipliers"' in html
+    assert 'value="1,0.5"' in html
+    assert "收盘回到快线方向侧" in html
+    assert 'name="require_pullback_close_beyond_fast_ma_options"' in html
+    assert 'value="false,true"' in html
+    assert "启用趋势转换试仓" in html
+    assert 'name="enable_reversal_probe_options"' in html
+    assert 'value="true,false"' in html
     assert "回测周期" in html
     assert "开始批量回测" in html
 
@@ -340,6 +352,9 @@ def test_strategy_backtest_batch_page_defaults_to_smaller_refinement_grid():
     assert 'name="dmi_periods" value="12,14"' in html
     assert 'name="swing_lookbacks" value="20,30"' in html
     assert 'name="max_fee_to_risk_ratios" value="0.25,0"' in html
+    assert 'name="pullback_zone_atr_multipliers" value="1"' in html
+    assert 'name="require_pullback_close_beyond_fast_ma_options" value="false"' in html
+    assert 'name="enable_reversal_probe_options" value="true"' in html
     assert '<option value="1" selected>是</option>' in html
 
 

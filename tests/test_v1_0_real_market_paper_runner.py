@@ -122,7 +122,67 @@ def test_real_market_paper_config_defaults_to_perpetual_costs_and_10x_leverage(t
     assert config.taker_fee_rate == Decimal("0.0005")
     assert config.leverage == Decimal("10")
     assert config.funding_interval_ms == 8 * 60 * 60 * 1000
+    assert config.max_fee_to_risk_ratio == Decimal("0")
     assert config.trend_pullback_take_profit_mode == "TRAILING"
+    assert config.strategy_config.fast_ma_type == "EMA"
+    assert config.strategy_config.slow_ma_type == "MA"
+    assert config.strategy_config.ema_fast_period == 15
+    assert config.strategy_config.ema_slow_period == 60
+    assert config.strategy_config.atr_period == 14
+    assert config.strategy_config.dmi_period == 12
+    assert config.strategy_config.swing_lookback == 20
+    assert config.strategy_config.enable_reversal_probe is False
+
+
+def test_real_market_paper_runner_writes_strategy_details_to_state(tmp_path):
+    import json
+
+    from app.data.quality import Kline
+    from app.paper.live_runner import RealMarketPaperConfig, run_real_market_paper
+
+    state_path = tmp_path / "paper-state.json"
+
+    async def source():
+        yield Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        )
+
+    asyncio.run(
+        run_real_market_paper(
+            RealMarketPaperConfig(
+                symbols=("BTCUSDT", "ETHUSDT"),
+                intervals=("15m", "1h", "4h"),
+                websocket_base_url="wss://fstream.binance.com",
+                state_path=state_path,
+                initial_equity=Decimal("1000"),
+                risk_per_trade_pct=Decimal("0.005"),
+            ),
+            source=source(),
+        )
+    )
+
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    details = payload["strategy_details"]
+
+    assert [detail["symbol"] for detail in details] == ["BTCUSDT", "ETHUSDT"]
+    assert details[0]["fast_ma"] == "EMA15"
+    assert details[0]["slow_ma"] == "MA60"
+    assert details[0]["atr_period"] == "14"
+    assert details[0]["dmi_period"] == "12"
+    assert details[0]["swing_lookback"] == "20"
+    assert details[0]["max_fee_to_risk_ratio"] == "0"
+    assert details[0]["trend_pullback_take_profit_mode"] == "TRAILING"
+    assert details[0]["pullback_zone_atr_multiplier"] == "1"
+    assert details[0]["require_pullback_close_beyond_fast_ma"] is False
+    assert details[0]["enable_reversal_probe"] is False
 
 
 def test_real_market_paper_runner_uses_injected_strategy_signal(tmp_path):

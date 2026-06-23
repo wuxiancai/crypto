@@ -40,9 +40,6 @@ class StrategyBacktestConfig:
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     trend_pullback_take_profit_mode: str = "TRAILING"
     max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
-    pullback_zone_atr_multiplier: Decimal = Decimal("1")
-    require_pullback_close_beyond_fast_ma: bool = False
-    enable_reversal_probe: bool = True
 
 
 @dataclass(frozen=True)
@@ -94,9 +91,6 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         atr_period=backtest_config.atr_period,
         dmi_period=backtest_config.dmi_period,
         swing_lookback=backtest_config.swing_lookback,
-        pullback_zone_atr_multiplier=backtest_config.pullback_zone_atr_multiplier,
-        require_pullback_close_beyond_fast_ma=backtest_config.require_pullback_close_beyond_fast_ma,
-        enable_reversal_probe=backtest_config.enable_reversal_probe,
     )
     engine = PaperTradingEngine(
         PaperConfig(

@@ -1,6 +1,6 @@
 # Handoff
 
-更新时间：2026-06-20
+更新时间：2026-06-23
 
 ## 当前状态
 
@@ -19,6 +19,36 @@
 
 ## 本轮修复
 
+- 2026-06-23 模拟交易看板策略详情与实时触发参数：
+  - 已在模拟交易看板顶部统计行新增“当前策略详情”显示框，按 BTCUSDT / ETHUSDT 分别展示当前实时 Paper 策略参数：`symbol`、`fast_ma`、`slow_ma`、`atr_period`、`dmi_period`、`swing_lookback`、`max_fee_to_risk_ratio`、`trend_pullback_take_profit_mode`、`pullback_zone_atr_multiplier`、`require_pullback_close_beyond_fast_ma`、`enable_reversal_probe`。
+  - 真实行情模拟交易默认触发参数已改为：`EMA15 / MA60, ATR14, DMI12, Swing20, fee/risk=0, TRAILING`；`pullback_zone_atr_multiplier=1`、`require_pullback_close_beyond_fast_ma=false`、`enable_reversal_probe=false`。
+  - `scripts/run_paper_realtime.py` 已新增对应 CLI 参数，默认值即上述模拟交易参数；`RealMarketPaperConfig` 会把策略详情写入 `runtime/paper-state.json`，状态保存时会保留 `strategy_details` 和 `market_prices`。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_paper_persistence.py -q`，32 passed；`.venv/bin/python -m py_compile app/paper/live_runner.py app/paper/persistence.py app/paper/web_status.py scripts/run_paper_realtime.py` 通过。
+- 2026-06-23 策略触发条件修改与回测：
+  - 已按用户要求保存原策略快照到 `docs/strategy_snapshots/2026-06-23-pre-trigger-filter/`，并新增恢复脚本 `scripts/restore_strategy_snapshot.sh`；执行 `scripts/restore_strategy_snapshot.sh` 可恢复修改前策略文件。
+  - 已新增并接入三个可回测触发参数：`pullback_zone_atr_multiplier`、`require_pullback_close_beyond_fast_ma`、`enable_reversal_probe`；参数已进入实时策略适配器、回测配置、批量回测脚本、`/backtest/batch` 页面和数据库配置归档。
+  - 已生成报告 `docs/STRATEGY_TRIGGER_OPTIMIZATION_REPORT_2026-06-23.md`。本次只比较同一 1 年窗口 `2025-06-22 15:59:59 UTC+8` 至 `2026-06-22 15:59:59 UTC+8`，不再混用 1 年/2 年收益。
+  - Ubuntu DB 触发条件网格 run_id `311-322` 显示：最佳为 run_id `312`，`EMA18/MA40, ATR12, DMI12, Swing20, fee/risk=0, TRAILING, ZoneATR=1, CloseBeyondMA=False, Reversal=False`，最终权益 `1473.15`，胜率 `44.67%`，盈亏比 `2.07`，PF `1.67`。
+  - 均线复测 run_id `323-330` 显示：`TRAILING` 明显优于 `FIXED`；`EMA15/MA60`、`EMA15/MA90` 胜率略高但收益低，仍不如 `EMA18/MA40`。
+  - 结论：`REVERSAL_PROBE` 明显拖累结果，应默认关闭或单独回测；`CloseBeyondMA=True` 和缩小 ZoneATR 没有改善；当前策略族不是 60% 胜率策略，全库 1 年且交易数 >= 50 的最高胜率仍约 `46.72%`，若要冲击 60% 必须新增 ADX/DI gap、15m 拒绝 K 线质量、分 LONG/SHORT 等更强过滤。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v0_2_pullback_strategy.py ... -q`，14 passed。真实回测因本机 Binance REST HTTP 451，改为直接从 Ubuntu PostgreSQL 抽 K 线到本地 cache 后执行同一回测引擎。
+- 2026-06-23 策略触发条件分析：
+  - 针对用户截图红框“15m 反弹到 EMA50 区域”完成代码级分析，并生成 `docs/STRATEGY_TRIGGER_CONDITION_ANALYSIS_2026-06-23.md`。
+  - 结论：红框条件实际是“15m K 线触达快线 ± ATR 区域”，用于避免追多/追空，但当前实现偏宽，只要求做多 `low <= fast_ma + ATR and close >= fast_ma - ATR`、做空 `high >= fast_ma - ATR and close <= fast_ma + ATR`，再叠加简单阴阳线确认，容易放入质量一般的回踩/反弹。
+  - 页面文案“EMA50 区域”目前是硬编码，实际回测配置可能是 EMA18、EMA15、EMA12 等快线；后续应改成随 `fast_ma_type + ema_fast_period` 动态显示。
+  - Ubuntu 回测拆分显示优质 1y run 里 `REVERSAL_PROBE` 明显拖累胜率和净收益，例如 Run 272 中 `TREND_PULLBACK` 196 笔胜率 44.90%、净收益 471.17，而 `REVERSAL_PROBE` 12 笔胜率 16.67%、净收益 -38.79；建议下一轮优先回测 `TREND_PULLBACK only`、收窄快线区域、收盘回到趋势方向侧、ADX/DI gap、K 线拒绝质量过滤。
+- 2026-06-23 回测组合二次分析：
+  - 通过 Ubuntu PostgreSQL `192.168.0.102:55433/crypto_quant` 读取最新真实回测归档：`backtest_runs` 230 条、去重参数组合 228 组、`backtest_trades` 41,351 笔，时间范围为 UTC 2026-06-20 13:33:35 至 2026-06-22 16:58:07。
+  - 已生成并修正 `docs/BACKTEST_OPTIMIZATION_REPORT_2026-06-23.md`：报告明确不能把 2 年总收益和 1 年总收益直接比较，必须按 `history_period` 分组或用年化口径分析。
+  - 修正后 1 年口径收益最高组合为 Run 272：`BTCUSDT EMA18 / MA40, ATR12, DMI12, Swing20, fee/risk=0, TRAILING, 1y`，最终权益 `1432.37`，净收益 `432.37`，收益率 `43.24%`，胜率 `43.27%`，盈亏比 `2.08`，利润因子 `1.58`。
+  - 2 年口径仅有 4 组，只作为稳定性参考；其中 Run 166：`EMA10 / MA30, ATR12, DMI12, Swing20, fee/risk=0, TRAILING, 2y`，2 年收益率 `75.18%`，年化 CAGR `32.35%`。
+  - 已明确现有 228 个去重组合里没有胜率超过 60% 的组合；样本数不少于 100 且盈利的最高胜率为 Run 150：`EMA15 / MA60, ATR12, DMI12, Swing30, fee/risk=0, TRAILING, 1y`，胜率 `46.72%`。
+  - 报告建议下一轮若要冲击 60% 胜率，必须新增或验证更严格过滤：`TREND_PULLBACK only`、提高/禁用 `REVERSAL_PROBE`、ADX/DI gap、RR 阈值、Swing30+、LONG/SHORT 分侧回测、连续亏损暂停等；不能只靠当前均线/ATR/DMI 参数保证达到。
+- 2026-06-22 回测组合分析：
+  - 尝试 SSH 登录 `192.168.0.102` 返回认证失败；随后通过 Ubuntu PostgreSQL 顺延端口 `192.168.0.102:55433/crypto_quant` 读取真实归档数据。
+  - 当前远端库有 `backtest_runs` 83 条、去重后参数组合 81 组、`backtest_trades` 14,731 笔，时间范围为 UTC 2026-06-20 至 2026-06-22。
+  - 已生成分析报告 `docs/BACKTEST_OPTIMIZATION_REPORT_2026-06-22.md`。收益最高组合为 `BTCUSDT EMA15 / MA60, ATR14, DMI12, Swing20, fee/risk=0, TRAILING, 1y`，最终权益 `1428.04`，净收益 `428.04`，胜率 `44.97%`，盈亏比 `2.08`，利润因子 `1.70`。
+  - 报告同时给出胜率/利润因子优先组合 `EMA15 / MA60, ATR12, DMI12, Swing30, fee/risk=0, TRAILING`，以及成本过滤稳健版 `EMA15 / MA90, ATR14, DMI12, Swing20, fee/risk=0.25, TRAILING`。
 - 2026-06-21 修复批量参数回测页面参数语义：页面输入的 ATR/DMI/Swing、手续费/风险上限、止盈模式现在会直接参与主搜索完整组合，不再只作为精修阶段的单项变化；例如用户输入 `DMI=12` 后，主搜索日志会显示并执行 `DMI 12`，不会继续默认 `DMI 14`。
 - 2026-06-20 按 Binance USDⓈ-M Futures 官方文档修复连接链路：
   - WebSocket Kline 属于 Market stream，实时 K 线 URL 现在生成 `wss://fstream.binance.com/market/stream?streams=...`，不再使用 legacy `wss://fstream.binance.com/stream?...`。

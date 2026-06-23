@@ -22,21 +22,6 @@ from app.paper.trading import PaperConfig, PaperSnapshot
 from app.strategy.signal_router import StrategySignal
 
 
-def default_paper_strategy_config() -> RealtimeStrategyConfig:
-    return RealtimeStrategyConfig(
-        fast_ma_type="EMA",
-        slow_ma_type="MA",
-        ema_fast_period=15,
-        ema_slow_period=60,
-        atr_period=14,
-        dmi_period=12,
-        swing_lookback=20,
-        pullback_zone_atr_multiplier=Decimal("1"),
-        require_pullback_close_beyond_fast_ma=False,
-        enable_reversal_probe=False,
-    )
-
-
 @dataclass(frozen=True)
 class RealMarketPaperConfig:
     symbols: tuple[str, ...]
@@ -51,9 +36,8 @@ class RealMarketPaperConfig:
     leverage: Decimal = Decimal("10")
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
-    max_fee_to_risk_ratio: Decimal | None = Decimal("0")
     trend_pullback_take_profit_mode: str = "TRAILING"
-    strategy_config: RealtimeStrategyConfig = field(default_factory=default_paper_strategy_config)
+    strategy_config: RealtimeStrategyConfig = field(default_factory=RealtimeStrategyConfig)
     historical_warmup_enabled: bool = True
     historical_warmup_limit: int = 250
 
@@ -64,7 +48,6 @@ async def run_real_market_paper(
     signal_fn: SignalFn | None = None,
     warmup_klines: list[Kline] | None = None,
 ) -> PaperSnapshot:
-    save_paper_strategy_details(config)
     kline_source = source or iter_binance_multi_interval_websocket_klines(
         base_url=config.websocket_base_url,
         symbols=list(config.symbols),
@@ -98,7 +81,6 @@ async def run_real_market_paper(
                 funding_rate=config.funding_rate,
                 funding_interval_ms=config.funding_interval_ms,
                 trend_pullback_take_profit_mode=config.trend_pullback_take_profit_mode,
-                max_fee_to_risk_ratio=config.max_fee_to_risk_ratio,
             ),
             source=kline_source,
             signal_fn=signal_fn
@@ -189,38 +171,6 @@ async def fetch_realtime_warmup_klines(config: RealMarketPaperConfig) -> list[Kl
                 continue
             warmup.extend(kline for kline in klines if kline.close_time < now_ms)
     return sorted(warmup, key=lambda kline: (kline.symbol, kline.interval, kline.open_time))
-
-
-def save_paper_strategy_details(config: RealMarketPaperConfig) -> None:
-    payload = _read_state_payload_for_market_price(config.state_path, config.initial_equity)
-    payload["strategy_details"] = [
-        _strategy_detail_payload(symbol=symbol, config=config)
-        for symbol in config.symbols
-    ]
-    config.state_path.parent.mkdir(parents=True, exist_ok=True)
-    config.state_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
-
-
-def _strategy_detail_payload(symbol: str, config: RealMarketPaperConfig) -> dict[str, str | bool]:
-    strategy_config = config.strategy_config
-    return {
-        "symbol": symbol,
-        "fast_ma": f"{strategy_config.fast_ma_type.upper()}{strategy_config.ema_fast_period}",
-        "slow_ma": f"{strategy_config.slow_ma_type.upper()}{strategy_config.ema_slow_period}",
-        "atr_period": str(strategy_config.atr_period),
-        "dmi_period": str(strategy_config.dmi_period),
-        "swing_lookback": str(strategy_config.swing_lookback),
-        "max_fee_to_risk_ratio": "0"
-        if config.max_fee_to_risk_ratio is None
-        else str(config.max_fee_to_risk_ratio),
-        "trend_pullback_take_profit_mode": config.trend_pullback_take_profit_mode,
-        "pullback_zone_atr_multiplier": str(strategy_config.pullback_zone_atr_multiplier),
-        "require_pullback_close_beyond_fast_ma": strategy_config.require_pullback_close_beyond_fast_ma,
-        "enable_reversal_probe": strategy_config.enable_reversal_probe,
-    }
 
 
 def build_default_realtime_signal_fn(

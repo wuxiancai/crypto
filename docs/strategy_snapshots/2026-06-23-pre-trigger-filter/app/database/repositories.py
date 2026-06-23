@@ -196,11 +196,6 @@ def strategy_backtest_config_payload(config: object) -> dict[str, str]:
         "leverage": str(getattr(config, "leverage")),
         "trend_pullback_take_profit_mode": str(getattr(config, "trend_pullback_take_profit_mode")),
         "max_fee_to_risk_ratio": str(getattr(config, "max_fee_to_risk_ratio")),
-        "pullback_zone_atr_multiplier": str(getattr(config, "pullback_zone_atr_multiplier", "1")),
-        "require_pullback_close_beyond_fast_ma": str(
-            getattr(config, "require_pullback_close_beyond_fast_ma", False)
-        ),
-        "enable_reversal_probe": str(getattr(config, "enable_reversal_probe", True)),
     }
 
 
