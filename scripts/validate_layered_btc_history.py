@@ -58,6 +58,13 @@ class LayeredHistoryProbeResult:
 
 DEFAULT_BTC_PROBES = (
     LayeredHistoryProbe(
+        name="btc_2026_4h_short_transition",
+        start_time="2026-05-13 20:00",
+        end_time="2026-05-16 00:00",
+        expected_strategy="SHORT_4H_HEDGE",
+        expected_action="SHORT_ENTRY",
+    ),
+    LayeredHistoryProbe(
         name="btc_2026_daily_short_core",
         start_time="2026-05-13 20:00",
         end_time="2026-06-05 00:00",

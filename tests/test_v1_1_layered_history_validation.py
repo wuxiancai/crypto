@@ -96,3 +96,18 @@ def test_layered_history_probe_reports_last_signal_when_no_match(monkeypatch):
     assert result.checked_15m_bars == 4
     assert result.last_strategy == "SYSTEM"
     assert result.last_reason == ["no setup"]
+
+
+def test_default_btc_probes_cover_transition_core_and_hedge():
+    import scripts.validate_layered_btc_history as validation
+
+    assert [probe.name for probe in validation.DEFAULT_BTC_PROBES] == [
+        "btc_2026_4h_short_transition",
+        "btc_2026_daily_short_core",
+        "btc_2026_4h_rebound_hedge",
+    ]
+    assert [probe.expected_strategy for probe in validation.DEFAULT_BTC_PROBES] == [
+        "SHORT_4H_HEDGE",
+        "SHORT_DAY_CORE",
+        "LONG_4H_HEDGE",
+    ]

@@ -33,7 +33,7 @@
 - 2026-06-23 BTC 分层策略真实历史验证入口：
   - 新增 `scripts/validate_layered_btc_history.py`，按 `1d / 4h / 1h / 15m` 读取或拉取 BTCUSDT 历史 K 线，扫描 probe 窗口并调用现有 `build_realtime_strategy_signal()`，不复制策略规则。
   - 已确认用户截图左上角是 `2026/05/13 20:00`，不是文字中的 2025 年；默认 probe 已按截图日期 `2026-05-13 20:00 UTC+8` 设置。
-  - 真实 Binance 历史验证结果：`SHORT_DAY_CORE` 在 `2026-06-01 07:59:59 UTC+8` 命中，entry `73653.20`；`LONG_4H_HEDGE` 在 `2026-06-13 10:59:59 UTC+8` 命中，entry `63612.00`。
+  - 真实 Binance 历史验证结果：`SHORT_4H_HEDGE` 在 `2026-05-13 23:59:59 UTC+8` 命中，entry `78794.70`；`SHORT_DAY_CORE` 在 `2026-06-01 07:59:59 UTC+8` 命中，entry `73653.20`；`LONG_4H_HEDGE` 在 `2026-06-13 10:59:59 UTC+8` 命中，entry `63612.00`。
   - 本机验证：`.venv/bin/python scripts/validate_layered_btc_history.py --json` 通过；`.venv/bin/python -m pytest tests/test_v1_1_layered_history_validation.py -q`，2 passed。
 - 2026-06-23 分层策略系统文档收口：
   - 新增 `docs/superpowers/specs/2026-06-23-layered-strategy-system-design.md`，定义日线主趋势、4h 子趋势、1h 确认、15m 入场的独立策略系统。
