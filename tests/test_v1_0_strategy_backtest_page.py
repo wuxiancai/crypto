@@ -232,6 +232,86 @@ def test_strategy_backtest_web_helper_archives_successful_result():
     assert summaries[0].swing_lookback == 25
     assert summaries[0].max_fee_to_risk_ratio == "0"
     assert summaries[0].final_equity == "1019.00"
+    assert summaries[0].max_drawdown == "0.00"
+    assert summaries[0].max_drawdown_pct == "0.00"
+    assert summaries[0].profit_loss_ratio == "∞"
+
+
+def test_strategy_backtest_archived_summary_derives_risk_metrics_from_trades():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.database.models import Base
+    from app.database.repositories import archive_strategy_backtest_result, list_strategy_backtest_summaries
+    from app.paper.strategy_backtest import StrategyBacktestConfig, StrategyBacktestResult
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    result = StrategyBacktestResult(
+        config=StrategyBacktestConfig(symbols=("BTCUSDT",)),
+        initial_equity="1000.00",
+        final_equity="900.00",
+        total_trades=3,
+        wins=1,
+        losses=2,
+        net_pnl="-100.00",
+        trades=[
+            {
+                "symbol": "BTCUSDT",
+                "side": "SHORT",
+                "strategy_type": "SHORT_DAY_CORE",
+                "entry_time": "1",
+                "exit_time": "2",
+                "entry_price": "64000",
+                "exit_price": "62000",
+                "quantity": "0.01",
+                "gross_pnl": "205",
+                "fees": "5",
+                "funding_fee": "0",
+                "net_pnl": "200",
+                "exit_reason": "TAKE_PROFIT",
+            },
+            {
+                "symbol": "BTCUSDT",
+                "side": "LONG",
+                "strategy_type": "LONG_4H_HEDGE",
+                "entry_time": "3",
+                "exit_time": "4",
+                "entry_price": "62000",
+                "exit_price": "60000",
+                "quantity": "0.01",
+                "gross_pnl": "-245",
+                "fees": "5",
+                "funding_fee": "0",
+                "net_pnl": "-250",
+                "exit_reason": "STOP_LOSS",
+            },
+            {
+                "symbol": "BTCUSDT",
+                "side": "SHORT",
+                "strategy_type": "SHORT_4H_1H_ADDON",
+                "entry_time": "5",
+                "exit_time": "6",
+                "entry_price": "61000",
+                "exit_price": "61500",
+                "quantity": "0.01",
+                "gross_pnl": "-45",
+                "fees": "5",
+                "funding_fee": "0",
+                "net_pnl": "-50",
+                "exit_reason": "STOP_LOSS",
+            },
+        ],
+        error=None,
+    )
+
+    with Session(engine) as session:
+        archive_strategy_backtest_result(session, result)
+        summaries = list_strategy_backtest_summaries(session)
+
+    assert summaries[0].max_drawdown == "300.00"
+    assert summaries[0].max_drawdown_pct == "25.00"
+    assert summaries[0].profit_loss_ratio == "1.33"
 
 
 def test_strategy_backtest_page_shows_recent_results_newest_first():
@@ -260,6 +340,9 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
                 wins=4,
                 losses=6,
                 net_pnl="-20.00",
+                max_drawdown="80.00",
+                max_drawdown_pct="8.16",
+                profit_loss_ratio="0.90",
             ),
             StrategyBacktestRunSummary(
                 created_at=datetime(2026, 6, 20, 10, 0, tzinfo=timezone.utc),
@@ -341,6 +424,9 @@ def test_strategy_backtest_parameter_comparison_sorts_by_final_equity():
                 wins=54,
                 losses=68,
                 net_pnl="473.15",
+                max_drawdown="120.00",
+                max_drawdown_pct="8.14",
+                profit_loss_ratio="1.80",
             ),
         ]
     )
@@ -348,8 +434,12 @@ def test_strategy_backtest_parameter_comparison_sorts_by_final_equity():
     comparison_html = html[html.index("参数组合对比") :]
 
     assert comparison_html.index("BTCUSDT") < comparison_html.index("ETHUSDT")
+    assert "<th>盈亏比</th>" in comparison_html
+    assert "<th>最大回撤</th>" in comparison_html
     assert "<td>1</td>" in comparison_html
     assert "1473.15" in comparison_html
+    assert "1.80" in comparison_html
+    assert "120.00 / 8.14%" in comparison_html
 
 
 def test_strategy_backtest_page_links_to_batch_parameter_page():

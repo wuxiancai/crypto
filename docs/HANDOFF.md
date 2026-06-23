@@ -49,8 +49,9 @@
   - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_strategy_backtest_page.py -q`，37 passed。
 - 2026-06-24 策略回测参数组合对比：
   - `/backtest` 页面新增“参数组合对比”表，复用最近回测归档，按 `final_equity` 从高到低排序，不影响“最近回测结果”的时间排序。
-  - 对比列包含交易对、均线组合、ATR、DMI、Swing、手续费/风险、周期、账户权益、净盈亏、胜率、交易次数。
-  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py -q`，18 passed。
+  - 对比列包含交易对、均线组合、ATR、DMI、Swing、手续费/风险、周期、账户权益、净盈亏、胜率、盈亏比、最大回撤、交易次数。
+  - `list_strategy_backtest_summaries()` 会从同一批归档 `backtest_trades` 重新推导最大回撤和盈亏比，历史归档不需要新增数据库字段即可在参数对比表显示风险指标。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py -q`，19 passed。
 - 2026-06-23 分层策略系统文档收口：
   - 新增 `docs/superpowers/specs/2026-06-23-layered-strategy-system-design.md`，定义日线主趋势、4h 子趋势、1h 确认、15m 入场的独立策略系统。
   - 已同步修订 `README.md`、`prd.md`、`docs/PROJECT_CONTEXT.md`、`docs/DECISIONS.md`、`docs/TASKS.md`，把新增主线改为六类明确策略名和 Paper/Backtest strategy bucket 子仓模型。

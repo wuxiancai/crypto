@@ -83,6 +83,9 @@ class StrategyBacktestRunSummary:
     wins: int
     losses: int
     net_pnl: str
+    max_drawdown: str = "0.00"
+    max_drawdown_pct: str = "0.00"
+    profit_loss_ratio: str = "0.00"
 
 
 async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) -> StrategyBacktestResult:

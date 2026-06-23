@@ -216,7 +216,20 @@ def list_strategy_backtest_summaries(
         .order_by(BacktestRun.created_at.desc(), BacktestRun.id.desc())
         .limit(max(1, limit))
     ).all()
-    return [_strategy_backtest_summary(run, snapshot) for run, snapshot in rows]
+    run_ids = [int(run.id) for run, _snapshot in rows]
+    trades_by_run: dict[int, list[BacktestTradeRecord]] = {run_id: [] for run_id in run_ids}
+    if run_ids:
+        trades = session.execute(
+            select(BacktestTradeRecord)
+            .where(BacktestTradeRecord.backtest_run_id.in_(run_ids))
+            .order_by(BacktestTradeRecord.exit_time.asc(), BacktestTradeRecord.id.asc())
+        ).scalars().all()
+        for trade in trades:
+            trades_by_run.setdefault(int(trade.backtest_run_id), []).append(trade)
+    return [
+        _strategy_backtest_summary(run, snapshot, trades_by_run.get(int(run.id), []))
+        for run, snapshot in rows
+    ]
 
 
 def clear_strategy_backtest_history(session: Session) -> dict[str, int]:
@@ -261,10 +274,12 @@ def clear_strategy_backtest_history(session: Session) -> dict[str, int]:
 def _strategy_backtest_summary(
     run: BacktestRun,
     snapshot: ConfigSnapshot,
+    trades: list[BacktestTradeRecord] | None = None,
 ) -> StrategyBacktestRunSummary:
     payload = _decode_config_content(snapshot.content)
     symbols = str(payload.get("symbols") or "UNKNOWN")
     symbol = symbols.split(",", 1)[0] if symbols else "UNKNOWN"
+    max_drawdown, max_drawdown_pct = _summary_drawdown_metrics(Decimal(str(run.initial_equity)), trades or [])
     return StrategyBacktestRunSummary(
         created_at=run.created_at,
         symbol=symbol,
@@ -283,7 +298,43 @@ def _strategy_backtest_summary(
         wins=run.wins,
         losses=run.losses,
         net_pnl=_money_string(run.net_pnl),
+        max_drawdown=max_drawdown,
+        max_drawdown_pct=max_drawdown_pct,
+        profit_loss_ratio=_summary_profit_loss_ratio(trades or []),
     )
+
+
+def _summary_drawdown_metrics(
+    initial_equity: Decimal,
+    trades: list[BacktestTradeRecord],
+) -> tuple[str, str]:
+    peak = initial_equity
+    equity = initial_equity
+    max_drawdown = Decimal("0")
+    for trade in sorted(trades, key=lambda item: (int(item.exit_time), int(item.id or 0))):
+        equity += Decimal(str(trade.net_pnl))
+        if equity > peak:
+            peak = equity
+            continue
+        drawdown = peak - equity
+        if drawdown > max_drawdown:
+            max_drawdown = drawdown
+    pct = Decimal("0") if peak <= 0 else max_drawdown / peak * Decimal("100")
+    return _money_string(max_drawdown), _decimal_string(pct)
+
+
+def _summary_profit_loss_ratio(trades: list[BacktestTradeRecord]) -> str:
+    wins = [Decimal(str(trade.net_pnl)) for trade in trades if Decimal(str(trade.net_pnl)) > 0]
+    losses = [abs(Decimal(str(trade.net_pnl))) for trade in trades if Decimal(str(trade.net_pnl)) < 0]
+    if not wins:
+        return _decimal_string(Decimal("0"))
+    if not losses:
+        return "∞"
+    average_win = sum(wins, Decimal("0")) / Decimal(len(wins))
+    average_loss = sum(losses, Decimal("0")) / Decimal(len(losses))
+    if average_loss == 0:
+        return "∞"
+    return _decimal_string(average_win / average_loss)
 
 
 def _decode_config_content(content: str | None) -> dict[str, object]:
@@ -309,4 +360,8 @@ def _int_from_payload(payload: dict[str, object], key: str, default: int) -> int
 
 
 def _money_string(value: object) -> str:
+    return format(Decimal(str(value)).quantize(Decimal("0.01")), "f")
+
+
+def _decimal_string(value: object) -> str:
     return format(Decimal(str(value)).quantize(Decimal("0.01")), "f")
