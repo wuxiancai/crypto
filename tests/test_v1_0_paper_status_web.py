@@ -112,7 +112,8 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "止盈激活价" in html
     assert "止盈逻辑" in html
     assert "杠杆" in html
-    assert "名义金额 USDT" in html
+    assert "USDT" in html
+    assert "名义金额 USDT" not in html
     assert "1820.00" in html
     assert "1760.00" in html
     assert "900.00" in html
@@ -241,7 +242,8 @@ def test_status_page_formats_numbers_times_and_compact_trade_list(tmp_path):
 
     assert "1059.42" in html
     assert "62908.53" in html
-    assert "名义金额 USDT" in html
+    assert "USDT" in html
+    assert "名义金额 USDT" not in html
     assert "1954.79" in html
     assert "10X" in html
     assert "0.0311" not in html
@@ -316,7 +318,8 @@ def test_status_page_shows_multiple_strategy_bucket_positions(tmp_path):
     assert "止盈激活价" in html
     assert "止盈逻辑" in html
     assert "杠杆" in html
-    assert "名义金额 USDT" in html
+    assert "USDT" in html
+    assert "名义金额 USDT" not in html
     assert "等待激活" in html
     assert "移动止盈中" in html
     assert "620.00" in html

@@ -1225,7 +1225,7 @@ def _render_position(position: dict[str, Any] | None) -> str:
         ("止盈激活价", _format_decimal(position.get("take_profit"), 2)),
         ("止盈逻辑", "移动止盈中" if position.get("trailing_active") else "等待激活"),
         ("杠杆", _leverage_label(position.get("leverage"))),
-        ("名义金额 USDT", _format_notional_usdt(position)),
+        ("USDT", _format_notional_usdt(position)),
     ]
     headers = "".join(f"<th>{_escape(label)}</th>" for label, _value in rows)
     values = "".join(f"<td>{value}</td>" for _label, value in rows)
@@ -1256,7 +1256,7 @@ def _render_positions(positions: list[dict[str, Any]]) -> str:
     return (
         '<div class="table-wrap"><table class="compact-position">'
         "<thead><tr><th>交易对</th><th>方向</th><th>使用策略</th><th>Bucket</th>"
-        "<th>入场</th><th>初始止损</th><th>当前保护线</th><th>止盈激活价</th><th>止盈逻辑</th><th>杠杆</th><th>名义金额 USDT</th></tr></thead>"
+        "<th>入场</th><th>初始止损</th><th>当前保护线</th><th>止盈激活价</th><th>止盈逻辑</th><th>杠杆</th><th>USDT</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
 
@@ -1507,7 +1507,7 @@ def _render_fills(fills: list[dict[str, Any]], positions: list[dict[str, Any]] |
   <thead>
     <tr>
       <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间 UTC+8</th><th>平仓时间 UTC+8</th>
-      <th>开仓价</th><th>平仓价</th><th>杠杆</th><th>名义金额 USDT</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
+      <th>开仓价</th><th>平仓价</th><th>杠杆</th><th>USDT</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -1524,7 +1524,7 @@ def _render_backtest_trades(trades: list[dict[str, Any]]) -> str:
   <thead>
     <tr>
       <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间 UTC+8</th><th>平仓时间 UTC+8</th>
-      <th>开仓价</th><th>平仓价</th><th>杠杆</th><th>名义金额 USDT</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
+      <th>开仓价</th><th>平仓价</th><th>杠杆</th><th>USDT</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
