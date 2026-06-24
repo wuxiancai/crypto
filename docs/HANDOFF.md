@@ -246,6 +246,7 @@
 - 已实现 Ubuntu 部署入口：`scripts/deploy_ubuntu.sh` 首次部署，`scripts/start_ubuntu.sh` 后续启动。脚本会自动检测 PostgreSQL/Web 页面端口冲突并顺延，最终写入 `.env.ports.generated`。
 - 已修复 Ubuntu 首次部署时 Docker 包冲突问题：`deploy_ubuntu.sh` 不再无条件安装 Ubuntu `docker.io`，会复用已有 Docker，或在 Docker CE 软件源可用时优先安装 `docker-ce`，避免 `containerd.io : Conflicts: containerd`。
 - `start_ubuntu.sh` 的 Docker Compose 调用已增强：优先 `docker compose`，当前用户无 Docker 权限时尝试 `sudo docker compose`，再回退 `docker-compose`。
+- `start_ubuntu.sh` 启动前会先停止已运行的 Paper 实时交易进程、Paper Web 状态页进程和 PostgreSQL 容器，再按当前配置重新启动，避免重复运行项目进程。
 - 已修复 Python editable 安装失败问题：`pyproject.toml` 显式配置 setuptools 包发现规则，只打包 `app*`，排除 `runtime*`、`migrations*`、`tests*`，避免部署时出现 `Multiple top-level packages discovered in a flat-layout`。
 - 已修复服务器已有 PostgreSQL / Docker 发布端口导致的部署冲突：端口分配会同时检查 socket 监听和 `docker ps` 已发布端口；`docker-compose.yml` 不再固定 Postgres 容器名，避免和旧容器或其他服务冲突。
 - 已修复 `scripts/start_ubuntu.sh` 二次启动端口漂移问题：默认复用已有 `.env.ports.generated`，只有 `REGENERATE_PORTS=1` 或端口文件不存在时才重新分配端口；Compose 启动时使用 `--remove-orphans` 清理旧固定容器残留。

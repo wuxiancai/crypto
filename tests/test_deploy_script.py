@@ -38,3 +38,14 @@ def test_start_script_passes_realtime_error_log_to_status_page():
 
     assert "--error-log-path" in content
     assert "$LOG_DIR/paper-realtime.log" in content
+
+
+def test_start_script_stops_existing_project_before_starting():
+    content = Path("scripts/start_ubuntu.sh").read_text(encoding="utf-8")
+
+    assert "stop_existing_project" in content
+    assert "stop_process_by_pattern" in content
+    assert "scripts/run_paper_realtime.py" in content
+    assert "scripts/run_paper_status_web.py" in content
+    assert "compose --env-file \"$PORT_ENV\" stop postgres" in content
+    assert content.index("stop_existing_project") < content.index("up -d --remove-orphans postgres")

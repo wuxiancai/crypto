@@ -52,6 +52,42 @@ compose() {
   exit 1
 }
 
+stop_process_by_pattern() {
+  local label="$1"
+  local pattern="$2"
+  local pids
+
+  pids="$(pgrep -f "$pattern" || true)"
+  if [[ -z "$pids" ]]; then
+    return
+  fi
+
+  echo "检测到已运行的 ${label}，先停止: ${pids//$'\n'/ }"
+  kill $pids >/dev/null 2>&1 || true
+
+  for _ in $(seq 1 10); do
+    if ! pgrep -f "$pattern" >/dev/null 2>&1; then
+      return
+    fi
+    sleep 1
+  done
+
+  pids="$(pgrep -f "$pattern" || true)"
+  if [[ -n "$pids" ]]; then
+    echo "${label} 未在超时时间内退出，执行强制停止: ${pids//$'\n'/ }"
+    kill -9 $pids >/dev/null 2>&1 || true
+  fi
+}
+
+stop_existing_project() {
+  echo "检查是否已有项目进程在运行..."
+  stop_process_by_pattern "Paper 实时交易进程" "scripts/run_paper_realtime.py"
+  stop_process_by_pattern "Paper Web 状态页进程" "scripts/run_paper_status_web.py"
+  POSTGRES_PORT="$POSTGRES_PORT" compose --env-file "$PORT_ENV" stop postgres >/dev/null 2>&1 || true
+}
+
+stop_existing_project
+
 POSTGRES_PORT="$POSTGRES_PORT" compose --env-file "$PORT_ENV" up -d --remove-orphans postgres
 
 echo "Waiting for Postgres on port ${POSTGRES_PORT}..."
@@ -74,9 +110,6 @@ PY
 done
 
 DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" -m alembic upgrade head
-
-pkill -f "scripts/run_paper_realtime.py" >/dev/null 2>&1 || true
-pkill -f "scripts/run_paper_status_web.py" >/dev/null 2>&1 || true
 
 nohup "$VENV_PYTHON" scripts/run_paper_realtime.py \
   --symbols BTCUSDT ETHUSDT \
