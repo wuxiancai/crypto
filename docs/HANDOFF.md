@@ -200,7 +200,7 @@
 - 趋势转换输出通用事件 `REVERSAL_LONG_ENTRY` / `REVERSAL_SHORT_ENTRY`，并通过 `signal_level` 区分 `EARLY` / `CONFIRMED`。
 - 趋势转换评分已封顶 100，且已实现距离 EMA50 过远时的禁止追涨追跌过滤。
 - 实现 V0.2 信号统一编排入口：数据同步阻断优先，其次退出信号，其次风控阻断，新开仓按主趋势优先、趋势转换次之。
-- 实现 V0.3 最小事件驱动回测引擎：按 K 线顺序推进、单仓位、风险预算开仓、止盈/止损退出、统一费率手续费与基础滑点。
+- V0.3 早期实现最小事件驱动回测引擎；当前回测页和批量回测已复用 PaperTradingEngine 的 strategy bucket 多子仓撮合能力。
 - V0.3 回测已支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE`，趋势转换信号使用自身 `risk_pct` 风险上限。
 - V0.3 回测已支持永续合约默认成本：maker 挂单手续费 0.02%，taker 吃单手续费 0.05%；入场 taker，止损 taker，止盈 maker。
 - V0.3 回测已输出整体指标与按 `strategy_type` 拆分指标。
@@ -212,7 +212,7 @@
 - V0.3 回测已支持强平风险模拟，触发强平时优先于止损退出并计入 liquidations。
 - V0.3 已新增 `backtest_runs`、`backtest_trades` 表，并复用 `config_snapshots` 归档配置 hash。
 - V0.3 已新增 `archive_backtest_result()` repository 写入入口。
-- V0.4 已实现 Paper Trading 最小内核：信号入场、单仓位撮合、止盈/止损退出、权益更新、fills 记录、rejected_signals 计数。
+- V0.4 早期实现 Paper Trading 最小内核；当前 PaperTradingEngine 已升级为 strategy bucket 多子仓撮合，旧 `open_position` 仅作兼容字段。
 - V0.4 Paper Trading 默认按永续合约模拟：初始资金 1000 USDT、默认 10X 杠杆、maker 0.02%、taker 0.05%、资金费每 8 小时结算一次；资金费率当前默认 0，可通过启动参数配置。
 - V0.4 Paper Trading 已修复主趋势固定止盈导致的短周期反复开平问题：`TREND_PULLBACK` 默认 2R 阶梯移动止盈，状态页持仓会显示“等待触发 / 移动止盈中”。
 - V0.4 Paper Trading 已修复回测/Paper 出场撮合未来函数：持仓记录入场交易对和入场周期，只有同一交易对、同一周期 K 线可触发止盈/止损，避免 BTC 持仓被 ETH K 线平仓，或 15m 入场被同一时间的 1h/4h 高低点提前平仓。
@@ -264,7 +264,7 @@
 - 已定位“运行 11 小时仍 0 成交且页面无输出”的主要问题：当前成交计数为 0 不等于程序停了，`rejected_signals` 也只统计已有入场信号但被 Paper 撮合拒绝的情况；普通策略 `WAIT` 原因以前没有持久化。现在 Paper 状态文件会保留最近 50 条策略评估结果。早期 Web 状态页显示过“最近策略输出”调试表；当前主页面已隐藏该表，避免 `SYSTEM / no actionable signal` 干扰用户阅读。
 - 已修复最近策略输出只看到 5m 的可观察性问题：根因是 5m K 线更新频率最高，会挤掉 15m/1h/4h 记录；现在状态文件按“交易对 + 周期”保留最新输出，页面可同时看到各周期最新状态。
 - Web 状态页“策略K线图”已从旧硬编码 EMA50 / EMA200 改为按当前配置动态显示快慢线名称和值，例如 EMA15 / MA60；图表数据同时兼容旧 `ema50` / `ema200` 字段和新 `ma_fast` / `ma_slow` 字段。策略 K 线图已支持 1d / 4h / 1h / 15m 分层周期、BTCUSDT / ETHUSDT 交易对切换，并把核心规则压缩为单行横向展示，避免 BTC/ETH 同跑时只展示最新更新交易对导致用户拿错图对照。`scripts/start.sh` 已同步订阅 1d，避免覆盖 runner 默认周期后导致页面缺失日 K 页签。图表数据来自 Binance USDT-M Futures 已收盘 K 线，不包含正在形成中的实时蜡烛。
-- Web 状态页已新增精简版“策略触发条件”：状态文件仍持久化每次策略评估的完整条件明细，但页面只展示当前最接近触发的策略方向，例如主趋势做空时隐藏主趋势做多和不相关趋势转换组；页面顶部显示交易对，例如 `当前趋势：BTCUSDT 主趋势做空 · 已满足 4/8` 和 `还差：...`。主趋势诊断已拆分为“空头/多头结构”和“动能确认”；空头/多头结构只按 EMA50/EMA200 排列判断，价格是否已经低于/高于 EMA50 不再混入结构条件。
+- Web 状态页已新增分层策略触发条件：状态文件持久化每次策略评估的完整条件明细，页面按交易对展示当前最接近触发的分层策略候选、已满足条件和缺失条件；均线名称跟随当前配置动态显示，例如 EMA15 / MA60。
 - 已修复策略触发条件可能误显示反向主趋势的问题：此前“当前趋势”只按已满足条件数量选择最近策略，可能在 4h 空头结构成立时，因为多头的 15m/止损/RR 等辅助条件数量更多而显示“主趋势做多”。现在当前趋势优先尊重 4h 主结构：4h 空头结构成立优先显示主趋势做空，4h 多头结构成立优先显示主趋势做多；无明确 4h 主结构时才回退到满足数量排序。
 - Web 状态页的“策略触发条件”已按交易对分组展示：BTCUSDT 和 ETHUSDT 会各自显示最新条件卡。此前页面只取全局最新一条策略评估，容易出现页面显示 ETHUSDT、用户拿 BTCUSDT Binance 图对照的误判。
 - 已修复主趋势回踩/反弹策略过于依赖 15m 收盘价导致长期错过交易的问题：此前“15m 反弹/回踩到 EMA50 区域”只用 `abs(close - EMA50) <= ATR` 判断，导致价格影线触达 EMA50 区域并收出确认 K 线时，因为 close 已经离开 EMA50 区域而不会触发。现在主趋势做空使用 `high >= EMA50 - ATR` 且 `close <= EMA50 + ATR` 判断反弹触达，并用 `close < open` 判断看跌确认；主趋势做多对称使用 `low <= EMA50 + ATR` 且 `close >= EMA50 - ATR` 判断回踩触达，并用 `close > open` 判断看涨确认。页面策略触发条件同步显示 high/low/open 计算明细。
@@ -274,7 +274,7 @@
 - 已修复非入场周期重复触发问题：Ubuntu 启动脚本可订阅 5m/15m/1h/4h，但真实交易信号只允许在 `entry_interval=15m` 已收盘 K 线到达时生成；5m、1h、4h 推送只更新缓存并输出 WAIT，避免同一个 15m 信号在后续 5m 推送里重复开仓。
 - Web 交易记录时间改为 UTC+8 展示，并在表头标明 `开仓时间 UTC+8` / `平仓时间 UTC+8`。内部策略、K 线对齐和持久化仍使用 Binance 毫秒时间戳 / UTC，不影响策略计算。
 - Web 状态页已新增“策略回测”入口：主看板右上角按钮会以新标签页打开 `/backtest`。回测页复用当前实时策略适配器和 PaperTradingEngine，按 Binance REST 历史 K 线回放 4h / 1h / 15m 多周期策略，不展示持仓和策略 K 线图，只展示参数、权益和回测交易记录。
-- 策略回测页默认使用 BTCUSDT、EMA50 / EMA200、单页历史 K 线 1500 根、初始资金 1000 USDT；页面允许用户选择 BTC / ETH，输入 EMA 快线、EMA 慢线、单页 K 线根数和回测周期，用于快速比较 EMA50/EMA200、EMA30/EMA120 等参数组合。回测后端一次只拉取所选交易对，避免 BTC 和 ETH 成交记录串在同一张表里；参数栏已改为一行紧凑展示。
+- 策略回测页默认使用 BTCUSDT、EMA15 / MA60、ATR14、DMI12、Swing20、fee/risk=0、TRAILING、初始资金 1000 USDT；页面允许用户选择 BTC / ETH，输入快慢均线、ATR/DMI/Swing、手续费/风险和回测周期。回测后端一次只拉取所选交易对，避免 BTC 和 ETH 成交记录串在同一张表里；参数栏已改为一行紧凑展示。
 - 策略回测已支持分页历史回测：用户可选择最近 3个月 / 6个月 / 1年 / 2年，后端按 Binance 单次 1500 根限制自动分页拉取 4h / 1h / 15m 历史 K 线，再复用当前实时策略和 PaperTradingEngine 回放。历史 K 线会按交易对和周期缓存到 `runtime/backtest-klines/`，例如先回测 BTC 2 年，再回测 BTC 1 年或 EMA30/EMA120，会直接复用已缓存 K 线；只有缓存缺少所需时间段时才补拉缺口数据。
 - 2026-06-19 已通过 SSH 核查 Ubuntu 服务器 `/home/wuxiancai/crypto`：当前 migration 为 `0002_backtest_archive`，`backtest_runs` / `backtest_trades` 表存在，但历史 Web 回测没有写入数据库，二者行数均为 0。已修复 `/backtest` 页面：成功完成的策略回测会写入 `backtest_runs`、`backtest_trades` 和 `config_snapshots`；如果写库失败，页面会显示“回测结果写入数据库失败：...”而不是静默丢失。
 - Ubuntu 验证 `/backtest` 时发现 Binance REST 连接超时会导致 HTTP empty reply，已补充页面级异常处理：REST 超时、DNS/网络异常或回测执行异常都会显示为“回测执行失败：...”，不再让浏览器空白或连接断开。
@@ -376,16 +376,14 @@
 - `BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 15m --limit 5`：dry-run 成功。
 - `DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant BINANCE_BASE_URL=https://testnet.binancefuture.com .venv/bin/python scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 15m --limit 5 --write`：写入成功。
 - 本地 Postgres `klines` 行数：BTCUSDT 15m = 5，ETHUSDT 15m = 5。
-- Binance 主网 futures endpoint 当前返回 HTTP 451，疑似当前网络/地区受限；尚未完成主网真实 K 线 dry-run。
+- 本地后续已可访问 Binance 主网 futures endpoint，并已完成 BTCUSDT / ETHUSDT 的 1d / 4h / 1h / 15m 真实 K 线写入验证；若目标服务器返回 HTTP 451，则仍按网络/地区受限处理。
 
 ## 下一步
 
-1. 在可访问 Binance 主网 futures endpoint 的环境执行真实 BTCUSDT、ETHUSDT K 线 dry-run。
-2. 执行 `scripts/sync_klines.py --write` 入库主网真实 K 线。
-3. 下一步继续真实行情 Paper Trading：在真实运行环境观察 `/paper/events` 是否能稳定呈现连续事件；若事件量增长过快，再增加保留策略或分页。
-4. 使用 `/backtest` 或 `/backtest/batch` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果，并可在页面查看终端风格日志或请求停止。当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
-5. 下一步可继续增强 `/backtest`：增加按 bucket / strategy 的排序筛选，以及更长历史窗口的统一口径对比。
-6. 后续只把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper 执行适配器和复盘链路。Live 执行适配器、补挂真实止损、市价平仓和真实 CRITICAL 告警属于第二版，永久暂停，除非用户明确发令启动第二版。
+1. 继续真实行情 Paper Trading：在真实运行环境观察 `/paper/events` 是否能稳定呈现连续事件；若事件量增长过快，再增加保留策略或分页。
+2. 使用 `/backtest` 或 `/backtest/batch` 比较 EMA15/MA60、EMA30/MA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果，并可在页面查看终端风格日志或请求停止。
+3. 下一步可继续增强 `/backtest`：增加按 bucket / strategy 的排序筛选，以及更长历史窗口的统一口径对比。
+4. 后续只把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper 执行适配器和复盘链路。Live 执行适配器、补挂真实止损、市价平仓和真实 CRITICAL 告警属于第二版，永久暂停，除非用户明确发令启动第二版。
 
 ## 最近提交
 

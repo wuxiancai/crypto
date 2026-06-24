@@ -140,18 +140,18 @@
 
 说明：
 
-- 当前已实现最小事件驱动回测内核：按 K 线 open_time 顺序推进、单仓位、按风险预算开仓、止盈/止损退出、输出 trade 与 final_equity。下一阶段必须升级为多策略子仓回测。
+- 当前事件驱动回测已复用 PaperTradingEngine 的策略子仓撮合能力，支持同一 symbol 下日线 core、4h/1h addon 和 4h hedge bucket 共存，并输出 strategy / bucket 聚合指标。早期单仓位内核只作为历史实现背景保留。
 - 当前已支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE` 信号；趋势转换信号会使用自身 `risk_pct` 风险上限。
 - 当前已实现永续合约默认成本：maker 挂单手续费 0.02%，taker 吃单手续费 0.05%；入场按 taker，止损按 taker，止盈按 maker。
 - 当前已输出整体指标与按 `strategy_type` 拆分的交易次数、胜负、gross_pnl、fees、net_pnl。
 - 当前已实现 8 小时资金费率模拟，资金费进入 trade 与整体指标；实时 Paper 启动时会从 Binance USDⓈ-M Futures Mark Price / Premium Index 拉取 `lastFundingRate` 和 `nextFundingTime`，用于 Funding 入场过滤。拉取失败时会记录并降级为不启用自动 funding 阻断，避免打断 Paper runner。
-- 当前已实现交易所 `quantity_step`、`min_qty`、`min_notional` 过滤；价格精度仍待进一步细化为不同订单类型的 tick 方向。
+- 当前已实现交易所 `quantity_step`、`min_qty`、`min_notional` 过滤，并已按订单方向细化价格 tick：买入向上取 tick，卖出向下取 tick。
 - 当前已实现止损专用滑点与跳空越过止损时的极端成交价。
 - 当前已实现限价未触达不成交、限价部分成交比例和 partial_fills 统计。
 - 当前已实现价格 tick 方向细化：买入向上取 tick，卖出向下取 tick。
 - 当前已实现强平风险模拟，触发强平时优先于止损退出并计入 liquidations。
 - 当前已实现 `backtest_runs`、`config_snapshots`、`backtest_trades` 归档，并提供 repository 写入入口。
-- 当前 Web 状态页已新增“策略回测”按钮，点击后以新标签页打开 `/backtest`。回测页复用当前实时策略适配器和 PaperTradingEngine，用 Binance REST 历史 K 线回放 4h / 1h / 15m 多周期策略；旧默认曾是 EMA50 / EMA200，当前策略参数已迁移到 EMA15 / MA60，下一阶段要统一为分层策略参数。
+- 当前 Web 状态页已新增“策略回测”按钮，点击后以新标签页打开 `/backtest`。回测页复用当前实时策略适配器和 PaperTradingEngine，用 Binance REST 历史 K 线回放 1d / 4h / 1h / 15m 分层策略；默认参数已统一为 EMA15 / MA60、ATR14、DMI12、Swing20、fee/risk=0、TRAILING。
 - 当前策略回测已支持分页历史回测：用户可选择最近 3个月 / 6个月 / 1年 / 2年，后端按 Binance 单次 1500 根限制自动分页拉取 4h / 1h / 15m 历史 K 线。
 - 当前 Web 策略回测已接入数据库归档：每次成功回测会写入 `backtest_runs`、`backtest_trades` 和 `config_snapshots`。2026-06-19 已确认 Ubuntu 服务器此前表存在但行数为 0，根因是 `/backtest` 页面只渲染结果、没有调用归档 repository；现已修复。
 - 当前 Web 策略回测已增加页面级错误展示：Binance REST 超时、DNS/网络失败或其他回测执行异常会显示为“回测执行失败：...”，不再返回空白页或 empty reply。
@@ -168,7 +168,7 @@
 
 说明：
 
-- 当前已实现 Paper Trading 最小内核：接收策略信号、单仓位撮合、止盈/止损退出、权益更新、fills 记录和 rejected_signals 计数。下一阶段必须升级为多策略子仓撮合。
+- 当前 PaperTradingEngine 已从单仓位升级为 strategy bucket 多子仓撮合，支持同一 symbol 下 core / addon / hedge 子仓共存；旧 `open_position` 字段继续保留兼容。
 - 当前 Paper Trading 默认按永续合约模拟：初始资金 1000 USDT、默认 10X 杠杆、maker 0.02%、taker 0.05%、资金费每 8 小时结算一次；资金费率当前默认 0，可通过启动参数配置。
 - 当前 Paper Trading 的 `TREND_PULLBACK` 默认使用 2R 阶梯移动止盈：价格触达 2R 目标后进入“移动止盈中”，把 2R 价作为移动止盈价；价格继续顺势每推进一个 2R 阶梯，移动止盈价同步推进；回撤触达当前移动止盈价才平仓。可通过 `--trend-pullback-take-profit-mode FIXED` 回退固定止盈。
 - 当前已修复回测/Paper 出场撮合的关键未来函数问题：持仓会记录入场交易对和入场周期，只有同一交易对、同一周期的 K 线才能触发止盈/止损，避免 BTC 持仓被 ETH K 线平仓，或 15m 入场被同一时间的 1h/4h 高低点提前平仓。
@@ -243,7 +243,7 @@
 - 当前已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓、成交和拒单计数。
 - 当前已实现真实行情 Paper runner 与脚本入口：`scripts/run_paper_realtime.py` 会连接 Binance WebSocket 已收盘 K 线流，并使用持久化 Paper stream runner 保存状态。
 - 当前真实行情 Paper runner 已支持多周期订阅，默认订阅 15m / 1h / 4h；已新增 MultiTimeframeKlineCache，用于按 symbol 聚合多周期已收盘 K 线。
-- 当前已新增实时策略适配器：把 4h / 1h / 15m 已收盘 K 线历史转换为 EMA、ATR、ADX、DI、swing 与趋势转换结构输入，并复用现有趋势识别、`TREND_PULLBACK` 主趋势回踩策略和 `REVERSAL_PROBE` 趋势转换策略。下一阶段要改为调用独立分层策略系统，并加入 1d 历史。
+- 当前实时策略适配器默认调用独立分层策略系统，并使用 1d / 4h / 1h / 15m 已收盘 K 线；旧 4h / 1h / 15m `TREND_PULLBACK` / `REVERSAL_PROBE` 路径只在缺少 1d 历史时作为兼容回退。
 - 当前 `scripts/run_paper_realtime.py` 默认路径已不再永久 WAIT；不注入自定义策略函数时，会通过多周期缓存生成实时主趋势或趋势转换 Paper 信号。有持仓时默认不加仓，避免重复入场噪音。
 - 当前已修复 signal router 字段丢失问题：主趋势与趋势转换信号经路由后会保留 entry_price、stop_loss、take_profit、risk_reward、risk_pct、score、signal_level 等执行/统计字段。
 - 当前趋势转换信号已补充可执行 entry_price、ATR 止损与 2R take_profit，Paper 不再依赖默认止损止盈模拟趋势转换策略。
@@ -257,8 +257,8 @@
 - 当前 Web 状态页顶部已显示 BTCUSDT / ETHUSDT 永续实时价格；该价格来自 Binance USDⓈ-M Futures ticker WebSocket，状态文件暂时没有 ticker 时才回退到成交、持仓或策略评估价格。当状态文件暂时没有策略评估数据时，策略触发条件和 K 线图区会显示“等待实时策略评估更新”。
 - 当前已修复“运行很久但页面没有任何输出”的可观察性问题：Paper 状态文件会记录最近 50 条策略评估结果。早期 Web 状态页曾显示“最近策略输出”调试表；现在主页面已隐藏该表，避免无意义的 `SYSTEM / no actionable signal` 干扰用户阅读，复盘数据仍保留在状态文件中。
 - 当前已修复 5m 高频输出淹没策略视图的问题：状态文件按“交易对 + 周期”保留最新策略输出，页面会同时展示各周期最新状态，而不是只被 5m 刷屏。
-- 当前 Web 状态页已增加“策略K线图”：使用内嵌 SVG 绘制 4h / 1h / 15m K 线图并叠加快慢线。下一阶段要加入 1d 图和动态均线名称，禁止继续写死 EMA50/EMA200。
-- 当前 Web 状态页已增加精简版“策略触发条件”：只展示当前最接近触发的策略方向，例如主趋势做空时不再显示主趋势做多。下一阶段要改为展示 `SHORT_DAY_CORE` / `SHORT_4H_1H_ADDON` / `LONG_4H_HEDGE` 等明确策略候选。
+- 当前 Web 状态页已增加“策略K线图”：使用内嵌 SVG 绘制 1d / 4h / 1h / 15m K 线图并叠加当前配置的快慢线，动态显示 EMA15 / MA60 等均线名称。
+- 当前 Web 状态页已按交易对展示分层策略触发条件、策略候选和最近信号，覆盖 `SHORT_DAY_CORE` / `SHORT_4H_1H_ADDON` / `LONG_4H_HEDGE` 等明确策略名。
 - 当前 Web 状态页的“策略触发条件”已改为按交易对分别显示最新条件卡，避免 BTCUSDT / ETHUSDT 同时运行时只展示全局最新一条，导致用户拿 BTC 图对照 ETH 条件。
 - 当前 Web 状态页已新增策略回测入口 `/backtest`，用于在等待长期 Paper Trading 之前，先用历史 K 线快速验证当前策略和不同 EMA 参数组合。
 - 当前策略回测页已改为单交易对回测：默认 BTC，可切换 ETH，避免 BTC/ETH 成交记录混在同一张报表里造成误判；回测参数栏已压缩为一行展示。
