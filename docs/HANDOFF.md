@@ -25,6 +25,10 @@
 
 ## 本轮修复
 
+- 2026-06-24 分层策略触发条件诊断细化：
+  - 根因：当日线 `EMA15 < MA60` 但 ADX/DI 动能过滤未满足时，`app/strategy/layered_strategy.py` 只输出笼统的 `DAY_CORE false / daily trend unclear`，状态页显示为“日线趋势明确 0/1”，会让用户误以为均线空头也没有被识别。
+  - 修复：分层策略诊断拆为“基础 / 斜率 / 动能确认”三类条件；例如日线均线空头会显示“日线空头基础：满足”，若 ADX 或 DI 不达标则明确显示“日线空头动能确认：未满足”并带计算明细。
+  - 覆盖测试：新增策略核心和状态页回归，防止再次退回“日线趋势明确”这种黑盒提示。
 - 2026-06-24 Ubuntu 部署 `docker-compose-plugin` 缺包修复：
   - 根因：`scripts/deploy_ubuntu.sh` 在 Docker CE 源不可用时执行 `apt-get install docker.io docker-compose-plugin`，某些 Ubuntu 镜像默认源没有 `docker-compose-plugin`，导致 Docker Engine 安装阶段直接失败并输出 `E: Unable to locate package docker-compose-plugin`。
   - 修复：`docker.io` 改为单独安装；Docker Compose 改为独立探测安装，按 `docker-compose-plugin` -> `docker-compose-v2` -> `docker-compose` 顺序回退，全部失败才给出明确错误。

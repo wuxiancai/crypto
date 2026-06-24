@@ -181,3 +181,70 @@ def test_layered_strategy_allows_short_4h_hedge_inside_daily_long():
     assert decision.signal.strategy_type == "SHORT_4H_HEDGE"
     assert decision.signal.action == "SHORT_ENTRY"
     assert decision.signal.bucket == "FOUR_HOUR_HEDGE"
+
+
+def test_layered_strategy_reports_bearish_trend_details_when_momentum_filter_blocks_signal():
+    from app.strategy.layered_strategy import (
+        LayeredEntryFrame,
+        LayeredStrategyConfig,
+        LayeredStrategyInput,
+        TrendSnapshot,
+        build_layered_strategy_decision,
+    )
+
+    decision = build_layered_strategy_decision(
+        LayeredStrategyInput(
+            symbol="BTCUSDT",
+            daily=TrendSnapshot(
+                close=Decimal("62000"),
+                fast_ma=Decimal("64000"),
+                slow_ma=Decimal("66000"),
+                fast_ma_slope=Decimal("-200"),
+                adx=Decimal("12"),
+                di_plus=Decimal("25"),
+                di_minus=Decimal("20"),
+            ),
+            four_hour=TrendSnapshot(
+                close=Decimal("61800"),
+                fast_ma=Decimal("62500"),
+                slow_ma=Decimal("64000"),
+                fast_ma_slope=Decimal("-150"),
+                adx=Decimal("24"),
+                di_plus=Decimal("14"),
+                di_minus=Decimal("31"),
+            ),
+            one_hour=TrendSnapshot(
+                close=Decimal("61750"),
+                fast_ma=Decimal("62200"),
+                slow_ma=Decimal("63500"),
+                fast_ma_slope=Decimal("-80"),
+                adx=Decimal("23"),
+                di_plus=Decimal("16"),
+                di_minus=Decimal("29"),
+            ),
+            entry=LayeredEntryFrame(
+                close=Decimal("61600"),
+                open=Decimal("62100"),
+                high=Decimal("62300"),
+                low=Decimal("61500"),
+                fast_ma=Decimal("62000"),
+                atr=Decimal("300"),
+                recent_swing_low=Decimal("61000"),
+                recent_swing_high=Decimal("62800"),
+            ),
+        ),
+        LayeredStrategyConfig(),
+    )
+
+    assert decision.signal is None
+    assert "SHORT_DAY_CORE" in decision.candidates
+    statuses = {
+        str(item["text"]): item
+        for item in decision.diagnostics
+        if item.get("strategy") == "SHORT_DAY_CORE"
+    }
+    assert statuses["日线空头基础"]["passed"] is True
+    assert statuses["日线空头斜率"]["passed"] is True
+    assert statuses["日线空头动能确认"]["passed"] is False
+    assert "ADX=12" in str(statuses["日线空头动能确认"]["detail"])
+    assert "DI-=20" in str(statuses["日线空头动能确认"]["detail"])

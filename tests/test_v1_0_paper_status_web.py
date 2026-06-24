@@ -945,6 +945,71 @@ def test_paper_status_page_hides_malformed_system_placeholder_conditions(tmp_pat
     assert "daily trend unclear" in html
 
 
+def test_paper_status_page_shows_layered_bearish_details_instead_of_unclear_trend(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "62400",
+                        "action": "WAIT",
+                        "strategy_type": "SYSTEM",
+                        "reason": ["no layered strategy candidate ready"],
+                        "nearest_strategy": {
+                            "name": "SHORT_DAY_CORE",
+                            "matched": 2,
+                            "total": 3,
+                            "action": "WAIT",
+                        },
+                        "condition_statuses": [
+                            {
+                                "strategy": "SHORT_DAY_CORE",
+                                "text": "日线空头基础",
+                                "passed": True,
+                                "detail": "EMA15=64000 < MA60=66000",
+                            },
+                            {
+                                "strategy": "SHORT_DAY_CORE",
+                                "text": "日线空头斜率",
+                                "passed": True,
+                                "detail": "slope=-200 < 0",
+                            },
+                            {
+                                "strategy": "SHORT_DAY_CORE",
+                                "text": "日线空头动能确认",
+                                "passed": False,
+                                "detail": "ADX=12 >= 20, DI-=20 > DI+=25",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "当前趋势：BTCUSDT 日线核心做空 · 已满足 2/3" in html
+    assert "condition-pass" in html
+    assert "condition-fail" in html
+    assert "日线空头基础" in html
+    assert "日线空头斜率" in html
+    assert "日线空头动能确认" in html
+    assert "还差：日线空头动能确认" in html
+    assert "日线趋势明确" not in html
+
+
 def test_paper_status_page_shows_only_nearest_strategy_conditions_in_compact_view(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 

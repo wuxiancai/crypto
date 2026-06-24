@@ -83,7 +83,7 @@ def build_layered_strategy_decision(
     signal: StrategySignal | None = None
     if daily_short:
         candidates.append(SHORT_DAY_CORE)
-        diagnostics.append(_diagnostic(SHORT_DAY_CORE, True, ["daily bearish"]))
+        diagnostics.extend(_trend_diagnostics(SHORT_DAY_CORE, "日线空头", strategy_input.daily, "DOWN", effective_config))
         signal = _short_signal(
             strategy_type=SHORT_DAY_CORE,
             bucket=DAY_CORE,
@@ -94,10 +94,13 @@ def build_layered_strategy_decision(
         )
         if four_hour_short and one_hour_short:
             candidates.append(SHORT_4H_1H_ADDON)
-            diagnostics.append(_diagnostic(SHORT_4H_1H_ADDON, True, ["4h/1h bearish"]))
+            diagnostics.extend(_trend_diagnostics(SHORT_4H_1H_ADDON, "4h 空头", strategy_input.four_hour, "DOWN", effective_config))
+            diagnostics.extend(_trend_diagnostics(SHORT_4H_1H_ADDON, "1h 空头", strategy_input.one_hour, "DOWN", effective_config))
         if four_hour_long and one_hour_long:
             candidates.append(LONG_4H_HEDGE)
-            diagnostics.append(_diagnostic(LONG_4H_HEDGE, True, ["daily bearish", "4h/1h bullish rebound"]))
+            diagnostics.extend(_trend_diagnostics(LONG_4H_HEDGE, "日线空头", strategy_input.daily, "DOWN", effective_config))
+            diagnostics.extend(_trend_diagnostics(LONG_4H_HEDGE, "4h 多头", strategy_input.four_hour, "UP", effective_config))
+            diagnostics.extend(_trend_diagnostics(LONG_4H_HEDGE, "1h 多头", strategy_input.one_hour, "UP", effective_config))
             hedge_signal = _long_signal(
                 strategy_type=LONG_4H_HEDGE,
                 bucket=FOUR_HOUR_HEDGE,
@@ -110,7 +113,7 @@ def build_layered_strategy_decision(
                 signal = hedge_signal
     elif daily_long:
         candidates.append(LONG_DAY_CORE)
-        diagnostics.append(_diagnostic(LONG_DAY_CORE, True, ["daily bullish"]))
+        diagnostics.extend(_trend_diagnostics(LONG_DAY_CORE, "日线多头", strategy_input.daily, "UP", effective_config))
         signal = _long_signal(
             strategy_type=LONG_DAY_CORE,
             bucket=DAY_CORE,
@@ -121,10 +124,13 @@ def build_layered_strategy_decision(
         )
         if four_hour_long and one_hour_long:
             candidates.append(LONG_4H_1H_ADDON)
-            diagnostics.append(_diagnostic(LONG_4H_1H_ADDON, True, ["4h/1h bullish"]))
+            diagnostics.extend(_trend_diagnostics(LONG_4H_1H_ADDON, "4h 多头", strategy_input.four_hour, "UP", effective_config))
+            diagnostics.extend(_trend_diagnostics(LONG_4H_1H_ADDON, "1h 多头", strategy_input.one_hour, "UP", effective_config))
         if four_hour_short and one_hour_short:
             candidates.append(SHORT_4H_HEDGE)
-            diagnostics.append(_diagnostic(SHORT_4H_HEDGE, True, ["daily bullish", "4h/1h bearish pullback"]))
+            diagnostics.extend(_trend_diagnostics(SHORT_4H_HEDGE, "日线多头", strategy_input.daily, "UP", effective_config))
+            diagnostics.extend(_trend_diagnostics(SHORT_4H_HEDGE, "4h 空头", strategy_input.four_hour, "DOWN", effective_config))
+            diagnostics.extend(_trend_diagnostics(SHORT_4H_HEDGE, "1h 空头", strategy_input.one_hour, "DOWN", effective_config))
             hedge_signal = _short_signal(
                 strategy_type=SHORT_4H_HEDGE,
                 bucket=FOUR_HOUR_HEDGE,
@@ -136,7 +142,19 @@ def build_layered_strategy_decision(
             if hedge_signal is not None:
                 signal = hedge_signal
     else:
-        diagnostics.append(_diagnostic("DAY_CORE", False, ["daily trend unclear"]))
+        if _bearish_basis(strategy_input.daily):
+            candidates.append(SHORT_DAY_CORE)
+            diagnostics.extend(_trend_diagnostics(SHORT_DAY_CORE, "日线空头", strategy_input.daily, "DOWN", effective_config))
+        elif _bullish_basis(strategy_input.daily):
+            candidates.append(LONG_DAY_CORE)
+            diagnostics.extend(_trend_diagnostics(LONG_DAY_CORE, "日线多头", strategy_input.daily, "UP", effective_config))
+        else:
+            diagnostics.extend(
+                [
+                    *_trend_diagnostics(SHORT_DAY_CORE, "日线空头", strategy_input.daily, "DOWN", effective_config),
+                    *_trend_diagnostics(LONG_DAY_CORE, "日线多头", strategy_input.daily, "UP", effective_config),
+                ]
+            )
 
     return LayeredStrategyDecision(
         symbol=strategy_input.symbol,
@@ -148,20 +166,42 @@ def build_layered_strategy_decision(
 
 def _bullish(snapshot: TrendSnapshot, config: LayeredStrategyConfig) -> bool:
     return (
-        snapshot.fast_ma > snapshot.slow_ma
-        and snapshot.fast_ma_slope > 0
-        and snapshot.adx >= config.min_adx
-        and snapshot.di_plus > snapshot.di_minus
+        _bullish_basis(snapshot)
+        and _bullish_slope(snapshot)
+        and _bullish_momentum(snapshot, config)
     )
 
 
 def _bearish(snapshot: TrendSnapshot, config: LayeredStrategyConfig) -> bool:
     return (
-        snapshot.fast_ma < snapshot.slow_ma
-        and snapshot.fast_ma_slope < 0
-        and snapshot.adx >= config.min_adx
-        and snapshot.di_minus > snapshot.di_plus
+        _bearish_basis(snapshot)
+        and _bearish_slope(snapshot)
+        and _bearish_momentum(snapshot, config)
     )
+
+
+def _bullish_basis(snapshot: TrendSnapshot) -> bool:
+    return snapshot.fast_ma > snapshot.slow_ma
+
+
+def _bearish_basis(snapshot: TrendSnapshot) -> bool:
+    return snapshot.fast_ma < snapshot.slow_ma
+
+
+def _bullish_slope(snapshot: TrendSnapshot) -> bool:
+    return snapshot.fast_ma_slope > 0
+
+
+def _bearish_slope(snapshot: TrendSnapshot) -> bool:
+    return snapshot.fast_ma_slope < 0
+
+
+def _bullish_momentum(snapshot: TrendSnapshot, config: LayeredStrategyConfig) -> bool:
+    return snapshot.adx >= config.min_adx and snapshot.di_plus > snapshot.di_minus
+
+
+def _bearish_momentum(snapshot: TrendSnapshot, config: LayeredStrategyConfig) -> bool:
+    return snapshot.adx >= config.min_adx and snapshot.di_minus > snapshot.di_plus
 
 
 def _long_signal(
@@ -232,3 +272,60 @@ def _diagnostic(strategy_type: str, passed: bool, detail: list[str]) -> dict[str
         "detail": "; ".join(detail),
     }
 
+
+def _trend_diagnostics(
+    strategy_type: str,
+    label: str,
+    snapshot: TrendSnapshot,
+    direction: str,
+    config: LayeredStrategyConfig,
+) -> list[dict[str, object]]:
+    if direction == "UP":
+        return [
+            _condition(strategy_type, f"{label}基础", _bullish_basis(snapshot), _ma_detail(snapshot, "UP")),
+            _condition(strategy_type, f"{label}斜率", _bullish_slope(snapshot), _slope_detail(snapshot, "UP")),
+            _condition(strategy_type, f"{label}动能确认", _bullish_momentum(snapshot, config), _momentum_detail(snapshot, config, "UP")),
+        ]
+    return [
+        _condition(strategy_type, f"{label}基础", _bearish_basis(snapshot), _ma_detail(snapshot, "DOWN")),
+        _condition(strategy_type, f"{label}斜率", _bearish_slope(snapshot), _slope_detail(snapshot, "DOWN")),
+        _condition(strategy_type, f"{label}动能确认", _bearish_momentum(snapshot, config), _momentum_detail(snapshot, config, "DOWN")),
+    ]
+
+
+def _condition(strategy_type: str, text: str, passed: bool, detail: str) -> dict[str, object]:
+    return {
+        "strategy": strategy_type,
+        "strategy_type": strategy_type,
+        "text": text,
+        "passed": passed,
+        "detail": detail,
+    }
+
+
+def _ma_detail(snapshot: TrendSnapshot, direction: str) -> str:
+    if direction == "UP":
+        return f"fast_ma={snapshot.fast_ma} > slow_ma={snapshot.slow_ma}"
+    return f"fast_ma={snapshot.fast_ma} < slow_ma={snapshot.slow_ma}"
+
+
+def _slope_detail(snapshot: TrendSnapshot, direction: str) -> str:
+    if direction == "UP":
+        return f"slope={snapshot.fast_ma_slope} > 0"
+    return f"slope={snapshot.fast_ma_slope} < 0"
+
+
+def _momentum_detail(
+    snapshot: TrendSnapshot,
+    config: LayeredStrategyConfig,
+    direction: str,
+) -> str:
+    if direction == "UP":
+        return (
+            f"ADX={snapshot.adx} >= {config.min_adx}, "
+            f"DI+={snapshot.di_plus} > DI-={snapshot.di_minus}"
+        )
+    return (
+        f"ADX={snapshot.adx} >= {config.min_adx}, "
+        f"DI-={snapshot.di_minus} > DI+={snapshot.di_plus}"
+    )
