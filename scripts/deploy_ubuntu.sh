@@ -65,4 +65,4 @@ ensure_docker() {
 install_python_packages
 ensure_docker
 
-bash "$ROOT_DIR/scripts/start_ubuntu.sh"
+bash "$ROOT_DIR/scripts/start.sh"

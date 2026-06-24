@@ -20,7 +20,7 @@ def test_deploy_script_prefers_existing_docker_and_supports_docker_ce():
 
 
 def test_start_script_reuses_existing_generated_ports():
-    content = Path("scripts/start_ubuntu.sh").read_text(encoding="utf-8")
+    content = Path("scripts/start.sh").read_text(encoding="utf-8")
 
     assert 'REGENERATE_PORTS="${REGENERATE_PORTS:-0}"' in content
     assert '[[ "$REGENERATE_PORTS" == "1" || ! -f "$PORT_ENV" ]]' in content
@@ -28,20 +28,20 @@ def test_start_script_reuses_existing_generated_ports():
 
 
 def test_start_script_removes_compose_orphans():
-    content = Path("scripts/start_ubuntu.sh").read_text(encoding="utf-8")
+    content = Path("scripts/start.sh").read_text(encoding="utf-8")
 
     assert "--remove-orphans postgres" in content
 
 
 def test_start_script_passes_realtime_error_log_to_status_page():
-    content = Path("scripts/start_ubuntu.sh").read_text(encoding="utf-8")
+    content = Path("scripts/start.sh").read_text(encoding="utf-8")
 
     assert "--error-log-path" in content
     assert "$LOG_DIR/paper-realtime.log" in content
 
 
 def test_start_script_stops_existing_project_before_starting():
-    content = Path("scripts/start_ubuntu.sh").read_text(encoding="utf-8")
+    content = Path("scripts/start.sh").read_text(encoding="utf-8")
 
     assert "stop_existing_project" in content
     assert "stop_process_by_pattern" in content

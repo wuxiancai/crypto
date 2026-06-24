@@ -81,7 +81,7 @@ docker rm crypto_quant_postgres
 如果依赖已经装好，只需要重新启动服务：
 
 ```bash
-bash scripts/start_ubuntu.sh
+bash scripts/start.sh
 ```
 
 再次启动默认复用 `.env.ports.generated` 中的端口，不会重新顺延端口。因此部署后第一次输出的 Web 页面端口会保持稳定。
@@ -89,7 +89,7 @@ bash scripts/start_ubuntu.sh
 如果确实需要重新分配端口，可以执行：
 
 ```bash
-REGENERATE_PORTS=1 bash scripts/start_ubuntu.sh
+REGENERATE_PORTS=1 bash scripts/start.sh
 ```
 
 或者删除 `.env.ports.generated` 后重新启动。

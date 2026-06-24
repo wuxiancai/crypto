@@ -49,7 +49,7 @@ app/
   strategy/      主趋势与趋势转换策略
 scripts/
   deploy_ubuntu.sh
-  start_ubuntu.sh
+  start.sh
   run_paper_realtime.py
   run_paper_status_web.py
 docs/
@@ -148,7 +148,7 @@ Paper、Backtest、Web 状态页和未来 Live 执行只能消费策略系统输
 核心脚本：
 
 - `scripts/deploy_ubuntu.sh`：Ubuntu 首次部署脚本。
-- `scripts/start_ubuntu.sh`：跨平台的启动脚本，负责 `.venv`、Postgres、migration、Paper 和 Web。
+- `scripts/start.sh`：跨平台的启动脚本，负责 `.venv`、Postgres、migration、Paper 和 Web。
 - `scripts/run_paper_realtime.py`：实时 Paper Trading 进程。
 - `scripts/run_paper_status_web.py`：中文 Web 状态页与 `/backtest` 页面。
 
@@ -221,7 +221,7 @@ BINANCE_BASE_URL=https://testnet.binancefuture.com
 
 ### 2. `.env.ports.generated`
 
-这个文件由 `scripts/start_ubuntu.sh` 自动生成，主要用于启动时的运行时端口和脚本变量：
+这个文件由 `scripts/start.sh` 自动生成，主要用于启动时的运行时端口和脚本变量：
 
 - `POSTGRES_PORT`
 - `PAPER_WEB_PORT`
@@ -236,12 +236,12 @@ BINANCE_BASE_URL=https://testnet.binancefuture.com
 macOS 没有单独的 `deploy_macos.sh`。当前推荐做法是：
 
 1. 先在 macOS 装好 Python 和 Docker。
-2. 再直接运行 `scripts/start_ubuntu.sh`。
+2. 再直接运行 `scripts/start.sh`。
 
 原因是：
 
 - `deploy_ubuntu.sh` 明确依赖 `apt-get` 和 `systemctl`，只适合 Ubuntu。
-- `start_ubuntu.sh` 本身主要做的是通用启动动作，在 macOS 上同样适用。
+- `start.sh` 本身主要做的是通用启动动作，在 macOS 上同样适用。
 
 ### 1. 安装基础依赖
 
@@ -289,7 +289,7 @@ BINANCE_BASE_URL=https://testnet.binancefuture.com
 直接运行：
 
 ```bash
-bash scripts/start_ubuntu.sh
+bash scripts/start.sh
 ```
 
 脚本会自动执行：
@@ -363,12 +363,12 @@ docker compose version
 如果 `python3` 不是 `3.11+`，可以显式指定：
 
 ```bash
-PYTHON_BIN=python3.11 bash scripts/start_ubuntu.sh
+PYTHON_BIN=python3.11 bash scripts/start.sh
 ```
 
 ### 6. 手动启动方式
 
-如果你不想直接跑 `start_ubuntu.sh`，也可以手动分步执行。
+如果你不想直接跑 `start.sh`，也可以手动分步执行。
 
 先准备虚拟环境和依赖：
 
@@ -436,14 +436,14 @@ bash scripts/deploy_ubuntu.sh
 - 安装 `python3`、`python3-venv`、`python3-pip`
 - 检查并安装 Docker / Docker Compose
 - 启动 Docker 服务
-- 调用 `scripts/start_ubuntu.sh`
+- 调用 `scripts/start.sh`
 
 ### 2. 后续启动
 
 依赖已准备完成后，只需要：
 
 ```bash
-bash scripts/start_ubuntu.sh
+bash scripts/start.sh
 ```
 
 ### 3. 重新分配端口
@@ -453,7 +453,7 @@ bash scripts/start_ubuntu.sh
 如果确实要重新分配端口：
 
 ```bash
-REGENERATE_PORTS=1 bash scripts/start_ubuntu.sh
+REGENERATE_PORTS=1 bash scripts/start.sh
 ```
 
 ### 4. Ubuntu 上推荐的部署流程
@@ -468,7 +468,7 @@ bash scripts/deploy_ubuntu.sh
 
 ```bash
 cd /path/to/crypto
-bash scripts/start_ubuntu.sh
+bash scripts/start.sh
 ```
 
 ## 启动完成后你能看到什么
@@ -596,10 +596,10 @@ docker compose --env-file .env.ports.generated down
 
 - Ubuntu：
   - 首次：`deploy_ubuntu.sh`
-  - 后续：`start_ubuntu.sh`
+  - 后续：`start.sh`
 - macOS：
   - 先手动安装 Python 和 Docker
-  - 然后直接：`start_ubuntu.sh`
+  - 然后直接：`start.sh`
 
 ### 2. 为什么启动成功了，但回测没有结果？
 

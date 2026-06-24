@@ -243,13 +243,13 @@
 - 已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓、成交和拒单计数。
 - 已实现真实行情 Paper runner 与脚本入口：`scripts/run_paper_realtime.py` 会连接 Binance WebSocket 已收盘 K 线流，并使用持久化 Paper stream runner 保存状态。
 - 已实现极简中文 Web 状态页：`scripts/run_paper_status_web.py` 读取 `runtime/paper-state.json`，展示账户权益、持仓情况、全部模拟交易记录、买入价、卖出价、使用策略和 rejected signals，并每 5 秒自动刷新。
-- 已实现 Ubuntu 部署入口：`scripts/deploy_ubuntu.sh` 首次部署，`scripts/start_ubuntu.sh` 后续启动。脚本会自动检测 PostgreSQL/Web 页面端口冲突并顺延，最终写入 `.env.ports.generated`。
+- 已实现 Ubuntu 部署入口：`scripts/deploy_ubuntu.sh` 首次部署，`scripts/start.sh` 后续启动。脚本会自动检测 PostgreSQL/Web 页面端口冲突并顺延，最终写入 `.env.ports.generated`。
 - 已修复 Ubuntu 首次部署时 Docker 包冲突问题：`deploy_ubuntu.sh` 不再无条件安装 Ubuntu `docker.io`，会复用已有 Docker，或在 Docker CE 软件源可用时优先安装 `docker-ce`，避免 `containerd.io : Conflicts: containerd`。
-- `start_ubuntu.sh` 的 Docker Compose 调用已增强：优先 `docker compose`，当前用户无 Docker 权限时尝试 `sudo docker compose`，再回退 `docker-compose`。
-- `start_ubuntu.sh` 启动前会先停止已运行的 Paper 实时交易进程、Paper Web 状态页进程和 PostgreSQL 容器，再按当前配置重新启动，避免重复运行项目进程。
+- `start.sh` 的 Docker Compose 调用已增强：优先 `docker compose`，当前用户无 Docker 权限时尝试 `sudo docker compose`，再回退 `docker-compose`。
+- `start.sh` 启动前会先停止已运行的 Paper 实时交易进程、Paper Web 状态页进程和 PostgreSQL 容器，再按当前配置重新启动，避免重复运行项目进程。
 - 已修复 Python editable 安装失败问题：`pyproject.toml` 显式配置 setuptools 包发现规则，只打包 `app*`，排除 `runtime*`、`migrations*`、`tests*`，避免部署时出现 `Multiple top-level packages discovered in a flat-layout`。
 - 已修复服务器已有 PostgreSQL / Docker 发布端口导致的部署冲突：端口分配会同时检查 socket 监听和 `docker ps` 已发布端口；`docker-compose.yml` 不再固定 Postgres 容器名，避免和旧容器或其他服务冲突。
-- 已修复 `scripts/start_ubuntu.sh` 二次启动端口漂移问题：默认复用已有 `.env.ports.generated`，只有 `REGENERATE_PORTS=1` 或端口文件不存在时才重新分配端口；Compose 启动时使用 `--remove-orphans` 清理旧固定容器残留。
+- 已修复 `scripts/start.sh` 二次启动端口漂移问题：默认复用已有 `.env.ports.generated`，只有 `REGENERATE_PORTS=1` 或端口文件不存在时才重新分配端口；Compose 启动时使用 `--remove-orphans` 清理旧固定容器残留。
 - 真实行情 Paper runner 已支持多周期订阅，默认订阅 15m / 1h / 4h；已新增 MultiTimeframeKlineCache，用于按 symbol 聚合多周期已收盘 K 线。
 - 已新增实时策略适配器：把 4h / 1h / 15m 已收盘 K 线历史转换为 EMA、ATR、ADX、DI、swing 与趋势转换结构输入，并复用现有趋势识别、`TREND_PULLBACK` 主趋势回踩策略和 `REVERSAL_PROBE` 趋势转换策略。
 - 真实行情 Paper runner 默认路径已接入实时策略适配器：不传 `signal_fn` 时，会用多周期缓存生成主趋势或趋势转换 Paper 信号；有持仓时默认 WAIT，避免重复入场。
@@ -257,11 +257,11 @@
 - 已修复 signal router 字段丢失问题：主趋势与趋势转换信号经路由后会保留 entry_price、stop_loss、take_profit、risk_reward、risk_pct、score、signal_level 等执行/统计字段。
 - 趋势转换信号已补充可执行 entry_price、ATR 止损与 2R take_profit，Paper 不再依赖默认止损止盈模拟趋势转换策略。
 - Web 状态页已在顶部显示“系统运行时间”，便于确认服务是否中途断开或重启；运行时间随 Paper 状态文件持久化，重启恢复时保持连续。
-- Web 状态页已增加“错误日志”框，只展示 `paper-realtime.log` 中的错误/异常/失败/`Historical warmup skipped` 行，并用红色字体显示；`start_ubuntu.sh` 会把实时 runner 日志路径传给状态页。
+- Web 状态页已增加“错误日志”框，只展示 `paper-realtime.log` 中的错误/异常/失败/`Historical warmup skipped` 行，并用红色字体显示；`start.sh` 会把实时 runner 日志路径传给状态页。
 - Web 状态页仍保持 5 秒自动刷新，但已从浏览器级 `<meta refresh>` 改为后台软刷新：每 5 秒拉取最新页面 HTML 并替换主体内容，避免整页闪烁，同时保留当前选中的交易对和 K 线周期。
 - 已定位“运行 11 小时仍 0 成交且页面无输出”的主要问题：当前成交计数为 0 不等于程序停了，`rejected_signals` 也只统计已有入场信号但被 Paper 撮合拒绝的情况；普通策略 `WAIT` 原因以前没有持久化。现在 Paper 状态文件会保留最近 50 条策略评估结果。早期 Web 状态页显示过“最近策略输出”调试表；当前主页面已隐藏该表，避免 `SYSTEM / no actionable signal` 干扰用户阅读。
 - 已修复最近策略输出只看到 5m 的可观察性问题：根因是 5m K 线更新频率最高，会挤掉 15m/1h/4h 记录；现在状态文件按“交易对 + 周期”保留最新输出，页面可同时看到各周期最新状态。
-- Web 状态页“策略K线图”已从旧硬编码 EMA50 / EMA200 改为按当前配置动态显示快慢线名称和值，例如 EMA15 / MA60；图表数据同时兼容旧 `ema50` / `ema200` 字段和新 `ma_fast` / `ma_slow` 字段。策略 K 线图已支持 1d / 4h / 1h / 15m 分层周期、BTCUSDT / ETHUSDT 交易对切换，并把核心规则压缩为单行横向展示，避免 BTC/ETH 同跑时只展示最新更新交易对导致用户拿错图对照。`scripts/start_ubuntu.sh` 已同步订阅 1d，避免覆盖 runner 默认周期后导致页面缺失日 K 页签。图表数据来自 Binance USDT-M Futures 已收盘 K 线，不包含正在形成中的实时蜡烛。
+- Web 状态页“策略K线图”已从旧硬编码 EMA50 / EMA200 改为按当前配置动态显示快慢线名称和值，例如 EMA15 / MA60；图表数据同时兼容旧 `ema50` / `ema200` 字段和新 `ma_fast` / `ma_slow` 字段。策略 K 线图已支持 1d / 4h / 1h / 15m 分层周期、BTCUSDT / ETHUSDT 交易对切换，并把核心规则压缩为单行横向展示，避免 BTC/ETH 同跑时只展示最新更新交易对导致用户拿错图对照。`scripts/start.sh` 已同步订阅 1d，避免覆盖 runner 默认周期后导致页面缺失日 K 页签。图表数据来自 Binance USDT-M Futures 已收盘 K 线，不包含正在形成中的实时蜡烛。
 - Web 状态页已新增精简版“策略触发条件”：状态文件仍持久化每次策略评估的完整条件明细，但页面只展示当前最接近触发的策略方向，例如主趋势做空时隐藏主趋势做多和不相关趋势转换组；页面顶部显示交易对，例如 `当前趋势：BTCUSDT 主趋势做空 · 已满足 4/8` 和 `还差：...`。主趋势诊断已拆分为“空头/多头结构”和“动能确认”；空头/多头结构只按 EMA50/EMA200 排列判断，价格是否已经低于/高于 EMA50 不再混入结构条件。
 - 已修复策略触发条件可能误显示反向主趋势的问题：此前“当前趋势”只按已满足条件数量选择最近策略，可能在 4h 空头结构成立时，因为多头的 15m/止损/RR 等辅助条件数量更多而显示“主趋势做多”。现在当前趋势优先尊重 4h 主结构：4h 空头结构成立优先显示主趋势做空，4h 多头结构成立优先显示主趋势做多；无明确 4h 主结构时才回退到满足数量排序。
 - Web 状态页的“策略触发条件”已按交易对分组展示：BTCUSDT 和 ETHUSDT 会各自显示最新条件卡。此前页面只取全局最新一条策略评估，容易出现页面显示 ETHUSDT、用户拿 BTCUSDT Binance 图对照的误判。
@@ -288,7 +288,7 @@
 - `.venv/bin/python -m pytest tests/test_v0_1_database_and_binance.py tests/test_v0_3_backtest_archive.py tests/test_v1_0_strategy_backtest_runner.py tests/test_v1_0_strategy_backtest_page.py -q`：20 passed。
 - `DATABASE_URL=sqlite+pysqlite:///:memory: .venv/bin/alembic upgrade head`：通过，包含 `0003_config_snapshot_content`。
 - `.venv/bin/python -m pytest -q`：110 passed。
-- `bash -n scripts/start_ubuntu.sh && bash -n scripts/deploy_ubuntu.sh`：通过。
+- `bash -n scripts/start.sh && bash -n scripts/deploy_ubuntu.sh`：通过。
 - `.venv/bin/python -m pytest tests/test_deploy_ports.py -q`：3 passed。
 - `.venv/bin/python -m pytest tests/test_deploy_script.py tests/test_deploy_ports.py -q`：5 passed。
 - `.venv/bin/python -m pip install -e .`：通过，已验证 editable 安装不再触发 setuptools flat-layout 顶层包发现错误。
@@ -300,7 +300,7 @@
 - `.venv/bin/python -m pytest tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_paper_status_web.py tests/test_v1_0_persistent_paper_stream.py -q`：12 passed。
 - `.venv/bin/python -m pytest -q`：122 passed。
 - `.venv/bin/python -m pytest tests/test_v1_0_real_market_paper_runner.py tests/test_v1_0_paper_status_web.py tests/test_deploy_script.py -q`：15 passed。
-- `.venv/bin/python -m py_compile scripts/run_paper_status_web.py scripts/run_paper_realtime.py && bash -n scripts/start_ubuntu.sh`：通过。
+- `.venv/bin/python -m py_compile scripts/run_paper_status_web.py scripts/run_paper_realtime.py && bash -n scripts/start.sh`：通过。
 - `.venv/bin/python -m pytest -q`：125 passed。
 - `.venv/bin/python -m pytest tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py tests/test_v1_0_paper_status_web.py tests/test_v1_0_real_market_paper_runner.py -q`：16 passed。
 - `.venv/bin/python -m pytest -q`：127 passed。

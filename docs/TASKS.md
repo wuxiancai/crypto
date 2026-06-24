@@ -73,7 +73,7 @@
 说明：
 
 - `scripts/deploy_ubuntu.sh` 用于首次部署，会安装依赖、启动 Docker/PostgreSQL、执行 migration、启动真实行情 Paper Trading 和中文 Web 状态页。
-- `scripts/start_ubuntu.sh` 用于后续启动，会自动检测端口冲突并顺延。
+- `scripts/start.sh` 用于后续启动，会自动检测端口冲突并顺延。
 - 默认 PostgreSQL 端口 `55432`，默认 Web 页面端口 `8765`；如被占用会自动尝试下一个端口。
 - 部署说明见 `docs/UBUNTU_DEPLOY.md`。
 
