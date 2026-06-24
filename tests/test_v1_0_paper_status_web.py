@@ -118,7 +118,9 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "当前策略详情" in html
     assert "grid-template-columns: repeat(4, minmax(0, 1fr))" in html
     assert "strategy-detail-panel { grid-column: 1 / -1; display: flex" in html
-    assert "strategy-detail-grid { display: flex" in html
+    assert "strategy-detail-grid { display: grid; grid-template-columns: 1fr" in html
+    assert "strategy-detail-panel { grid-column: 1 / -1; display: flex; align-items: flex-start" in html
+    assert "strategy-detail-panel { grid-column: 1 / -1; display: flex; align-items: center" not in html
     assert "Paper复盘" in html
     assert 'href="/paper/events"' in html
     assert "币种" in html

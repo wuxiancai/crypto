@@ -93,12 +93,11 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .ticker-price {{ color: #172033; font-size: 16px; font-weight: 700; }}
     .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
-    .strategy-detail-panel {{ grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 7px 10px; overflow-x: auto; }}
-    .strategy-detail-panel .label {{ flex: 0 0 auto; margin-bottom: 0; }}
-    .strategy-detail-grid {{ display: flex; align-items: center; gap: 16px; min-width: max-content; }}
-    .strategy-detail-block {{ display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; white-space: nowrap; font-family: Menlo, Consolas, monospace; font-size: 11px; line-height: 1.2; color: #344055; }}
-    .strategy-detail-block + .strategy-detail-block {{ padding-left: 16px; border-left: 1px solid #e6ebf2; }}
-    .strategy-detail-row {{ display: inline-flex; align-items: baseline; gap: 3px; min-width: 0; }}
+    .strategy-detail-panel {{ grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 10px; padding: 7px 10px; overflow: hidden; }}
+    .strategy-detail-panel .label {{ flex: 0 0 auto; margin-bottom: 0; line-height: 1.45; }}
+    .strategy-detail-grid {{ display: grid; grid-template-columns: 1fr; gap: 4px; flex: 1 1 auto; min-width: 0; }}
+    .strategy-detail-block {{ display: flex; align-items: baseline; gap: 8px; flex-wrap: nowrap; white-space: nowrap; min-width: 0; overflow: hidden; font-family: Menlo, Consolas, monospace; font-size: 11px; line-height: 1.45; color: #344055; }}
+    .strategy-detail-row {{ display: inline-flex; align-items: baseline; gap: 3px; flex: 0 0 auto; min-width: 0; }}
     .strategy-detail-key {{ color: #65748b; white-space: nowrap; }}
     .strategy-detail-value {{ color: #172033; white-space: nowrap; }}
     .form-grid {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: end; }}
