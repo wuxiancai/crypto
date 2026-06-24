@@ -438,15 +438,24 @@ def render_strategy_backtest_batch_html(
     h2 {{ font-size: 16px; margin: 0 0 10px; }}
     .badge {{ font-size: 13px; padding: 6px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; color: #344055; text-decoration: none; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
+    .batch-summary {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }}
+    .summary-item {{ border: 1px solid #d9e0ec; border-radius: 6px; padding: 10px; background: #f8fafc; }}
+    .summary-label {{ color: #65748b; font-size: 12px; margin-bottom: 4px; }}
+    .summary-value {{ color: #172033; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }}
+    .batch-form {{ display: grid; gap: 14px; }}
+    .form-section {{ border: 1px solid #e6ebf2; border-radius: 6px; padding: 12px; margin: 0; min-width: 0; }}
+    .form-section legend {{ color: #172033; font-size: 14px; font-weight: 700; padding: 0 6px; }}
+    .section-note {{ color: #65748b; font-size: 12px; margin: 0 0 10px; line-height: 1.5; }}
     .form-grid {{ display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; align-items: end; }}
+    .form-grid.compact {{ grid-template-columns: repeat(5, minmax(0, 1fr)); }}
     .form-field {{ display: grid; gap: 6px; }}
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
     .form-field input, .form-field select {{ width: 100%; box-sizing: border-box; border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
     .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
     .danger-button {{ border: 1px solid #b42318; background: #b42318; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; text-decoration: none; }}
     .secondary-button {{ border: 1px solid #b8c2d6; background: #fff; color: #344055; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; text-decoration: none; }}
-    .button-row {{ display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }}
-    .batch-actions {{ grid-column: span 2; align-self: end; }}
+    .button-row {{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }}
+    .batch-actions {{ justify-content: flex-start; }}
     .job-badge {{ font-size: 13px; padding: 7px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; color: #344055; }}
     .empty {{ color: #65748b; padding: 14px; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; }}
     .info-box {{ color: #0a7c52; padding: 12px 14px; background: #f0fdf8; border: 1px solid #a7f3d0; border-radius: 6px; margin-top: 16px; }}
@@ -460,7 +469,8 @@ def render_strategy_backtest_batch_html(
     @media (max-width: 900px) {{
       main {{ padding: 14px; }}
       header {{ align-items: flex-start; flex-direction: column; }}
-      .form-grid {{ grid-template-columns: 1fr; }}
+      .batch-summary {{ grid-template-columns: 1fr; }}
+      .form-grid, .form-grid.compact {{ grid-template-columns: 1fr; }}
       .batch-actions {{ grid-column: auto; }}
       .button-row {{ flex-wrap: wrap; }}
     }}
@@ -474,47 +484,78 @@ def render_strategy_backtest_batch_html(
     </header>
     <section class="panel">
       <h2>批量回测参数</h2>
-      <form class="form-grid" method="get" action="/backtest/batch">
-        <div class="form-field">
-          <label for="symbol">交易对</label>
-          <select id="symbol" name="symbol">{_render_batch_symbol_options(getattr(config, "symbol", "BTCUSDT"))}</select>
-        </div>
-        <div class="form-field">
-          <label for="fast_ma_type">快线类型</label>
-          <select id="fast_ma_type" name="fast_ma_type">{_render_average_type_options(getattr(config, "fast_ma_type", "EMA"))}</select>
-        </div>
-        <div class="form-field"><label for="fast_start">快线起始</label><input id="fast_start" name="fast_start" type="number" min="2" max="500" value="{_escape(fast_start)}"></div>
-        <div class="form-field"><label for="fast_end">快线结束</label><input id="fast_end" name="fast_end" type="number" min="2" max="500" value="{_escape(fast_end)}"></div>
-        <div class="form-field"><label for="fast_step">快线步进</label><input id="fast_step" name="fast_step" type="number" min="1" max="100" value="{_escape(fast_step)}"></div>
-        <div class="form-field">
-          <label for="slow_ma_type">慢线类型</label>
-          <select id="slow_ma_type" name="slow_ma_type">{_render_average_type_options(getattr(config, "slow_ma_type", "MA"))}</select>
-        </div>
-        <div class="form-field"><label for="slow_start">慢线起始</label><input id="slow_start" name="slow_start" type="number" min="3" max="1000" value="{_escape(slow_start)}"></div>
-        <div class="form-field"><label for="slow_end">慢线结束</label><input id="slow_end" name="slow_end" type="number" min="3" max="1000" value="{_escape(slow_end)}"></div>
-        <div class="form-field"><label for="slow_step">慢线步进</label><input id="slow_step" name="slow_step" type="number" min="1" max="200" value="{_escape(slow_step)}"></div>
-        <div class="form-field">
-          <label for="history_period">回测周期</label>
-          <select id="history_period" name="history_period">{_render_history_period_options(getattr(config, "history_period", "1y"))}</select>
-        </div>
-        <div class="form-field"><label for="atr_periods">ATR 周期</label><input id="atr_periods" name="atr_periods" value="{_escape(_join_values(getattr(config, "atr_periods", (12, 14))))}"></div>
-        <div class="form-field"><label for="dmi_periods">DMI 周期</label><input id="dmi_periods" name="dmi_periods" value="{_escape(_join_values(getattr(config, "dmi_periods", (12, 14))))}"></div>
-        <div class="form-field"><label for="swing_lookbacks">Swing Lookback</label><input id="swing_lookbacks" name="swing_lookbacks" value="{_escape(_join_values(getattr(config, "swing_lookbacks", (20, 30))))}"></div>
-        <div class="form-field"><label for="max_fee_to_risk_ratios">手续费/风险上限</label><input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0.25", "0"))))}"></div>
-        <div class="form-field"><label for="take_profit_modes">止盈模式</label><input id="take_profit_modes" name="take_profit_modes" value="{_escape(_join_values(getattr(config, "take_profit_modes", ("TRAILING", "FIXED"))))}"></div>
-        <div class="form-field"><label for="pullback_zone_atr_multipliers">快线区域ATR倍数</label><input id="pullback_zone_atr_multipliers" name="pullback_zone_atr_multipliers" value="{_escape(_join_values(getattr(config, "pullback_zone_atr_multipliers", ("1",))))}"></div>
-        <div class="form-field"><label for="require_pullback_close_beyond_fast_ma_options">收盘回到快线方向侧</label><input id="require_pullback_close_beyond_fast_ma_options" name="require_pullback_close_beyond_fast_ma_options" value="{_escape(_join_values(getattr(config, "require_pullback_close_beyond_fast_ma_options", (False,))))}"></div>
-        <div class="form-field"><label for="enable_reversal_probe_options">启用趋势转换试仓</label><input id="enable_reversal_probe_options" name="enable_reversal_probe_options" value="{_escape(_join_values(getattr(config, "enable_reversal_probe_options", (True,))))}"></div>
-        <div class="form-field">
-          <label for="skip_fast_gte_slow">过滤快线>=慢线</label>
-          <select id="skip_fast_gte_slow" name="skip_fast_gte_slow">{_render_bool_options(getattr(config, "skip_fast_gte_slow", True))}</select>
-        </div>
-        <div class="button-row batch-actions">
-          <button class="primary-button" type="submit" name="run" value="1">开始批量回测</button>
-          <button class="danger-button" type="submit" name="stop" value="1">停止回测</button>
-          <button class="secondary-button" type="submit" name="clear" value="1">清空回测记录</button>
-          <span class="job-badge" id="batch-job-status">{_escape(_batch_job_status_label(job))}</span>
-        </div>
+      <div class="batch-summary">
+        <div class="summary-item"><div class="summary-label">策略框架</div><div class="summary-value">1d 主趋势 + 4h 子趋势 + 1h 确认 + 15m 入场</div></div>
+        <div class="summary-item"><div class="summary-label">默认均线</div><div class="summary-value">EMA15 / MA60</div></div>
+        <div class="summary-item"><div class="summary-label">默认过滤</div><div class="summary-value">ATR14 / DMI12 / Swing20 / Reversal关闭</div></div>
+        <div class="summary-item"><div class="summary-label">输出统计</div><div class="summary-value">按策略、Bucket、交易对聚合</div></div>
+      </div>
+      <form class="batch-form" method="get" action="/backtest/batch">
+        <fieldset class="form-section">
+          <legend>基础范围</legend>
+          <p class="section-note">先控制交易对、周期和均线搜索空间；2c2g 服务器建议保持较小网格，避免长时间占满资源。</p>
+          <div class="form-grid">
+            <div class="form-field">
+              <label for="symbol">交易对</label>
+              <select id="symbol" name="symbol">{_render_batch_symbol_options(getattr(config, "symbol", "BTCUSDT"))}</select>
+            </div>
+            <div class="form-field">
+              <label for="history_period">回测周期</label>
+              <select id="history_period" name="history_period">{_render_history_period_options(getattr(config, "history_period", "1y"))}</select>
+            </div>
+            <div class="form-field">
+              <label for="fast_ma_type">快线类型</label>
+              <select id="fast_ma_type" name="fast_ma_type">{_render_average_type_options(getattr(config, "fast_ma_type", "EMA"))}</select>
+            </div>
+            <div class="form-field"><label for="fast_start">快线起始</label><input id="fast_start" name="fast_start" type="number" min="2" max="500" value="{_escape(fast_start)}"></div>
+            <div class="form-field"><label for="fast_end">快线结束</label><input id="fast_end" name="fast_end" type="number" min="2" max="500" value="{_escape(fast_end)}"></div>
+            <div class="form-field"><label for="fast_step">快线步进</label><input id="fast_step" name="fast_step" type="number" min="1" max="100" value="{_escape(fast_step)}"></div>
+            <div class="form-field">
+              <label for="slow_ma_type">慢线类型</label>
+              <select id="slow_ma_type" name="slow_ma_type">{_render_average_type_options(getattr(config, "slow_ma_type", "MA"))}</select>
+            </div>
+            <div class="form-field"><label for="slow_start">慢线起始</label><input id="slow_start" name="slow_start" type="number" min="3" max="1000" value="{_escape(slow_start)}"></div>
+            <div class="form-field"><label for="slow_end">慢线结束</label><input id="slow_end" name="slow_end" type="number" min="3" max="1000" value="{_escape(slow_end)}"></div>
+            <div class="form-field"><label for="slow_step">慢线步进</label><input id="slow_step" name="slow_step" type="number" min="1" max="200" value="{_escape(slow_step)}"></div>
+            <div class="form-field">
+              <label for="skip_fast_gte_slow">过滤快线>=慢线</label>
+              <select id="skip_fast_gte_slow" name="skip_fast_gte_slow">{_render_bool_options(getattr(config, "skip_fast_gte_slow", True))}</select>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset class="form-section">
+          <legend>分层策略参数</legend>
+          <p class="section-note">这些参数会进入同一套分层策略系统，不再是旧单仓位策略。多个值用英文逗号分隔。</p>
+          <div class="form-grid compact">
+            <div class="form-field"><label for="atr_periods">ATR 周期</label><input id="atr_periods" name="atr_periods" value="{_escape(_join_values(getattr(config, "atr_periods", (12, 14))))}"></div>
+            <div class="form-field"><label for="dmi_periods">DMI 周期</label><input id="dmi_periods" name="dmi_periods" value="{_escape(_join_values(getattr(config, "dmi_periods", (12, 14))))}"></div>
+            <div class="form-field"><label for="swing_lookbacks">Swing Lookback</label><input id="swing_lookbacks" name="swing_lookbacks" value="{_escape(_join_values(getattr(config, "swing_lookbacks", (20, 30))))}"></div>
+            <div class="form-field"><label for="pullback_zone_atr_multipliers">快线区域ATR倍数</label><input id="pullback_zone_atr_multipliers" name="pullback_zone_atr_multipliers" value="{_escape(_join_values(getattr(config, "pullback_zone_atr_multipliers", ("1",))))}"></div>
+            <div class="form-field">
+              <label for="require_pullback_close_beyond_fast_ma_options">收盘回到快线方向侧</label>
+              <select id="require_pullback_close_beyond_fast_ma_options" name="require_pullback_close_beyond_fast_ma_options">{_render_bool_series_options(getattr(config, "require_pullback_close_beyond_fast_ma_options", (False,)))}</select>
+            </div>
+            <div class="form-field">
+              <label for="enable_reversal_probe_options">启用趋势转换试仓</label>
+              <select id="enable_reversal_probe_options" name="enable_reversal_probe_options">{_render_bool_series_options(getattr(config, "enable_reversal_probe_options", (False,)))}</select>
+            </div>
+            <div class="form-field"><label for="max_fee_to_risk_ratios">手续费/风险上限</label><input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0",))))}"></div>
+            <div class="form-field">
+              <label for="take_profit_modes">止盈模式</label>
+              <select id="take_profit_modes" name="take_profit_modes">{_render_take_profit_mode_options(getattr(config, "take_profit_modes", ("TRAILING", "FIXED")))}</select>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset class="form-section">
+          <legend>执行控制</legend>
+          <p class="section-note">批量任务会复用已有归档，已有相同配置默认跳过；停止会在当前组合结束后的安全点退出。</p>
+          <div class="button-row batch-actions">
+            <button class="primary-button" type="submit" name="run" value="1">开始批量回测</button>
+            <button class="danger-button" type="submit" name="stop" value="1">停止回测</button>
+            <button class="secondary-button" type="submit" name="clear" value="1">清空回测记录</button>
+            <span class="job-badge" id="batch-job-status">{_escape(_batch_job_status_label(job))}</span>
+          </div>
+        </fieldset>
       </form>
     </section>
     {_render_backtest_error(effective_error)}
@@ -1043,6 +1084,53 @@ def _render_bool_options(selected: Any) -> str:
     options = [(False, "否"), (True, "是")]
     return "".join(
         f'<option value="{1 if value else 0}"{_selected_attr(value == selected_bool)}>{_escape(label)}</option>'
+        for value, label in options
+    )
+
+
+def _render_bool_series_options(selected: Any) -> str:
+    selected_value = _bool_series_value(selected)
+    options = [
+        ("false", "否"),
+        ("true", "是"),
+        ("false,true", "否 + 是"),
+        ("true,false", "否 + 是"),
+    ]
+    return "".join(
+        f'<option value="{_escape(value)}"{_selected_attr(value == selected_value)}>{_escape(label)}</option>'
+        for value, label in options
+    )
+
+
+def _bool_series_value(selected: Any) -> str:
+    values = selected if isinstance(selected, (list, tuple)) else (selected,)
+    bools: list[bool] = []
+    for value in values:
+        if isinstance(value, bool):
+            bools.append(value)
+            continue
+        text = str(value).strip().lower()
+        if text in {"1", "true", "yes", "是"}:
+            bools.append(True)
+        elif text in {"0", "false", "no", "否"}:
+            bools.append(False)
+    unique_values = set(bools)
+    if unique_values == {False, True}:
+        return "false,true"
+    if unique_values == {True}:
+        return "true"
+    return "false"
+
+
+def _render_take_profit_mode_options(selected: Any) -> str:
+    selected_value = _join_values(selected) or "TRAILING,FIXED"
+    options = [
+        ("TRAILING", "TRAILING"),
+        ("FIXED", "FIXED"),
+        ("TRAILING,FIXED", "TRAILING + FIXED"),
+    ]
+    return "".join(
+        f'<option value="{_escape(value)}"{_selected_attr(value == selected_value)}>{_escape(label)}</option>'
         for value, label in options
     )
 

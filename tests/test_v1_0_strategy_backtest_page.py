@@ -491,6 +491,13 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     )
 
     assert "批量参数回测" in html
+    assert "策略框架" in html
+    assert "1d 主趋势 + 4h 子趋势 + 1h 确认 + 15m 入场" in html
+    assert "默认均线" in html
+    assert "EMA15 / MA60" in html
+    assert "基础范围" in html
+    assert "分层策略参数" in html
+    assert "执行控制" in html
     assert 'name="fast_start"' in html
     assert 'value="15"' in html
     assert 'name="fast_step"' in html
@@ -510,10 +517,10 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     assert 'value="1,0.5"' in html
     assert "收盘回到快线方向侧" in html
     assert 'name="require_pullback_close_beyond_fast_ma_options"' in html
-    assert 'value="false,true"' in html
+    assert '<option value="false,true" selected>否 + 是</option>' in html
     assert "启用趋势转换试仓" in html
     assert 'name="enable_reversal_probe_options"' in html
-    assert 'value="true,false"' in html
+    assert '<option value="false,true" selected>否 + 是</option>' in html
     assert "回测周期" in html
     assert "开始批量回测" in html
 
@@ -529,8 +536,9 @@ def test_strategy_backtest_batch_page_defaults_to_smaller_refinement_grid():
     assert 'name="swing_lookbacks" value="20,30"' in html
     assert 'name="max_fee_to_risk_ratios" value="0"' in html
     assert 'name="pullback_zone_atr_multipliers" value="1"' in html
-    assert 'name="require_pullback_close_beyond_fast_ma_options" value="false"' in html
-    assert 'name="enable_reversal_probe_options" value="false"' in html
+    assert 'name="require_pullback_close_beyond_fast_ma_options"' in html
+    assert 'name="enable_reversal_probe_options"' in html
+    assert '<option value="false" selected>否</option>' in html
     assert '<option value="1" selected>是</option>' in html
 
 
@@ -556,8 +564,9 @@ def test_strategy_backtest_batch_page_shows_stop_button_and_terminal_logs():
     assert 'name="clear"' in html
     assert "secondary-button" in html
     assert 'class="button-row batch-actions"' in html
-    assert ".button-row { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }" in html
-    assert ".batch-actions { grid-column: span 2; align-self: end; }" in html
+    assert ".batch-form { display: grid; gap: 14px; }" in html
+    assert ".form-section { border: 1px solid #e6ebf2; border-radius: 6px; padding: 12px; margin: 0; min-width: 0; }" in html
+    assert ".button-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }" in html
     assert "backtest-log-terminal" in html
     assert ".terminal { min-height: 360px; max-height: 540px; overflow-y: auto; background: #fff; color: #172033;" in html
     assert "/api/backtest/batch/status" in html
