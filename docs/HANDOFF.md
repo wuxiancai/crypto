@@ -25,6 +25,11 @@
 
 ## 本轮修复
 
+- 2026-06-24 策略 K 线图交互修复：
+  - 根因是状态页 K 线图只由后端输出静态 SVG，页面只绑定了交易对/周期 tab 切换，没有给 K 线图绑定 hover、tooltip、十字线或滚轮窗口切换事件；不是策略逻辑错误，也不是本次截图现象本身指向 K 线数据不足。
+  - `app/paper/web_status.py` 现在会在 SVG 上嵌入完整图表点 JSON，并保留 `open_time/close_time/time`；前端加载后会重绘可视窗口，支持鼠标悬停查看时间、OHLC、快慢均线值，支持滚轮在已下发历史 K 线窗口内前后移动。
+  - 自动刷新状态页后会重新绑定图表交互，并保留当前激活的交易对/周期 tab。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_strategy_backtest_page.py -q`，38 passed；`.venv/bin/python -m py_compile app/paper/web_status.py` 通过；`git diff --check` 通过。
 - 2026-06-24 策略触发条件 `None / SYSTEM 0/0` 展示修复：
   - 根因是分层策略 diagnostics 输出的是 `strategy_type/detail/passed`，而状态页旧渲染只认 `strategy/text/detail`，导致页面把缺失字段显示成 `None`，并把无候选策略时的占位 `SYSTEM 0/0` 当成当前趋势展示。
   - `app/strategy/layered_strategy.py` 的 diagnostics 已补齐 `strategy`、`text` 和字符串 `detail`，原始状态文件/复盘 JSON 更易读。

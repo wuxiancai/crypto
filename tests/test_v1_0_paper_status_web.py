@@ -665,6 +665,69 @@ def test_paper_status_page_can_switch_strategy_chart_timeframes(tmp_path):
     assert ">15m<" in html
 
 
+def test_paper_status_page_renders_interactive_strategy_chart_controls(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    point = {
+        "open_time": 1710000000000,
+        "open": "100",
+        "high": "110",
+        "low": "95",
+        "close": "105",
+        "fast_ma_label": "EMA15",
+        "slow_ma_label": "MA60",
+        "ma_fast": "103",
+        "ma_slow": "101",
+    }
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "105",
+                        "action": "WAIT",
+                        "strategy_type": "TREND_PULLBACK",
+                        "reason": ["no actionable signal"],
+                        "chart_timeframes": {
+                            "1d": [
+                                point,
+                                {**point, "open_time": 1710086400000, "close": "107"},
+                                {**point, "open_time": 1710172800000, "close": "106"},
+                            ]
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert 'data-interactive-chart="1"' in html
+    assert 'data-chart-points=' in html
+    assert 'data-chart-window-size=' in html
+    assert 'data-chart-symbol="BTCUSDT"' in html
+    assert 'data-chart-interval="1d"' in html
+    assert "open_time" in html
+    assert "悬停查看详情，滚轮查看更多K线" in html
+    assert "chart-tooltip" in html
+    assert "bindInteractiveCharts" in html
+    assert "renderInteractiveChart" in html
+    assert "mousemove" in html
+    assert "wheel" in html
+    assert "data-chart-crosshair-x" in html
+    assert "data-chart-crosshair-y" in html
+
+
 def test_paper_status_page_can_switch_strategy_chart_symbols_and_compacts_rules(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 

@@ -129,6 +129,9 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .condition-detail {{ color: #65748b; overflow-wrap: anywhere; margin-top: 6px; }}
     .condition-detail summary {{ cursor: pointer; color: #65748b; }}
     .chart-wrap {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 10px; overflow-x: auto; }}
+    .interactive-chart {{ cursor: crosshair; touch-action: none; user-select: none; }}
+    .chart-tooltip {{ position: fixed; display: none; pointer-events: none; z-index: 40; background: #172033; color: #fff; border: 1px solid rgba(255,255,255,0.14); border-radius: 4px; padding: 8px 10px; font-size: 12px; line-height: 1.55; box-shadow: 0 8px 24px rgba(23,32,51,0.18); white-space: nowrap; }}
+    .chart-help {{ color: #65748b; font-size: 12px; margin-left: auto; }}
     .chart-tabs {{ display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }}
     .chart-tab {{ border: 1px solid #b8c2d6; background: #fff; color: #344055; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 13px; }}
     .chart-tab.active {{ background: #172033; color: #fff; border-color: #172033; }}
@@ -199,9 +202,15 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     </section>
   </main>
   <script>
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const CHART_GEOMETRY = {{ width: 1080, height: 320, left: 48, right: 18, top: 18, bottom: 28 }};
     const chartItemsInGroup = (selector, group) => Array.from(document.querySelectorAll(selector)).filter((item) => (item.getAttribute("data-chart-group") || "default") === group);
     function bindChartTabs() {{
       document.querySelectorAll("[data-chart-target]").forEach((button) => {{
+        if (button.dataset.boundChartTab === "1") {{
+          return;
+        }}
+        button.dataset.boundChartTab = "1";
         button.addEventListener("click", () => {{
           activateChart(button);
         }});
@@ -217,6 +226,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
         if (panel) {{
           panel.classList.add("active");
         }}
+        bindInteractiveCharts();
     }}
     function snapshotActiveCharts() {{
       const active = {{}};
@@ -232,6 +242,208 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
           activateChart(button);
         }}
       }});
+    }}
+    function bindInteractiveCharts() {{
+      document.querySelectorAll("[data-interactive-chart='1']").forEach((svg) => {{
+        if (svg.dataset.boundInteractiveChart !== "1") {{
+          svg.dataset.boundInteractiveChart = "1";
+          svg.addEventListener("mousemove", (event) => updateChartHover(svg, event));
+          svg.addEventListener("mouseleave", () => hideChartHover(svg));
+          svg.addEventListener("wheel", (event) => {{
+            event.preventDefault();
+            shiftChartWindow(svg, event.deltaY);
+          }}, {{ passive: false }});
+        }}
+        renderInteractiveChart(svg);
+      }});
+    }}
+    function chartPoints(svg) {{
+      try {{
+        const parsed = JSON.parse(svg.dataset.chartPoints || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      }} catch (_error) {{
+        return [];
+      }}
+    }}
+    function chartNumber(value) {{
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }}
+    function chartPrice(value) {{
+      const parsed = chartNumber(value);
+      return parsed === null ? "-" : parsed.toFixed(2);
+    }}
+    function chartTime(value) {{
+      const parsed = Number(value);
+      if (Number.isFinite(parsed) && parsed > 100000000000) {{
+        return new Date(parsed).toLocaleString("zh-CN", {{ hour12: false, timeZone: "Asia/Shanghai" }});
+      }}
+      return value === undefined || value === null || value === "" ? "-" : String(value);
+    }}
+    function chartEscape(value) {{
+      return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+    }}
+    function chartWindowSize(svg, points) {{
+      const configured = Number(svg.dataset.chartWindowSize || 80);
+      const size = Number.isFinite(configured) ? configured : 80;
+      return Math.min(points.length, Math.max(20, Math.floor(size)));
+    }}
+    function chartVisibleSlice(svg) {{
+      const points = chartPoints(svg);
+      const size = chartWindowSize(svg, points);
+      const maxOffset = Math.max(0, points.length - size);
+      const offset = Math.min(maxOffset, Math.max(0, Number(svg.dataset.chartOffset || 0)));
+      const end = points.length - offset;
+      const start = Math.max(0, end - size);
+      svg.dataset.chartOffset = String(offset);
+      svg.dataset.chartVisibleStart = String(start);
+      return {{ all: points, visible: points.slice(start, end), start }};
+    }}
+    function svgNode(name, attrs) {{
+      const node = document.createElementNS(SVG_NS, name);
+      Object.entries(attrs || {{}}).forEach(([key, value]) => node.setAttribute(key, String(value)));
+      return node;
+    }}
+    function chartScale(values, plotHeight, top) {{
+      let minimum = Math.min(...values);
+      let maximum = Math.max(...values);
+      if (!Number.isFinite(minimum) || !Number.isFinite(maximum)) {{
+        minimum = 0;
+        maximum = 1;
+      }}
+      if (minimum === maximum) {{
+        minimum -= 1;
+        maximum += 1;
+      }}
+      const yAt = (value) => top + (maximum - value) * plotHeight / (maximum - minimum);
+      return {{ minimum, maximum, yAt }};
+    }}
+    function renderInteractiveChart(svg) {{
+      const slice = chartVisibleSlice(svg);
+      const points = slice.visible;
+      if (points.length < 2) {{
+        return;
+      }}
+      const geometry = CHART_GEOMETRY;
+      const plotWidth = geometry.width - geometry.left - geometry.right;
+      const plotHeight = geometry.height - geometry.top - geometry.bottom;
+      const values = [];
+      points.forEach((point) => {{
+        ["high", "low", "ma_fast", "ma_slow"].forEach((key) => {{
+          const value = chartNumber(point[key]);
+          if (value !== null) {{
+            values.push(value);
+          }}
+        }});
+      }});
+      const scale = chartScale(values, plotHeight, geometry.top);
+      const xAt = (index) => geometry.left + index * plotWidth / Math.max(points.length - 1, 1);
+      const candleWidth = Math.max(3, Math.min(9, Math.floor(plotWidth / Math.max(points.length, 1) * 0.55)));
+      svg.innerHTML = "";
+      svg.appendChild(svgNode("rect", {{ x: 0, y: 0, width: geometry.width, height: geometry.height, fill: "#ffffff" }}));
+      for (let index = 0; index < 5; index += 1) {{
+        const y = geometry.top + index * plotHeight / 4;
+        const value = scale.maximum - index * (scale.maximum - scale.minimum) / 4;
+        svg.appendChild(svgNode("line", {{ x1: geometry.left, y1: y.toFixed(2), x2: geometry.left + plotWidth, y2: y.toFixed(2), stroke: "#eef3f9" }}));
+        const text = svgNode("text", {{ x: 8, y: (y + 4).toFixed(2), "font-size": 11, fill: "#65748b" }});
+        text.textContent = value.toFixed(2);
+        svg.appendChild(text);
+      }}
+      svg.appendChild(svgNode("line", {{ x1: geometry.left, y1: geometry.top, x2: geometry.left, y2: geometry.top + plotHeight, stroke: "#d9e0ec" }}));
+      svg.appendChild(svgNode("line", {{ x1: geometry.left, y1: geometry.top + plotHeight, x2: geometry.width - geometry.right, y2: geometry.top + plotHeight, stroke: "#d9e0ec" }}));
+      points.forEach((point, index) => {{
+        const open = chartNumber(point.open);
+        const high = chartNumber(point.high);
+        const low = chartNumber(point.low);
+        const close = chartNumber(point.close);
+        if (open === null || high === null || low === null || close === null) {{
+          return;
+        }}
+        const x = xAt(index);
+        const openY = scale.yAt(open);
+        const closeY = scale.yAt(close);
+        const color = close >= open ? "#0a7c52" : "#b42318";
+        svg.appendChild(svgNode("line", {{ x1: x.toFixed(2), y1: scale.yAt(high).toFixed(2), x2: x.toFixed(2), y2: scale.yAt(low).toFixed(2), stroke: color, "stroke-width": 1 }}));
+        svg.appendChild(svgNode("rect", {{ x: (x - candleWidth / 2).toFixed(2), y: Math.min(openY, closeY).toFixed(2), width: candleWidth, height: Math.max(Math.abs(closeY - openY), 1).toFixed(2), fill: color }}));
+      }});
+      [["ma_fast", "#2563eb"], ["ma_slow", "#9333ea"]].forEach(([key, color]) => {{
+        const pairs = [];
+        points.forEach((point, index) => {{
+          const value = chartNumber(point[key]);
+          if (value !== null) {{
+            pairs.push(xAt(index).toFixed(2) + "," + scale.yAt(value).toFixed(2));
+          }}
+        }});
+        if (pairs.length >= 2) {{
+          svg.appendChild(svgNode("polyline", {{ points: pairs.join(" "), fill: "none", stroke: color, "stroke-width": 2 }}));
+        }}
+      }});
+      svg.appendChild(svgNode("line", {{ "data-chart-crosshair-x": "1", x1: geometry.left, y1: geometry.top, x2: geometry.left, y2: geometry.top + plotHeight, stroke: "#172033", "stroke-width": 1, "stroke-dasharray": "4 4", visibility: "hidden", "pointer-events": "none" }}));
+      svg.appendChild(svgNode("line", {{ "data-chart-crosshair-y": "1", x1: geometry.left, y1: geometry.top, x2: geometry.left + plotWidth, y2: geometry.top, stroke: "#172033", "stroke-width": 1, "stroke-dasharray": "4 4", visibility: "hidden", "pointer-events": "none" }}));
+    }}
+    function chartTooltip() {{
+      let tooltip = document.querySelector(".chart-tooltip");
+      if (!tooltip) {{
+        tooltip = document.createElement("div");
+        tooltip.className = "chart-tooltip";
+        document.body.appendChild(tooltip);
+      }}
+      return tooltip;
+    }}
+    function updateChartHover(svg, event) {{
+      const slice = chartVisibleSlice(svg);
+      const points = slice.visible;
+      if (points.length < 2) {{
+        return;
+      }}
+      const geometry = CHART_GEOMETRY;
+      const plotWidth = geometry.width - geometry.left - geometry.right;
+      const plotHeight = geometry.height - geometry.top - geometry.bottom;
+      const rect = svg.getBoundingClientRect();
+      const viewX = (event.clientX - rect.left) * geometry.width / rect.width;
+      const viewY = (event.clientY - rect.top) * geometry.height / rect.height;
+      const nearest = Math.min(points.length - 1, Math.max(0, Math.round((viewX - geometry.left) * (points.length - 1) / plotWidth)));
+      const point = points[nearest];
+      const x = geometry.left + nearest * plotWidth / Math.max(points.length - 1, 1);
+      const crossX = svg.querySelector("[data-chart-crosshair-x]");
+      const crossY = svg.querySelector("[data-chart-crosshair-y]");
+      if (crossX) {{
+        crossX.setAttribute("x1", x.toFixed(2));
+        crossX.setAttribute("x2", x.toFixed(2));
+        crossX.setAttribute("visibility", "visible");
+      }}
+      if (crossY) {{
+        const y = Math.min(geometry.top + plotHeight, Math.max(geometry.top, viewY));
+        crossY.setAttribute("y1", y.toFixed(2));
+        crossY.setAttribute("y2", y.toFixed(2));
+        crossY.setAttribute("visibility", "visible");
+      }}
+      const tooltip = chartTooltip();
+      const fastLabel = svg.dataset.chartFastLabel || "快线";
+      const slowLabel = svg.dataset.chartSlowLabel || "慢线";
+      tooltip.innerHTML = "<strong>" + chartEscape(svg.dataset.chartSymbol || "-") + " · " + chartEscape(svg.dataset.chartInterval || "-") + "</strong><br>时间 " + chartEscape(chartTime(point.open_time || point.close_time || point.time)) + "<br>开 " + chartPrice(point.open) + "　高 " + chartPrice(point.high) + "　低 " + chartPrice(point.low) + "　收 " + chartPrice(point.close) + "<br>" + chartEscape(fastLabel) + " " + chartPrice(point.ma_fast) + "　" + chartEscape(slowLabel) + " " + chartPrice(point.ma_slow);
+      tooltip.style.display = "block";
+      tooltip.style.left = Math.min(window.innerWidth - tooltip.offsetWidth - 12, event.clientX + 14) + "px";
+      tooltip.style.top = Math.min(window.innerHeight - tooltip.offsetHeight - 12, event.clientY + 14) + "px";
+    }}
+    function hideChartHover(svg) {{
+      const tooltip = chartTooltip();
+      tooltip.style.display = "none";
+      ["[data-chart-crosshair-x]", "[data-chart-crosshair-y]"].forEach((selector) => {{
+        const line = svg.querySelector(selector);
+        if (line) {{
+          line.setAttribute("visibility", "hidden");
+        }}
+      }});
+    }}
+    function shiftChartWindow(svg, deltaY) {{
+      const points = chartPoints(svg);
+      const size = chartWindowSize(svg, points);
+      const maxOffset = Math.max(0, points.length - size);
+      const current = Math.min(maxOffset, Math.max(0, Number(svg.dataset.chartOffset || 0)));
+      const next = deltaY > 0 ? current + 6 : current - 6;
+      svg.dataset.chartOffset = String(Math.min(maxOffset, Math.max(0, next)));
+      renderInteractiveChart(svg);
     }}
     async function refreshDashboard() {{
       const activeCharts = snapshotActiveCharts();
@@ -250,11 +462,13 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
         currentMain.innerHTML = nextMain.innerHTML;
         bindChartTabs();
         restoreActiveCharts(activeCharts);
+        bindInteractiveCharts();
       }} catch (_error) {{
         return;
       }}
     }}
     bindChartTabs();
+    bindInteractiveCharts();
     setInterval(refreshDashboard, 5000);
   </script>
 </body>
@@ -2011,8 +2225,9 @@ def _render_chart_panel(
     <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span>{_escape(fast_label)}</span>
     <span class="legend-item"><span class="legend-swatch" style="background:#9333ea"></span>{_escape(slow_label)}</span>
     <span>{_escape(symbol)} · {_escape(interval)}</span>
+    <span class="chart-help">悬停查看详情，滚轮查看更多K线</span>
   </div>
-  {_render_chart_svg(points, fast_label=fast_label, slow_label=slow_label)}
+  {_render_chart_svg(points, fast_label=fast_label, slow_label=slow_label, symbol=str(symbol), interval=interval)}
 </div>"""
 
 
@@ -2079,6 +2294,9 @@ def _normalise_chart_points(raw_points: Any) -> list[dict[str, Any]]:
             point["ma_fast"] = fast_value
         if slow_value is not None:
             point["ma_slow"] = slow_value
+        for time_key in ("open_time", "close_time", "time"):
+            if raw.get(time_key) is not None:
+                point[time_key] = raw.get(time_key)
         point["fast_ma_label"] = str(raw.get("fast_ma_label") or "EMA15")
         point["slow_ma_label"] = str(raw.get("slow_ma_label") or "MA60")
         if {"open", "high", "low", "close"}.issubset(point):
@@ -2095,7 +2313,7 @@ def _chart_average_labels(points: list[dict[str, Any]]) -> tuple[str, str]:
     return "EMA15", "MA60"
 
 
-def _render_chart_svg(points: list[dict[str, Any]], fast_label: str, slow_label: str) -> str:
+def _render_chart_svg(points: list[dict[str, Any]], fast_label: str, slow_label: str, symbol: str, interval: str) -> str:
     width = 1080
     height = 320
     padding_left = 48
@@ -2142,13 +2360,32 @@ def _render_chart_svg(points: list[dict[str, Any]], fast_label: str, slow_label:
     fast_line = f'<polyline points="{fast_path}" fill="none" stroke="#2563eb" stroke-width="2" />' if fast_path else ""
     slow_line = f'<polyline points="{slow_path}" fill="none" stroke="#9333ea" stroke-width="2" />' if slow_path else ""
     grid = _chart_grid(width, padding_left, padding_top, plot_width, plot_height, minimum, maximum)
-    return f"""<svg viewBox="0 0 {width} {height}" width="100%" height="320" role="img" aria-label="K线图 {_escape(fast_label)} {_escape(slow_label)}">
+    chart_points = _chart_points_json(points)
+    return f"""<svg class="interactive-chart" viewBox="0 0 {width} {height}" width="100%" height="320" role="img" aria-label="K线图 {_escape(fast_label)} {_escape(slow_label)}" data-interactive-chart="1" data-chart-points="{chart_points}" data-chart-window-size="80" data-chart-offset="0" data-chart-symbol="{_escape(symbol)}" data-chart-interval="{_escape(interval)}" data-chart-fast-label="{_escape(fast_label)}" data-chart-slow-label="{_escape(slow_label)}">
   <rect x="0" y="0" width="{width}" height="{height}" fill="#ffffff" />
   {grid}
   {''.join(candles)}
   {fast_line}
   {slow_line}
+  <line data-chart-crosshair-x="1" x1="{padding_left}" y1="{padding_top}" x2="{padding_left}" y2="{padding_top + plot_height}" stroke="#172033" stroke-width="1" stroke-dasharray="4 4" visibility="hidden" pointer-events="none" />
+  <line data-chart-crosshair-y="1" x1="{padding_left}" y1="{padding_top}" x2="{padding_left + plot_width}" y2="{padding_top}" stroke="#172033" stroke-width="1" stroke-dasharray="4 4" visibility="hidden" pointer-events="none" />
 </svg>"""
+
+
+def _chart_points_json(points: list[dict[str, Any]]) -> str:
+    payload: list[dict[str, Any]] = []
+    for point in points:
+        item: dict[str, Any] = {}
+        for key in ("open_time", "close_time", "time"):
+            if point.get(key) is not None:
+                item[key] = point.get(key)
+        for key in ("open", "high", "low", "close", "ma_fast", "ma_slow"):
+            if key in point:
+                item[key] = _fmt(point[key])
+        item["fast_ma_label"] = str(point.get("fast_ma_label") or "EMA15")
+        item["slow_ma_label"] = str(point.get("slow_ma_label") or "MA60")
+        payload.append(item)
+    return _escape(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
 
 def _chart_grid(
