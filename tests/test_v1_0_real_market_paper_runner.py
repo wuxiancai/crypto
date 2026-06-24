@@ -70,6 +70,47 @@ def test_real_market_paper_runner_wires_source_to_persistent_stream(tmp_path):
     assert persisted == snapshot
 
 
+def test_real_market_paper_runner_persists_realtime_klines_to_database(tmp_path):
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import Session, sessionmaker
+
+    from app.database.models import Base, KlineRecord
+    from app.paper.live_runner import RealMarketPaperConfig, run_real_market_paper
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    state_path = tmp_path / "paper-state.json"
+    kline = _kline("BTCUSDT", "15m", 1, "101")
+
+    async def source():
+        yield kline
+
+    asyncio.run(
+        run_real_market_paper(
+            RealMarketPaperConfig(
+                symbols=("BTCUSDT",),
+                intervals=("15m", "1h", "4h"),
+                websocket_base_url="wss://fstream.binance.com",
+                state_path=state_path,
+                initial_equity=Decimal("10000"),
+                risk_per_trade_pct=Decimal("0.005"),
+                kline_session_factory=session_factory,
+            ),
+            source=source(),
+        )
+    )
+
+    with Session(engine) as session:
+        record = session.execute(select(KlineRecord)).scalar_one()
+
+    assert record.symbol == "BTCUSDT"
+    assert record.interval == "15m"
+    assert record.open_time == kline.open_time
+    assert record.close_time == kline.close_time
+    assert record.close == kline.close
+
+
 def test_realtime_price_update_writes_binance_ticker_price_to_state(tmp_path):
     import json
 

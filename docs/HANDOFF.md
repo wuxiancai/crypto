@@ -25,6 +25,10 @@
 
 ## 本轮修复
 
+- 2026-06-24 实时 Paper K 线落库修复：
+  - 根因：实时 Paper 进程收到 Binance WebSocket 已收盘 K 线后，只更新内存策略缓存、Paper 状态文件和复盘事件，没有同步写入 `klines` 表；因此进程运行期间新产生的 15m / 1h K 线会等到下次 `scripts/start.sh` 的 REST 同步才插入数据库。
+  - 修复：`RealMarketPaperConfig` 新增 `kline_session_factory`；实时 K 线源在进入撮合引擎前会调用 `upsert_klines()` 持久化 WebSocket 与启动 catchup K 线，写库失败只记录日志，不中断 Paper 交易循环。
+  - 启动脚本：`scripts/run_paper_realtime.py` 默认把数据库 session factory 同时传给复盘事件和 K 线落库，后续正常运行时不应再在重启时补出刚运行期间应实时写入的 15m / 1h K 线。
 - 2026-06-24 分层策略触发条件完整链路修复：
   - 根因：`SHORT_DAY_CORE` / `LONG_DAY_CORE` 只把日线条件挂到同一策略诊断下；4h/1h 只在加仓或 hedge 候选里显示，15m 入场条件没有进入分层诊断，导致状态页看起来像只凭日线就能触发交易。
   - 修复：日线核心仓诊断统一输出 `1d 主趋势 + 4h 子趋势 + 1h 确认 + 15m 入场 + 止损有效`；同一策略卡片下会完整显示 4h、1h、15m 条件。

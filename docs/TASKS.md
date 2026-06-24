@@ -39,6 +39,7 @@
 - 2026-06-24 已新增 `scripts/show_paper_runtime_events.py` 最小复盘 CLI，用于直接查看 `paper_runtime_events` 里的 signal / rejected_signal / fill / snapshot 摘要。
 - 2026-06-24 已新增 Web 只读复盘页 `/paper/events`，模拟交易看板顶部提供“Paper复盘”入口，页面可按 `event_type`、`symbol`、`strategy_type`、`bucket` 和 UTC+8 时间范围过滤事件，并支持快捷过滤、展开完整 payload、查看事件类型统计，以及把 fill 与前序 signal/snapshot 串成交易时间线。
 - 2026-06-24 日线核心仓触发条件已改为完整链路：`SHORT_DAY_CORE` / `LONG_DAY_CORE` 必须同时满足日线主趋势、4h 子趋势、1h 确认和 15m 入场条件才输出开仓信号；状态页同一策略卡片会完整展示 1d / 4h / 1h / 15m 条件。
+- 2026-06-24 实时 Paper Trading 已将 Binance WebSocket 已收盘 K 线写入 `klines` 表；下次启动时 `scripts/sync_klines.py` 仍会兜底校验，但正常运行期间产生的 15m / 1h K 线不应再只靠重启补齐。
 - 2026-06-23 已新增截图语义对应的 BTC fixture 回归用例，验证日线空头主仓和日线空头下 4h 反弹多仓方向；真实 Binance 历史窗口回放以截图日期 `2026-05-13` 为准，避免误按文字中的 2025 年验证。
 - 2026-06-23 已新增 `scripts/validate_layered_btc_history.py`，复用真实 Binance K 线缓存和实时策略适配器验证默认 BTC probe：`SHORT_4H_HEDGE` 命中 `2026-05-13 23:59:59 UTC+8`，entry `78794.70`；`SHORT_DAY_CORE` 命中 `2026-06-01 07:59:59 UTC+8`，entry `73653.20`；`LONG_4H_HEDGE` 命中 `2026-06-13 10:59:59 UTC+8`，entry `63612.00`。
 

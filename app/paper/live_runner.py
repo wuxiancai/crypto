@@ -63,6 +63,7 @@ class RealMarketPaperConfig:
     historical_warmup_enabled: bool = True
     historical_warmup_limit: int = 250
     event_session_factory: Any | None = None
+    kline_session_factory: Any | None = None
 
 
 async def run_real_market_paper(
@@ -93,6 +94,8 @@ async def run_real_market_paper(
     )
     if catchup_klines:
         kline_source = _chain_klines(catchup_klines, kline_source)
+    if config.kline_session_factory is not None:
+        kline_source = _persist_realtime_klines(kline_source, config.kline_session_factory)
     price_task = (
         asyncio.create_task(run_realtime_price_updates(config))
         if source is None
@@ -129,6 +132,23 @@ async def run_real_market_paper(
                 await price_task
             except asyncio.CancelledError:
                 pass
+
+
+async def _persist_realtime_klines(
+    source: AsyncIterable[Kline],
+    session_factory: Any,
+) -> AsyncIterable[Kline]:
+    from app.database.repositories import upsert_klines
+
+    async for kline in source:
+        try:
+            with session_factory() as session:
+                upsert_klines(session, [kline])
+        except Exception as exc:
+            print(
+                f"Realtime kline persistence skipped for {kline.symbol} {kline.interval}: {exc}"
+            )
+        yield kline
 
 
 async def run_realtime_price_updates(

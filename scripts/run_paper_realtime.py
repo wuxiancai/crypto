@@ -50,6 +50,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    session_factory = build_session_factory()
     snapshot = asyncio.run(
         run_real_market_paper(
             RealMarketPaperConfig(
@@ -79,7 +80,8 @@ def main() -> None:
                     enable_reversal_probe=args.enable_reversal_probe,
                     enable_layered_strategy=args.enable_layered_strategy,
                 ),
-                event_session_factory=build_session_factory(),
+                event_session_factory=session_factory,
+                kline_session_factory=session_factory,
             )
         )
     )
