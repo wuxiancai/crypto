@@ -610,6 +610,7 @@ def render_paper_runtime_events_html(
       <h1>Paper 复盘</h1>
       <div><a class="badge" href="/">返回看板</a></div>
     </header>
+    {_render_paper_runtime_event_help()}
     {_render_paper_runtime_event_shortcuts()}
     {_render_paper_runtime_event_filters(active_filters)}
     {_render_backtest_error(error)}
@@ -619,6 +620,13 @@ def render_paper_runtime_events_html(
   </main>
 </body>
 </html>"""
+
+
+def _render_paper_runtime_event_help() -> str:
+    return """<section class="panel">
+  <h2 style="font-size:16px;margin:0 0 8px;">怎么看复盘</h2>
+  <p style="margin:0;color:#344055;line-height:1.7;">这页按时间记录模拟交易系统每根 K 线的处理过程：<strong>策略信号</strong>表示系统判断是否要开仓，<strong>账户快照</strong>表示当时权益和持仓状态，<strong>被拒绝信号</strong>表示出现了信号但风控或仓位规则没有允许开仓，<strong>成交</strong>表示实际模拟开仓或平仓。优先看“摘要”，需要排查细节时再展开“完整原始数据”。</p>
+</section>"""
 
 
 def _render_paper_runtime_event_filters(filters: dict[str, str]) -> str:
@@ -639,11 +647,11 @@ def _render_paper_runtime_event_filters(filters: dict[str, str]) -> str:
       <input name="symbol" value="{_escape(filters.get("symbol", ""))}" placeholder="BTCUSDT">
     </div>
     <div class="form-field">
-      <label>策略</label>
+      <label>策略代码</label>
       <input name="strategy_type" value="{_escape(filters.get("strategy_type", ""))}" placeholder="SHORT_DAY_CORE">
     </div>
     <div class="form-field">
-      <label>Bucket</label>
+      <label>策略分组</label>
       <input name="bucket" value="{_escape(filters.get("bucket", ""))}" placeholder="DAY_CORE">
     </div>
     <div class="form-field">
@@ -663,9 +671,9 @@ def _render_paper_runtime_event_shortcuts() -> str:
     links = [
         ("/paper/events", "全部"),
         ("/paper/events?event_type=fill", "只看成交"),
-        ("/paper/events?event_type=rejected_signal", "只看拒绝"),
-        ("/paper/events?event_type=signal", "只看信号"),
-        ("/paper/events?event_type=snapshot", "只看快照"),
+        ("/paper/events?event_type=rejected_signal", "只看被拒绝信号"),
+        ("/paper/events?event_type=signal", "只看策略信号"),
+        ("/paper/events?event_type=snapshot", "只看账户快照"),
     ]
     rendered = "".join(
         f'<a class="badge" href="{_escape(href)}">{_escape(label)}</a>'
@@ -677,10 +685,10 @@ def _render_paper_runtime_event_shortcuts() -> str:
 def _event_type_options(selected: str) -> str:
     options = [
         ("", "全部"),
-        ("signal", "signal"),
-        ("rejected_signal", "rejected_signal"),
-        ("fill", "fill"),
-        ("snapshot", "snapshot"),
+        ("signal", "策略信号"),
+        ("rejected_signal", "被拒绝信号"),
+        ("fill", "成交"),
+        ("snapshot", "账户快照"),
     ]
     return "\n".join(
         f'<option value="{_escape(value)}"{" selected" if value == selected else ""}>{_escape(label)}</option>'
@@ -696,7 +704,7 @@ def _render_paper_runtime_event_table(events: list[Any]) -> str:
 <table>
   <thead>
     <tr>
-      <th>时间 UTC+8</th><th>类型</th><th>交易对</th><th>周期</th><th>策略</th><th>动作</th><th>Bucket</th><th>摘要</th>
+      <th>时间 UTC+8</th><th>类型</th><th>交易对</th><th>周期</th><th>策略</th><th>动作</th><th>策略分组</th><th>摘要</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -711,7 +719,7 @@ def _render_paper_runtime_event_counts(events: list[Any]) -> str:
         if event_type in counts:
             counts[event_type] += 1
     items = "".join(
-        f'<span class="badge">{_escape(event_type)}：{_escape(count)}</span>'
+        f'<span class="badge">{_escape(_event_type_label(event_type))}：{_escape(count)}</span>'
         for event_type, count in counts.items()
     )
     return f'<section class="panel" style="display:flex;gap:8px;flex-wrap:wrap;">{items}</section>'
@@ -791,12 +799,12 @@ def _timeline_snapshot_summary(event: Any | None) -> str:
 def _render_paper_runtime_event_row(event: Any) -> str:
     return f"""<tr>
   <td>{_escape(_format_event_time_ms(getattr(event, "event_time", None)))}</td>
-  <td>{_escape(getattr(event, "event_type", "-"))}</td>
+  <td>{_escape(_event_type_label(getattr(event, "event_type", "-")))}</td>
   <td>{_escape(getattr(event, "symbol", "-"))}</td>
   <td>{_escape(getattr(event, "interval", "-"))}</td>
-  <td>{_escape(getattr(event, "strategy_type", "-"))}</td>
-  <td>{_escape(getattr(event, "action", "-"))}</td>
-  <td>{_escape(getattr(event, "bucket", None) or "-")}</td>
+  <td>{_escape(_strategy_type_label(getattr(event, "strategy_type", "-")))}</td>
+  <td>{_escape(_action_label(getattr(event, "action", "-")))}</td>
+  <td>{_escape(_bucket_label(getattr(event, "bucket", None)))}</td>
   <td>{_render_paper_runtime_event_summary_cell(getattr(event, "event_type", ""), getattr(event, "payload", ""))}</td>
 </tr>"""
 
@@ -806,7 +814,7 @@ def _render_paper_runtime_event_summary_cell(event_type: str, payload: str) -> s
     pretty_payload = _pretty_event_payload(payload)
     return (
         f"{_escape(summary)}"
-        f"<details><summary>完整 payload</summary><pre>{_escape(pretty_payload)}</pre></details>"
+        f"<details><summary>完整原始数据</summary><pre>{_escape(pretty_payload)}</pre></details>"
     )
 
 
@@ -814,23 +822,101 @@ def _paper_runtime_event_summary(event_type: str, payload: str) -> str:
     decoded = _decode_event_payload(payload)
     if event_type == "fill":
         return (
-            f"net={decoded.get('net_pnl', '-')}, "
-            f"exit={decoded.get('exit_reason', '-')}, "
-            f"qty={decoded.get('quantity', '-')}"
+            f"净盈亏={_format_decimal(decoded.get('net_pnl'), 2)}, "
+            f"退出原因={_exit_reason_label(decoded.get('exit_reason'))}, "
+            f"数量={_format_decimal(decoded.get('quantity'), 4)}"
         )
     if event_type == "rejected_signal":
-        return f"reason={','.join(decoded.get('reason', []) or []) or '-'}"
+        return f"拒绝原因={_format_reason_list(decoded.get('reason'))}"
     if event_type == "snapshot":
         return (
-            f"equity={decoded.get('equity', '-')}, "
-            f"positions={len(decoded.get('open_positions', []) or [])}, "
-            f"rejected={decoded.get('rejected_signals', 0)}"
+            f"账户权益={_format_decimal(decoded.get('equity'), 2)}, "
+            f"持仓数={len(decoded.get('open_positions', []) or [])}, "
+            f"累计拒绝={decoded.get('rejected_signals', 0)}"
         )
     if event_type == "signal":
         opened = decoded.get("opened_position")
-        opened_label = "yes" if opened else "no"
-        return f"opened={opened_label}, reason={','.join(decoded.get('reason', []) or []) or '-'}"
+        opened_label = "是" if opened else "否"
+        return f"是否开仓={opened_label}, 原因={_format_reason_list(decoded.get('reason'))}"
     return "-"
+
+
+def _event_type_label(event_type: Any) -> str:
+    labels = {
+        "signal": "策略信号",
+        "rejected_signal": "被拒绝信号",
+        "fill": "成交",
+        "snapshot": "账户快照",
+    }
+    key = str(event_type or "")
+    return labels.get(key, key or "-")
+
+
+def _strategy_type_label(strategy_type: Any) -> str:
+    labels = {
+        "SYSTEM": "系统",
+        "SHORT_DAY_CORE": "日线核心做空",
+        "LONG_DAY_CORE": "日线核心做多",
+        "SHORT_4H_1H_ADDON": "4小时/1小时顺势做空",
+        "LONG_4H_1H_ADDON": "4小时/1小时顺势做多",
+        "SHORT_4H_HEDGE": "4小时对冲做空",
+        "LONG_4H_HEDGE": "4小时对冲做多",
+        "TREND_PULLBACK": "趋势回踩",
+        "REVERSAL_PROBE": "趋势转换试探",
+    }
+    key = str(strategy_type or "")
+    label = labels.get(key)
+    if label is None:
+        return key or "-"
+    return f"{label} ({key})"
+
+
+def _bucket_label(bucket: Any) -> str:
+    labels = {
+        "DAY_CORE": "日线核心仓",
+        "FOUR_HOUR_ADDON": "4小时加仓",
+        "FOUR_HOUR_HEDGE": "4小时对冲仓",
+    }
+    key = str(bucket or "")
+    if not key:
+        return "-"
+    label = labels.get(key)
+    return f"{label} ({key})" if label else key
+
+
+def _format_reason_list(reasons: Any) -> str:
+    if isinstance(reasons, list):
+        values = [str(reason) for reason in reasons if str(reason)]
+    elif reasons:
+        values = [str(reasons)]
+    else:
+        values = []
+    if not values:
+        return "-"
+    return "、".join(_reason_label(value) for value in values)
+
+
+def _reason_label(reason: str) -> str:
+    labels = {
+        "no actionable signal": "暂无可执行信号",
+        "non-entry interval observed": "当前不是入场周期，仅记录状态",
+        "waiting for required realtime timeframes": "等待所需周期 K 线齐全",
+        "position closed on current kline": "当前 K 线已经平仓，本根不再重新开仓",
+        "daily bearish": "日线空头",
+        "daily bullish": "日线多头",
+        "daily bearish core": "日线核心做空条件成立",
+        "daily bullish core": "日线核心做多条件成立",
+        "15m bearish entry": "15分钟做空入场条件成立",
+        "15m bullish entry": "15分钟做多入场条件成立",
+        "4h/1h bearish": "4小时/1小时空头一致",
+        "4h/1h bullish": "4小时/1小时多头一致",
+        "4h/1h bearish hedge": "4小时/1小时出现空头对冲机会",
+        "4h/1h bullish hedge": "4小时/1小时出现多头对冲机会",
+        "missing bearish 15m confirmation": "缺少15分钟看跌确认",
+        "missing bullish 15m confirmation": "缺少15分钟看涨确认",
+        "price not in ema50 pullback zone": "价格不在快线回踩区域",
+    }
+    return labels.get(reason, reason)
 
 
 def _decode_event_payload(payload: str) -> dict[str, Any]:
@@ -2011,13 +2097,20 @@ def _format_time_ms(value: Any) -> str:
 
 
 def _action_label(action: Any) -> str:
-    if action == "WAIT":
-        return "等待"
-    if action in {"LONG_ENTRY", "REVERSAL_LONG_ENTRY"}:
-        return "做多入场"
-    if action in {"SHORT_ENTRY", "REVERSAL_SHORT_ENTRY"}:
-        return "做空入场"
-    return _escape(action)
+    labels = {
+        "WAIT": "等待",
+        "SNAPSHOT": "快照",
+        "LONG_ENTRY": "做多入场",
+        "REVERSAL_LONG_ENTRY": "趋势转换做多入场",
+        "SHORT_ENTRY": "做空入场",
+        "REVERSAL_SHORT_ENTRY": "趋势转换做空入场",
+        "EXIT": "平仓",
+    }
+    key = str(action or "")
+    label = labels.get(key)
+    if label is None:
+        return _escape(key or "-")
+    return f"{label} ({key})"
 
 
 def _format_reasons(reasons: Any) -> str:

@@ -70,7 +70,7 @@
   - 新增 `/paper/events` 只读页，复用 `paper_runtime_events`，支持按 `limit`、`event_type`、`symbol`、`strategy_type`、`bucket` 和 UTC+8 `start_time` / `end_time` 过滤，表格展示 signal / rejected_signal / fill / snapshot 摘要。
   - 页面提供“全部 / 只看成交 / 只看拒绝 / 只看信号 / 只看快照”快捷过滤链接。
   - 每条事件支持展开“完整 payload”，用于查看完整 signal reason、condition_statuses、开仓参数和持仓快照 JSON。
-  - 页面顶部会按当前查询结果统计 signal、rejected_signal、fill、snapshot 数量，便于快速判断是否大量拒绝或是否已有成交。
+  - 页面顶部会按当前查询结果统计策略信号、被拒绝信号、成交、账户快照数量，便于快速判断是否大量拒绝或是否已有成交；复盘页已补充“怎么看复盘”说明，并把事件类型、动作、策略分组和摘要尽量中文化，原始 JSON 仍可在“完整原始数据”里展开查看。
   - 当前查询结果包含 fill 时，页面会生成“交易时间线”，把退出成交与同一 symbol / strategy / bucket 的最近开仓 signal，以及同一 symbol 最近 snapshot 串起来，减少人工对照事件表。
   - 模拟交易看板顶部新增“Paper复盘”入口，方便从运行页直接跳转。
   - 本机验证：`.venv/bin/python -m pytest tests/test_v1_2_paper_runtime_events_web.py tests/test_v1_0_paper_status_web.py -q`，22 passed。
