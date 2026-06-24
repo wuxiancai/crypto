@@ -43,6 +43,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
     )
     parser.add_argument("--enable-reversal-probe", action="store_true")
+    parser.add_argument("--enable-layered-strategy", action="store_true")
     parser.add_argument("--trend-pullback-take-profit-mode", choices=["TRAILING", "FIXED"], default="TRAILING")
     return parser.parse_args()
 
@@ -76,6 +77,7 @@ def main() -> None:
                     pullback_zone_atr_multiplier=Decimal(args.pullback_zone_atr_multiplier),
                     require_pullback_close_beyond_fast_ma=args.require_pullback_close_beyond_fast_ma,
                     enable_reversal_probe=args.enable_reversal_probe,
+                    enable_layered_strategy=args.enable_layered_strategy,
                 ),
                 event_session_factory=build_session_factory(),
             )
