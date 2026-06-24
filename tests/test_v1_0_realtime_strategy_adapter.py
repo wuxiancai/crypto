@@ -148,6 +148,84 @@ def test_realtime_strategy_uses_layered_strategy_when_daily_history_is_present()
     assert "1d" in signal.chart_timeframes
 
 
+def test_realtime_strategy_regime_keeps_daily_short_until_opposite_momentum_confirms():
+    from app.paper.strategy_adapter import RealtimeStrategyConfig, _trend_regime_from_snapshots
+    from app.strategy.layered_strategy import TrendSnapshot
+
+    config = RealtimeStrategyConfig(min_adx=Decimal("20"))
+    regime = _trend_regime_from_snapshots(
+        [
+            (
+                1_000,
+                TrendSnapshot(
+                    close=Decimal("66000"),
+                    fast_ma=Decimal("64000"),
+                    slow_ma=Decimal("66000"),
+                    fast_ma_slope=Decimal("-100"),
+                    adx=Decimal("25"),
+                    di_plus=Decimal("15"),
+                    di_minus=Decimal("30"),
+                ),
+            ),
+            (
+                2_000,
+                TrendSnapshot(
+                    close=Decimal("68000"),
+                    fast_ma=Decimal("67000"),
+                    slow_ma=Decimal("66000"),
+                    fast_ma_slope=Decimal("100"),
+                    adx=Decimal("12"),
+                    di_plus=Decimal("30"),
+                    di_minus=Decimal("15"),
+                ),
+            ),
+        ],
+        config,
+    )
+
+    assert regime.direction == "SHORT"
+    assert regime.confirmed_at_ms == 1_000
+
+
+def test_realtime_strategy_regime_flips_to_daily_long_after_opposite_momentum_confirms():
+    from app.paper.strategy_adapter import RealtimeStrategyConfig, _trend_regime_from_snapshots
+    from app.strategy.layered_strategy import TrendSnapshot
+
+    config = RealtimeStrategyConfig(min_adx=Decimal("20"))
+    regime = _trend_regime_from_snapshots(
+        [
+            (
+                1_000,
+                TrendSnapshot(
+                    close=Decimal("66000"),
+                    fast_ma=Decimal("64000"),
+                    slow_ma=Decimal("66000"),
+                    fast_ma_slope=Decimal("-100"),
+                    adx=Decimal("25"),
+                    di_plus=Decimal("15"),
+                    di_minus=Decimal("30"),
+                ),
+            ),
+            (
+                2_000,
+                TrendSnapshot(
+                    close=Decimal("70000"),
+                    fast_ma=Decimal("69000"),
+                    slow_ma=Decimal("66000"),
+                    fast_ma_slope=Decimal("150"),
+                    adx=Decimal("24"),
+                    di_plus=Decimal("32"),
+                    di_minus=Decimal("14"),
+                ),
+            ),
+        ],
+        config,
+    )
+
+    assert regime.direction == "LONG"
+    assert regime.confirmed_at_ms == 2_000
+
+
 def test_realtime_strategy_builds_reversal_long_signal_when_4h_down_and_1h_turns_up():
     from app.paper.multitimeframe import MultiTimeframeFrame
     from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal

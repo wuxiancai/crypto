@@ -12,6 +12,7 @@ from app.strategy.layered_strategy import (
     LayeredEntryFrame,
     LayeredStrategyConfig,
     LayeredStrategyInput,
+    TrendRegime,
     TrendSnapshot,
     build_layered_strategy_decision,
 )
@@ -135,6 +136,9 @@ def _build_layered_signal_if_available(
     daily = _build_trend_frame(frame.history(config.main_trend_interval), config)
     four_hour = _build_trend_frame(frame.history(four_hour_interval), config)
     one_hour = _build_trend_frame(frame.history(one_hour_interval), config)
+    daily_regime = _trend_regime_from_history(frame.history(config.main_trend_interval), config)
+    four_hour_regime = _trend_regime_from_history(frame.history(four_hour_interval), config)
+    one_hour_regime = _trend_regime_from_history(frame.history(one_hour_interval), config)
     entry_frame = _build_entry_frame(frame.history(config.entry_interval), config)
     if daily is None or four_hour is None or one_hour is None or entry_frame is None:
         return StrategySignal(
@@ -158,6 +162,9 @@ def _build_layered_signal_if_available(
                 recent_swing_low=entry_frame.recent_swing_low,
                 recent_swing_high=entry_frame.recent_swing_high,
             ),
+            daily_regime=daily_regime,
+            four_hour_regime=four_hour_regime,
+            one_hour_regime=one_hour_regime,
         ),
         LayeredStrategyConfig(
             min_adx=config.min_adx,
@@ -227,6 +234,57 @@ def _trend_snapshot_from(frame: TrendFrame) -> TrendSnapshot:
         adx=frame.adx,
         di_plus=frame.di_plus,
         di_minus=frame.di_minus,
+    )
+
+
+def _trend_regime_from_history(
+    klines: tuple[Kline, ...],
+    config: RealtimeStrategyConfig,
+) -> TrendRegime:
+    snapshots: list[tuple[int, TrendSnapshot]] = []
+    for index in range(len(klines)):
+        partial = klines[: index + 1]
+        if len(partial) < 2:
+            continue
+        frame = _build_trend_frame(partial, config)
+        if frame is None:
+            continue
+        snapshots.append((partial[-1].close_time, _trend_snapshot_from(frame)))
+    return _trend_regime_from_snapshots(snapshots, config)
+
+
+def _trend_regime_from_snapshots(
+    snapshots: list[tuple[int, TrendSnapshot]],
+    config: RealtimeStrategyConfig,
+) -> TrendRegime:
+    direction = "UNKNOWN"
+    confirmed_at_ms: int | None = None
+    layered_config = LayeredStrategyConfig(min_adx=config.min_adx)
+    for confirmed_at, snapshot in snapshots:
+        if _snapshot_bearish_confirmed(snapshot, layered_config):
+            direction = "SHORT"
+            confirmed_at_ms = confirmed_at
+        elif _snapshot_bullish_confirmed(snapshot, layered_config):
+            direction = "LONG"
+            confirmed_at_ms = confirmed_at
+    return TrendRegime(direction=direction, confirmed_at_ms=confirmed_at_ms)
+
+
+def _snapshot_bullish_confirmed(snapshot: TrendSnapshot, config: LayeredStrategyConfig) -> bool:
+    return (
+        snapshot.fast_ma > snapshot.slow_ma
+        and snapshot.fast_ma_slope > 0
+        and snapshot.adx >= config.min_adx
+        and snapshot.di_plus > snapshot.di_minus
+    )
+
+
+def _snapshot_bearish_confirmed(snapshot: TrendSnapshot, config: LayeredStrategyConfig) -> bool:
+    return (
+        snapshot.fast_ma < snapshot.slow_ma
+        and snapshot.fast_ma_slope < 0
+        and snapshot.adx >= config.min_adx
+        and snapshot.di_minus > snapshot.di_plus
     )
 
 

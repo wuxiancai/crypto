@@ -119,9 +119,14 @@ class PaperTradingEngine:
         engine._rejected_signals = snapshot.rejected_signals
         return engine
 
-    def on_signal(self, kline: Kline, signal: SignalLike) -> PaperPosition | None:
+    def on_signal(self, kline: Kline, signal: SignalLike) -> PaperPosition | PaperFill | None:
+        if signal.action == "EXIT_DAY_CORE_REVERSAL":
+            return self._exit_day_core_on_reversal(kline)
         if signal.action not in {"LONG_ENTRY", "SHORT_ENTRY", "REVERSAL_LONG_ENTRY", "REVERSAL_SHORT_ENTRY"}:
             return None
+        reversal_fill = self._exit_opposite_day_core_if_needed(kline, signal)
+        if reversal_fill is not None:
+            return reversal_fill
         if self._has_conflicting_position(kline.symbol, signal):
             self._rejected_signals += 1
             return None
@@ -131,6 +136,45 @@ class PaperTradingEngine:
             return None
         self._positions.append(position)
         return position
+
+    def _exit_day_core_on_reversal(self, kline: Kline) -> PaperFill | None:
+        for position in list(self._positions):
+            if position.symbol != kline.symbol or position.bucket != "DAY_CORE":
+                continue
+            fill = self._close_position(
+                position=position,
+                kline=kline,
+                raw_exit_price=kline.close,
+                exit_reason="DAILY_REGIME_REVERSAL",
+                exit_detail="日线主趋势反向确认，按当前已收盘 K 线价格退出日线核心仓",
+            )
+            self._fills.append(fill)
+            self._equity += fill.net_pnl
+            self._positions.remove(position)
+            return fill
+        return None
+
+    def _exit_opposite_day_core_if_needed(self, kline: Kline, signal: SignalLike) -> PaperFill | None:
+        if _bucket_from_signal(signal) != "DAY_CORE":
+            return None
+        new_side = _side_from_action(signal.action)
+        for position in list(self._positions):
+            if position.symbol != kline.symbol or position.bucket != "DAY_CORE":
+                continue
+            if position.side == new_side:
+                return None
+            fill = self._close_position(
+                position=position,
+                kline=kline,
+                raw_exit_price=kline.close,
+                exit_reason="DAILY_REGIME_REVERSAL",
+                exit_detail="日线主趋势反向确认，先退出旧日线核心仓",
+            )
+            self._fills.append(fill)
+            self._equity += fill.net_pnl
+            self._positions.remove(position)
+            return fill
+        return None
 
     def on_kline(self, kline: Kline) -> PaperFill | None:
         for position in list(self._positions):

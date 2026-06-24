@@ -25,9 +25,15 @@
 
 ## 本轮修复
 
+- 2026-06-24 分层趋势 regime 状态机修复：
+  - 已将 `1d / 4h / 1h` 从“每根最新 K 线即时重新投票”调整为“最近一次完整确认后保持 regime，直到反向也完整确认才翻转”。完整确认仍要求均线方向、快线斜率、ADX 和 DI 方向同时满足。
+  - 日线主趋势现在由 `daily_regime` 决定：日线空头确认后，即使当前 ADX/DI 降温，也不会立刻抹掉空头主趋势；只有日线 `EMA15 > MA60` 且 ADX/DI 多头确认后，才从空头主趋势反转为多头主趋势。多头反向同理。
+  - 4h / 1h 也使用同样的 regime 推导，但只作为日线主趋势下的顺势加仓或 hedge 机会；15m 仍只作为执行层触发，不参与长期 regime。
+  - Paper 撮合已支持日线主趋势反转退出：当新的反向 `DAY_CORE` 信号到来，先按当前已收盘 K 线价格退出旧 `DAY_CORE` 主趋势仓，`FOUR_HOUR_HEDGE` 等子仓不被误关；下一根 K 线再按新主趋势考虑开仓/加仓。
+  - 覆盖测试：新增 regime 保持、反向确认翻转、日线核心仓反转退出、hedge 仓保留等回归。
 - 2026-06-24 分层策略触发条件诊断细化：
   - 根因：当日线 `EMA15 < MA60` 但 ADX/DI 动能过滤未满足时，`app/strategy/layered_strategy.py` 只输出笼统的 `DAY_CORE false / daily trend unclear`，状态页显示为“日线趋势明确 0/1”，会让用户误以为均线空头也没有被识别。
-  - 修复：分层策略诊断拆为“基础 / 斜率 / 动能确认”三类条件；例如日线均线空头会显示“日线空头基础：满足”，若 ADX 或 DI 不达标则明确显示“日线空头动能确认：未满足”并带计算明细。
+  - 修复：分层策略诊断拆为“基础 / 已确认 / 斜率 / 当前动能”条件；例如日线均线空头会显示“日线空头基础：满足”，若当前 ADX 或 DI 不达标则明确显示“当前日线空头动能：未满足”并带计算明细，但不会抹掉已确认的日线 regime。
   - 覆盖测试：新增策略核心和状态页回归，防止再次退回“日线趋势明确”这种黑盒提示。
 - 2026-06-24 Ubuntu 部署 `docker-compose-plugin` 缺包修复：
   - 根因：`scripts/deploy_ubuntu.sh` 在 Docker CE 源不可用时执行 `apt-get install docker.io docker-compose-plugin`，某些 Ubuntu 镜像默认源没有 `docker-compose-plugin`，导致 Docker Engine 安装阶段直接失败并输出 `E: Unable to locate package docker-compose-plugin`。

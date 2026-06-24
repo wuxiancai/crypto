@@ -91,3 +91,77 @@ def test_paper_trading_blocks_duplicate_bucket_position():
     assert len(snapshot.open_positions) == 1
     assert snapshot.rejected_signals == 1
 
+
+def test_paper_trading_exits_day_core_on_daily_regime_reversal_without_closing_hedge():
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.signal_router import StrategySignal
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            max_fee_to_risk_ratio=Decimal("0"),
+        )
+    )
+
+    engine.on_signal(
+        _kline(),
+        _signal("SHORT_ENTRY", "SHORT_DAY_CORE", "105", "90", "DAY_CORE"),
+    )
+    engine.on_signal(
+        _kline(open_time=900_000),
+        _signal("LONG_ENTRY", "LONG_4H_HEDGE", "95", "110", "FOUR_HOUR_HEDGE"),
+    )
+
+    fill = engine.on_signal(
+        _kline(open_time=1_800_000),
+        StrategySignal(
+            action="EXIT_DAY_CORE_REVERSAL",
+            strategy_type="LONG_DAY_CORE",
+            bucket="DAY_CORE",
+            reason=["daily regime reversed from SHORT to LONG"],
+        ),
+    )
+
+    assert fill is not None
+    assert fill.strategy_type == "SHORT_DAY_CORE"
+    assert fill.bucket == "DAY_CORE"
+    assert fill.exit_reason == "DAILY_REGIME_REVERSAL"
+    snapshot = engine.snapshot()
+    assert len(snapshot.open_positions) == 1
+    assert snapshot.open_positions[0].strategy_type == "LONG_4H_HEDGE"
+
+
+def test_paper_trading_exits_opposite_day_core_when_new_daily_core_signal_arrives():
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            max_fee_to_risk_ratio=Decimal("0"),
+        )
+    )
+
+    engine.on_signal(
+        _kline(),
+        _signal("SHORT_ENTRY", "SHORT_DAY_CORE", "105", "90", "DAY_CORE"),
+    )
+
+    fill = engine.on_signal(
+        _kline(open_time=900_000),
+        _signal("LONG_ENTRY", "LONG_DAY_CORE", "95", "115", "DAY_CORE"),
+    )
+
+    assert fill is not None
+    assert fill.strategy_type == "SHORT_DAY_CORE"
+    assert fill.exit_reason == "DAILY_REGIME_REVERSAL"
+    snapshot = engine.snapshot()
+    assert snapshot.open_positions == []
+    assert snapshot.rejected_signals == 0

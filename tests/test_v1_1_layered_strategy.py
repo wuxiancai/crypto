@@ -245,6 +245,137 @@ def test_layered_strategy_reports_bearish_trend_details_when_momentum_filter_blo
     }
     assert statuses["日线空头基础"]["passed"] is True
     assert statuses["日线空头斜率"]["passed"] is True
-    assert statuses["日线空头动能确认"]["passed"] is False
-    assert "ADX=12" in str(statuses["日线空头动能确认"]["detail"])
-    assert "DI-=20" in str(statuses["日线空头动能确认"]["detail"])
+    assert statuses["日线空头动能"]["passed"] is False
+    assert "ADX=12" in str(statuses["日线空头动能"]["detail"])
+    assert "DI-=20" in str(statuses["日线空头动能"]["detail"])
+
+
+def test_layered_strategy_keeps_confirmed_daily_short_regime_when_current_momentum_cools():
+    from app.strategy.layered_strategy import (
+        LayeredEntryFrame,
+        LayeredStrategyConfig,
+        LayeredStrategyInput,
+        TrendRegime,
+        TrendSnapshot,
+        build_layered_strategy_decision,
+    )
+
+    decision = build_layered_strategy_decision(
+        LayeredStrategyInput(
+            symbol="BTCUSDT",
+            daily=TrendSnapshot(
+                close=Decimal("62000"),
+                fast_ma=Decimal("64000"),
+                slow_ma=Decimal("66000"),
+                fast_ma_slope=Decimal("-200"),
+                adx=Decimal("12"),
+                di_plus=Decimal("25"),
+                di_minus=Decimal("20"),
+            ),
+            four_hour=TrendSnapshot(
+                close=Decimal("61800"),
+                fast_ma=Decimal("62500"),
+                slow_ma=Decimal("64000"),
+                fast_ma_slope=Decimal("-150"),
+                adx=Decimal("24"),
+                di_plus=Decimal("14"),
+                di_minus=Decimal("31"),
+            ),
+            one_hour=TrendSnapshot(
+                close=Decimal("61750"),
+                fast_ma=Decimal("62200"),
+                slow_ma=Decimal("63500"),
+                fast_ma_slope=Decimal("-80"),
+                adx=Decimal("23"),
+                di_plus=Decimal("16"),
+                di_minus=Decimal("29"),
+            ),
+            entry=LayeredEntryFrame(
+                close=Decimal("61600"),
+                open=Decimal("62100"),
+                high=Decimal("62300"),
+                low=Decimal("61500"),
+                fast_ma=Decimal("62000"),
+                atr=Decimal("300"),
+                recent_swing_low=Decimal("61000"),
+                recent_swing_high=Decimal("62800"),
+            ),
+            daily_regime=TrendRegime(direction="SHORT", confirmed_at_ms=1000),
+            four_hour_regime=TrendRegime(direction="SHORT", confirmed_at_ms=2000),
+            one_hour_regime=TrendRegime(direction="SHORT", confirmed_at_ms=3000),
+        ),
+        LayeredStrategyConfig(),
+    )
+
+    assert decision.signal is not None
+    assert decision.signal.strategy_type == "SHORT_DAY_CORE"
+    assert "SHORT_DAY_CORE" in decision.candidates
+    statuses = {
+        str(item["text"]): item
+        for item in decision.diagnostics
+        if item.get("strategy") == "SHORT_DAY_CORE"
+    }
+    assert statuses["日线空头已确认"]["passed"] is True
+    assert statuses["当前日线空头动能"]["passed"] is False
+
+
+def test_layered_strategy_flips_daily_short_to_long_only_after_daily_long_regime_confirms():
+    from app.strategy.layered_strategy import (
+        LayeredEntryFrame,
+        LayeredStrategyConfig,
+        LayeredStrategyInput,
+        TrendRegime,
+        TrendSnapshot,
+        build_layered_strategy_decision,
+    )
+
+    decision = build_layered_strategy_decision(
+        LayeredStrategyInput(
+            symbol="BTCUSDT",
+            daily=TrendSnapshot(
+                close=Decimal("70000"),
+                fast_ma=Decimal("69000"),
+                slow_ma=Decimal("66000"),
+                fast_ma_slope=Decimal("150"),
+                adx=Decimal("25"),
+                di_plus=Decimal("32"),
+                di_minus=Decimal("14"),
+            ),
+            four_hour=TrendSnapshot(
+                close=Decimal("70400"),
+                fast_ma=Decimal("70000"),
+                slow_ma=Decimal("68000"),
+                fast_ma_slope=Decimal("120"),
+                adx=Decimal("24"),
+                di_plus=Decimal("31"),
+                di_minus=Decimal("15"),
+            ),
+            one_hour=TrendSnapshot(
+                close=Decimal("70600"),
+                fast_ma=Decimal("70200"),
+                slow_ma=Decimal("68400"),
+                fast_ma_slope=Decimal("90"),
+                adx=Decimal("23"),
+                di_plus=Decimal("30"),
+                di_minus=Decimal("16"),
+            ),
+            entry=LayeredEntryFrame(
+                close=Decimal("70800"),
+                open=Decimal("70400"),
+                high=Decimal("70900"),
+                low=Decimal("70300"),
+                fast_ma=Decimal("70500"),
+                atr=Decimal("400"),
+                recent_swing_low=Decimal("69800"),
+                recent_swing_high=Decimal("71000"),
+            ),
+            daily_regime=TrendRegime(direction="LONG", confirmed_at_ms=4000),
+            four_hour_regime=TrendRegime(direction="LONG", confirmed_at_ms=4100),
+            one_hour_regime=TrendRegime(direction="LONG", confirmed_at_ms=4200),
+        ),
+        LayeredStrategyConfig(),
+    )
+
+    assert decision.signal is not None
+    assert decision.signal.strategy_type == "LONG_DAY_CORE"
+    assert "LONG_DAY_CORE" in decision.candidates

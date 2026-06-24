@@ -986,7 +986,7 @@ def test_paper_status_page_shows_layered_bearish_details_instead_of_unclear_tren
                             },
                             {
                                 "strategy": "SHORT_DAY_CORE",
-                                "text": "日线空头动能确认",
+                                "text": "当前日线空头动能",
                                 "passed": False,
                                 "detail": "ADX=12 >= 20, DI-=20 > DI+=25",
                             },
@@ -1005,8 +1005,8 @@ def test_paper_status_page_shows_layered_bearish_details_instead_of_unclear_tren
     assert "condition-fail" in html
     assert "日线空头基础" in html
     assert "日线空头斜率" in html
-    assert "日线空头动能确认" in html
-    assert "还差：日线空头动能确认" in html
+    assert "当前日线空头动能" in html
+    assert "还差：当前日线空头动能" in html
     assert "日线趋势明确" not in html
 
 
