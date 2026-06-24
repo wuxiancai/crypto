@@ -449,7 +449,10 @@ def render_strategy_backtest_batch_html(
     .form-grid {{ display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; align-items: end; }}
     .form-grid.compact {{ grid-template-columns: repeat(5, minmax(0, 1fr)); }}
     .form-field {{ display: grid; gap: 6px; }}
-    .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
+    .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; position: relative; width: fit-content; }}
+    .param-help {{ display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; border: 1px solid #b8c2d6; color: #65748b; background: #fff; font-size: 11px; line-height: 1; cursor: help; }}
+    .param-help::after {{ content: attr(data-tooltip); display: none; position: absolute; left: 0; top: 22px; z-index: 20; width: min(320px, 78vw); padding: 10px 12px; border: 1px solid #b8c2d6; border-radius: 6px; background: #172033; color: #fff; font-size: 12px; font-weight: 400; line-height: 1.5; white-space: pre-line; box-shadow: 0 8px 24px rgba(23, 32, 51, 0.18); }}
+    .param-help:hover::after, .param-help:focus::after {{ display: block; }}
     .form-field input, .form-field select {{ width: 100%; box-sizing: border-box; border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
     .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
     .danger-button {{ border: 1px solid #b42318; background: #b42318; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; text-decoration: none; }}
@@ -496,29 +499,29 @@ def render_strategy_backtest_batch_html(
           <p class="section-note">先控制交易对、周期和均线搜索空间；2c2g 服务器建议保持较小网格，避免长时间占满资源。</p>
           <div class="form-grid">
             <div class="form-field">
-              <label for="symbol">交易对</label>
+              {_render_batch_field_label("symbol", "交易对")}
               <select id="symbol" name="symbol">{_render_batch_symbol_options(getattr(config, "symbol", "BTCUSDT"))}</select>
             </div>
             <div class="form-field">
-              <label for="history_period">回测周期</label>
+              {_render_batch_field_label("history_period", "回测周期")}
               <select id="history_period" name="history_period">{_render_history_period_options(getattr(config, "history_period", "1y"))}</select>
             </div>
             <div class="form-field">
-              <label for="fast_ma_type">快线类型</label>
+              {_render_batch_field_label("fast_ma_type", "快线类型")}
               <select id="fast_ma_type" name="fast_ma_type">{_render_average_type_options(getattr(config, "fast_ma_type", "EMA"))}</select>
             </div>
-            <div class="form-field"><label for="fast_start">快线起始</label><input id="fast_start" name="fast_start" type="number" min="2" max="500" value="{_escape(fast_start)}"></div>
-            <div class="form-field"><label for="fast_end">快线结束</label><input id="fast_end" name="fast_end" type="number" min="2" max="500" value="{_escape(fast_end)}"></div>
-            <div class="form-field"><label for="fast_step">快线步进</label><input id="fast_step" name="fast_step" type="number" min="1" max="100" value="{_escape(fast_step)}"></div>
+            <div class="form-field">{_render_batch_field_label("fast_start", "快线起始")}<input id="fast_start" name="fast_start" type="number" min="2" max="500" value="{_escape(fast_start)}"></div>
+            <div class="form-field">{_render_batch_field_label("fast_end", "快线结束")}<input id="fast_end" name="fast_end" type="number" min="2" max="500" value="{_escape(fast_end)}"></div>
+            <div class="form-field">{_render_batch_field_label("fast_step", "快线步进")}<input id="fast_step" name="fast_step" type="number" min="1" max="100" value="{_escape(fast_step)}"></div>
             <div class="form-field">
-              <label for="slow_ma_type">慢线类型</label>
+              {_render_batch_field_label("slow_ma_type", "慢线类型")}
               <select id="slow_ma_type" name="slow_ma_type">{_render_average_type_options(getattr(config, "slow_ma_type", "MA"))}</select>
             </div>
-            <div class="form-field"><label for="slow_start">慢线起始</label><input id="slow_start" name="slow_start" type="number" min="3" max="1000" value="{_escape(slow_start)}"></div>
-            <div class="form-field"><label for="slow_end">慢线结束</label><input id="slow_end" name="slow_end" type="number" min="3" max="1000" value="{_escape(slow_end)}"></div>
-            <div class="form-field"><label for="slow_step">慢线步进</label><input id="slow_step" name="slow_step" type="number" min="1" max="200" value="{_escape(slow_step)}"></div>
+            <div class="form-field">{_render_batch_field_label("slow_start", "慢线起始")}<input id="slow_start" name="slow_start" type="number" min="3" max="1000" value="{_escape(slow_start)}"></div>
+            <div class="form-field">{_render_batch_field_label("slow_end", "慢线结束")}<input id="slow_end" name="slow_end" type="number" min="3" max="1000" value="{_escape(slow_end)}"></div>
+            <div class="form-field">{_render_batch_field_label("slow_step", "慢线步进")}<input id="slow_step" name="slow_step" type="number" min="1" max="200" value="{_escape(slow_step)}"></div>
             <div class="form-field">
-              <label for="skip_fast_gte_slow">过滤快线>=慢线</label>
+              {_render_batch_field_label("skip_fast_gte_slow", "过滤快线>=慢线")}
               <select id="skip_fast_gte_slow" name="skip_fast_gte_slow">{_render_bool_options(getattr(config, "skip_fast_gte_slow", True))}</select>
             </div>
           </div>
@@ -527,21 +530,21 @@ def render_strategy_backtest_batch_html(
           <legend>分层策略参数</legend>
           <p class="section-note">这些参数会进入同一套分层策略系统，不再是旧单仓位策略。多个值用英文逗号分隔。</p>
           <div class="form-grid compact">
-            <div class="form-field"><label for="atr_periods">ATR 周期</label><input id="atr_periods" name="atr_periods" value="{_escape(_join_values(getattr(config, "atr_periods", (12, 14))))}"></div>
-            <div class="form-field"><label for="dmi_periods">DMI 周期</label><input id="dmi_periods" name="dmi_periods" value="{_escape(_join_values(getattr(config, "dmi_periods", (12, 14))))}"></div>
-            <div class="form-field"><label for="swing_lookbacks">Swing Lookback</label><input id="swing_lookbacks" name="swing_lookbacks" value="{_escape(_join_values(getattr(config, "swing_lookbacks", (20, 30))))}"></div>
-            <div class="form-field"><label for="pullback_zone_atr_multipliers">快线区域ATR倍数</label><input id="pullback_zone_atr_multipliers" name="pullback_zone_atr_multipliers" value="{_escape(_join_values(getattr(config, "pullback_zone_atr_multipliers", ("1",))))}"></div>
+            <div class="form-field">{_render_batch_field_label("atr_periods", "ATR 周期")}<input id="atr_periods" name="atr_periods" value="{_escape(_join_values(getattr(config, "atr_periods", (12, 14))))}"></div>
+            <div class="form-field">{_render_batch_field_label("dmi_periods", "DMI 周期")}<input id="dmi_periods" name="dmi_periods" value="{_escape(_join_values(getattr(config, "dmi_periods", (12, 14))))}"></div>
+            <div class="form-field">{_render_batch_field_label("swing_lookbacks", "Swing Lookback")}<input id="swing_lookbacks" name="swing_lookbacks" value="{_escape(_join_values(getattr(config, "swing_lookbacks", (20, 30))))}"></div>
+            <div class="form-field">{_render_batch_field_label("pullback_zone_atr_multipliers", "快线区域ATR倍数")}<input id="pullback_zone_atr_multipliers" name="pullback_zone_atr_multipliers" value="{_escape(_join_values(getattr(config, "pullback_zone_atr_multipliers", ("1",))))}"></div>
             <div class="form-field">
-              <label for="require_pullback_close_beyond_fast_ma_options">收盘回到快线方向侧</label>
+              {_render_batch_field_label("require_pullback_close_beyond_fast_ma_options", "收盘回到快线方向侧")}
               <select id="require_pullback_close_beyond_fast_ma_options" name="require_pullback_close_beyond_fast_ma_options">{_render_bool_series_options(getattr(config, "require_pullback_close_beyond_fast_ma_options", (False,)))}</select>
             </div>
             <div class="form-field">
-              <label for="enable_reversal_probe_options">启用趋势转换试仓</label>
+              {_render_batch_field_label("enable_reversal_probe_options", "启用趋势转换试仓")}
               <select id="enable_reversal_probe_options" name="enable_reversal_probe_options">{_render_bool_series_options(getattr(config, "enable_reversal_probe_options", (False,)))}</select>
             </div>
-            <div class="form-field"><label for="max_fee_to_risk_ratios">手续费/风险上限</label><input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0",))))}"></div>
+            <div class="form-field">{_render_batch_field_label("max_fee_to_risk_ratios", "手续费/风险上限")}<input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0",))))}"></div>
             <div class="form-field">
-              <label for="take_profit_modes">止盈模式</label>
+              {_render_batch_field_label("take_profit_modes", "止盈模式")}
               <select id="take_profit_modes" name="take_profit_modes">{_render_take_profit_mode_options(getattr(config, "take_profit_modes", ("TRAILING", "FIXED")))}</select>
             </div>
           </div>
@@ -1064,6 +1067,41 @@ def _render_symbol_options(symbols: Any) -> str:
     return "".join(
         f'<option value="{_escape(value)}"{_selected_attr(value == selected)}>{_escape(label)}</option>'
         for value, label in options
+    )
+
+
+_BATCH_PARAMETER_HELP = {
+    "symbol": "选择参与批量回测的交易对。\n影响：不同币种波动结构不同，同一参数在 BTC/ETH 上可能表现完全不同。\n建议：先用 BTC 验证主策略，再用 ETH 做泛化验证。",
+    "history_period": "选择回测使用的历史长度。\n影响：周期越长越能覆盖多种行情，但运行更慢；周期太短容易过拟合最近行情。\n建议：初筛用最近 6 个月或 1 年，最终确认至少看 1 年。",
+    "fast_ma_type": "快线均线类型。EMA 对最新价格更敏感，MA 更平滑。\n影响：EMA 更容易提前入场也更容易误触发；MA 更稳但可能错过早段行情。\n建议：当前主线优先 EMA。",
+    "fast_start": "快线周期搜索起点。\n影响：数值越小越敏感，交易次数可能更多；数值越大信号更慢。\n建议：围绕 12-20，当前默认 15。",
+    "fast_end": "快线周期搜索终点。\n影响：范围越大组合越多、回测越慢，也更容易挑出过拟合参数。\n建议：精调时保持 15-30 内的小范围。",
+    "fast_step": "快线周期递增步长。\n影响：步长越小搜索更细但更慢；步长越大可能跳过好参数。\n建议：粗筛用 5，精调用 1-3。",
+    "slow_ma_type": "慢线均线类型，用来判断大趋势基准。\n影响：MA 更适合做趋势基准，EMA 会让趋势边界更贴近价格。\n建议：当前主线优先 MA。",
+    "slow_start": "慢线周期搜索起点。\n影响：数值越小趋势判断越敏感；数值越大越偏中长期趋势。\n建议：围绕 50-80，当前默认 60。",
+    "slow_end": "慢线周期搜索终点。\n影响：范围过大会显著增加组合数量，也可能选出只适合历史的慢线。\n建议：精调时保持 60-120，必要时再扩到 200。",
+    "slow_step": "慢线周期递增步长。\n影响：步长越小越细但更慢；步长越大适合快速粗筛。\n建议：粗筛 20-30，精调 5-10。",
+    "skip_fast_gte_slow": "是否过滤快线周期大于等于慢线周期的组合。\n影响：开启后避免快慢线逻辑倒置，减少无意义组合。\n建议：保持开启。",
+    "atr_periods": "ATR 波动率周期，用于止损距离和回踩区域判断。\n影响：周期小更贴近近期波动但更抖；周期大更稳但止损可能偏宽。\n建议：12-14，当前优先 14。",
+    "dmi_periods": "DMI 趋势强度周期，用于过滤趋势质量。\n影响：周期小更敏感，周期大更保守；过大可能错过趋势启动。\n建议：12-14，当前优先 12。",
+    "swing_lookbacks": "Swing 高低点回看窗口，用于结构止损和关键高低点判断。\n影响：数值小止损更近、交易更多；数值大止损更宽、胜率可能更稳但盈亏比受影响。\n建议：20-30，当前优先 20。",
+    "pullback_zone_atr_multipliers": "允许价格距离快线的 ATR 倍数。\n影响：数值小要求贴近快线，入场更严格；数值大允许追得更远，机会更多但风险变大。\n建议：0.5-1.0，当前默认 1。",
+    "require_pullback_close_beyond_fast_ma_options": "是否要求收盘重新回到快线方向侧。\n影响：开启更确认、信号更少；关闭更早进场但噪音更多。\n建议：先用否，稳定后再对比“否 + 是”。",
+    "enable_reversal_probe_options": "是否启用趋势转换试仓。\n影响：开启可能抓到 V 型反转，但也会增加逆势试错；关闭更稳。\n建议：默认关闭，专门研究反转行情时再打开。",
+    "max_fee_to_risk_ratios": "手续费占单笔风险的上限。\n影响：数值越低越严格，会过滤掉止损过近、手续费占比过高的交易。\n建议：0 表示不启用过滤；严格模式可试 0.20-0.30。",
+    "take_profit_modes": "止盈方式。TRAILING 是移动止盈，FIXED 是固定目标止盈。\n影响：TRAILING 更适合趋势延伸，FIXED 更容易落袋但可能放弃大行情。\n建议：批量对比 TRAILING + FIXED，最终按净盈亏、回撤和盈亏比选择。",
+}
+
+
+def _render_batch_field_label(field_id: str, text: str) -> str:
+    help_text = _BATCH_PARAMETER_HELP.get(field_id)
+    if not help_text:
+        return f'<label for="{_escape(field_id)}">{_escape(text)}</label>'
+    escaped_help = _escape(help_text)
+    return (
+        f'<label for="{_escape(field_id)}">{_escape(text)}'
+        f'<span class="param-help" tabindex="0" aria-label="{escaped_help}" '
+        f'data-tooltip="{escaped_help}">?</span></label>'
     )
 
 

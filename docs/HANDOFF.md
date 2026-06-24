@@ -33,6 +33,7 @@
 - 2026-06-24 批量参数回测页跟随分层策略优化：
   - `/backtest/batch` 页面新增策略框架摘要，明确展示 `1d 主趋势 + 4h 子趋势 + 1h 确认 + 15m 入场`、默认 `EMA15 / MA60` 和 `ATR14 / DMI12 / Swing20` 过滤口径。
   - 批量参数表单改为“基础范围 / 分层策略参数 / 执行控制”三组，布尔组合参数改为中文下拉选项，避免继续手填 `false,true`。
+  - 每个批量参数 label 已增加问号提示，鼠标悬停或键盘聚焦可查看参数解释、回测影响、数值大小影响和建议区间。
   - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py tests/test_v1_0_strategy_backtest_runner.py -q`，39 passed；`.venv/bin/python -m py_compile app/paper/web_status.py scripts/run_paper_status_web.py scripts/run_strategy_backtest_batch.py` 通过。
 - 2026-06-23 分层策略系统第一轮实现：
   - 新增 `app/strategy/layered_strategy.py`，提供 `LayeredStrategyConfig`、`LayeredStrategyInput`、`TrendSnapshot`、`LayeredEntryFrame` 和 `build_layered_strategy_decision()`。

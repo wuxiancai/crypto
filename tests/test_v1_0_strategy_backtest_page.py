@@ -512,6 +512,12 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     assert "Swing Lookback" in html
     assert "手续费/风险上限" in html
     assert "止盈模式" in html
+    assert 'class="param-help"' in html
+    assert 'data-tooltip="选择回测使用的历史长度。' in html
+    assert 'title="选择回测使用的历史长度。' not in html
+    assert "影响：周期越长越能覆盖多种行情" in html
+    assert "建议：0.5-1.0，当前默认 1。" in html
+    assert "建议：批量对比 TRAILING + FIXED" in html
     assert "快线区域ATR倍数" in html
     assert 'name="pullback_zone_atr_multipliers"' in html
     assert 'value="1,0.5"' in html
