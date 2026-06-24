@@ -44,6 +44,15 @@ def test_start_script_removes_compose_orphans():
     assert "--remove-orphans postgres" in content
 
 
+def test_start_script_checks_docker_daemon_permission_before_compose_selection():
+    content = Path("scripts/start.sh").read_text(encoding="utf-8")
+
+    assert "docker info >/dev/null 2>&1 && docker compose version" in content
+    assert "sudo docker info >/dev/null 2>&1 && sudo docker compose version" in content
+    assert "无法访问 Docker" in content
+    assert "sudo usermod -aG docker ${docker_user}" in content
+
+
 def test_start_script_passes_realtime_error_log_to_status_page():
     content = Path("scripts/start.sh").read_text(encoding="utf-8")
 
@@ -112,6 +121,14 @@ def test_stop_script_stops_all_project_processes():
     assert "pgrep -f" in content
     assert "compose --env-file \"$PORT_ENV\" stop postgres" in content
     assert 'STOP_POSTGRES="${STOP_POSTGRES:-1}"' in content
+
+
+def test_stop_script_checks_docker_daemon_permission_before_compose_selection():
+    content = Path("scripts/stop.sh").read_text(encoding="utf-8")
+
+    assert "docker info >/dev/null 2>&1 && docker compose version" in content
+    assert "sudo docker info >/dev/null 2>&1 && sudo docker compose version" in content
+    assert "无法访问 Docker，跳过 PostgreSQL 容器停止" in content
 
 
 def test_status_web_disables_batch_backtest_by_default():

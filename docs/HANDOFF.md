@@ -25,6 +25,11 @@
 
 ## 本轮修复
 
+- 2026-06-24 Ubuntu Docker daemon 权限探测修复：
+  - 根因：`scripts/start.sh` / `scripts/stop.sh` 只用 `docker compose version` 判断 compose 是否可用，但该命令不需要访问 Docker daemon；当 `ubuntu` 用户没有 `/var/run/docker.sock` 权限时，脚本误选无 sudo 的 `docker compose`，随后 `compose up` 报 permission denied。
+  - 修复：compose helper 现在先用 `docker info` 验证 daemon 访问权限，再选择 `docker compose`；无权限时自动尝试 `sudo docker compose`；旧 `docker-compose` 路径同样增加 daemon 权限检查。
+  - 文档：`docs/UBUNTU_DEPLOY.md` 新增 Docker 权限不足排障，说明拉取新版后优先普通用户执行 `bash scripts/start.sh`，长期修复用 `sudo usermod -aG docker $(whoami)` 后重新登录。
+  - 覆盖测试：`tests/test_deploy_script.py` 增加 start/stop 脚本 Docker daemon 权限探测回归。
 - 2026-06-24 模拟交易看板持仓与条件展示修复：
   - 状态页“全部模拟交易记录”现在会合并显示当前未平仓子仓和已平仓记录；未平仓记录显示为“持仓中”，避免出现已有持仓但交易记录区域为空的误导。
   - 顶部统计卡从“模拟成交次数”改为“模拟交易记录”，计数包含当前持仓中的开仓记录和已平仓记录。

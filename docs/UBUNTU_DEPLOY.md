@@ -129,7 +129,48 @@ E: Error, pkgProblemResolver::Resolve generated breaks
 - 没有 Docker CE 候选包时才安装 Ubuntu `docker.io`。
 - 安装 Ubuntu `docker.io` 时不再把 `docker-compose-plugin` 绑在同一个 apt 命令里，避免默认源缺少该包时让 Docker Engine 安装也失败。
 - Docker Compose 会单独探测安装，依次尝试 `docker-compose-plugin`、`docker-compose-v2`、`docker-compose`。
-- 当前用户没有 Docker 权限时，启动脚本会尝试使用 `sudo docker compose`。
+- 当前用户没有 Docker 权限时，启动脚本会先验证 Docker daemon 访问权限，再自动尝试 `sudo docker compose`。
+
+## Docker 权限不足
+
+如果手动执行 `bash scripts/start.sh` 或 `docker ps` 报：
+
+```text
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock
+```
+
+说明当前用户还没有访问 Docker daemon 的权限。拉取新版脚本后，优先继续使用普通用户启动，脚本会只对 Docker 命令自动尝试 sudo：
+
+```bash
+bash scripts/start.sh
+```
+
+如果尚未拉取新版脚本、必须临时应急恢复运行，才使用：
+
+```bash
+sudo bash scripts/start.sh
+```
+
+长期修复建议把当前登录用户加入 `docker` 组，然后重新登录 SSH：
+
+```bash
+sudo usermod -aG docker $(whoami)
+exit
+```
+
+重新登录后验证：
+
+```bash
+docker ps
+bash scripts/start.sh
+```
+
+如果仍然失败，确认 Docker 服务已启动：
+
+```bash
+sudo systemctl enable --now docker
+sudo systemctl status docker --no-pager
+```
 
 如果部署时报：
 

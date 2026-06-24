@@ -35,24 +35,27 @@ source "$PORT_ENV"
 set +a
 
 compose() {
-  if docker compose version >/dev/null 2>&1; then
+  if docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     docker compose "$@"
     return
   fi
-  if sudo docker compose version >/dev/null 2>&1; then
+  if sudo docker info >/dev/null 2>&1 && sudo docker compose version >/dev/null 2>&1; then
     sudo docker compose "$@"
     return
   fi
-  if command -v docker-compose >/dev/null 2>&1; then
+  if command -v docker-compose >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     docker-compose "$@"
     return
   fi
-  if sudo docker-compose version >/dev/null 2>&1; then
+  if command -v docker-compose >/dev/null 2>&1 && sudo docker info >/dev/null 2>&1 && sudo docker-compose version >/dev/null 2>&1; then
     sudo docker-compose "$@"
     return
   fi
 
-  echo "未找到 docker compose。请先安装 Docker Compose plugin。" >&2
+  docker_user="${SUDO_USER:-$(whoami)}"
+  echo "无法访问 Docker。请确认 Docker 已启动，并且当前用户在 docker 组，或当前用户可以执行 sudo docker。" >&2
+  echo "可临时执行：sudo bash scripts/start.sh" >&2
+  echo "可永久修复：sudo usermod -aG docker ${docker_user} 后重新登录。" >&2
   exit 1
 }
 

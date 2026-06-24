@@ -11,24 +11,24 @@ STOP_POSTGRES="${STOP_POSTGRES:-1}"
 STOP_SYSTEMD="${STOP_SYSTEMD:-1}"
 
 compose() {
-  if docker compose version >/dev/null 2>&1; then
+  if docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     docker compose "$@"
     return
   fi
-  if sudo docker compose version >/dev/null 2>&1; then
+  if sudo docker info >/dev/null 2>&1 && sudo docker compose version >/dev/null 2>&1; then
     sudo docker compose "$@"
     return
   fi
-  if command -v docker-compose >/dev/null 2>&1; then
+  if command -v docker-compose >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     docker-compose "$@"
     return
   fi
-  if sudo docker-compose version >/dev/null 2>&1; then
+  if command -v docker-compose >/dev/null 2>&1 && sudo docker info >/dev/null 2>&1 && sudo docker-compose version >/dev/null 2>&1; then
     sudo docker-compose "$@"
     return
   fi
 
-  echo "未找到可用的 docker compose，跳过 PostgreSQL 容器停止。" >&2
+  echo "无法访问 Docker，跳过 PostgreSQL 容器停止。请确认 Docker 已启动，并且当前用户在 docker 组，或当前用户可以执行 sudo docker。" >&2
   return 1
 }
 
