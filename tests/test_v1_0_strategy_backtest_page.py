@@ -82,7 +82,7 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     assert 'name="ema_slow"' in html
     assert 'value="120"' in html
     assert "历史K线根数" in html
-    assert "手续费/风险上限" in html
+    assert "手续费占风险过滤" in html
     assert 'name="max_fee_to_risk_ratio"' in html
     assert 'value="0"' in html
     assert "账户权益 USDT" in html
@@ -510,7 +510,9 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     assert 'value="10,14"' in html
     assert "DMI 周期" in html
     assert "Swing Lookback" in html
-    assert "手续费/风险上限" in html
+    assert "手续费占风险过滤" in html
+    assert "不是手续费开关" in html
+    assert "固定手续费始终按 maker 0.02%、taker 0.05% 计入回测" in html
     assert "止盈模式" in html
     assert 'class="param-help"' in html
     assert 'data-tooltip="选择回测使用的历史长度。' in html
