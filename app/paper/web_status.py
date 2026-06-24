@@ -1037,7 +1037,7 @@ def _render_history_period_options(selected: Any) -> str:
     options = [
         ("3m", "最近3个月"),
         ("6m", "最近6个月"),
-        ("1y", "最近1年"),
+        ("1y", "1年"),
         ("2y", "最近2年"),
     ]
     selected_value = str(selected or "3m")
@@ -1284,7 +1284,7 @@ def _render_recent_backtest_results(results: list[Any]) -> str:
 <table>
   <thead>
     <tr>
-      <th>回测时间 UTC+8</th><th>交易对</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费/风险</th><th>周期</th>
+      <th>回测时间 UTC+8</th><th>交易对</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>Zone</th><th>收盘确认</th><th>反转试仓</th><th>手续费过滤</th><th>止盈</th><th>周期</th>
       <th>初始权益</th><th>账户权益</th><th>总交易次数</th><th>胜 / 负 / 胜率</th><th>净盈亏</th>
     </tr>
   </thead>
@@ -1304,7 +1304,7 @@ def _render_parameter_comparison_table(results: list[Any]) -> str:
 <table>
   <thead>
     <tr>
-      <th>排名</th><th>交易对</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费/风险</th><th>周期</th>
+      <th>排名</th><th>交易对</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>Zone</th><th>收盘确认</th><th>反转试仓</th><th>手续费过滤</th><th>止盈</th><th>周期</th>
       <th>账户权益</th><th>净盈亏</th><th>胜率</th><th>盈亏比</th><th>最大回撤</th><th>Bucket净盈亏</th><th>交易次数</th>
     </tr>
   </thead>
@@ -1322,7 +1322,11 @@ def _render_parameter_comparison_row(index: int, result: Any) -> str:
   <td>{_escape(getattr(result, "atr_period", "-"))}</td>
   <td>{_escape(getattr(result, "dmi_period", "-"))}</td>
   <td>{_escape(getattr(result, "swing_lookback", "-"))}</td>
+  <td>{_escape(getattr(result, "pullback_zone_atr_multiplier", "1"))}</td>
+  <td>{_escape(_bool_config_label(getattr(result, "require_pullback_close_beyond_fast_ma", False)))}</td>
+  <td>{_escape(_bool_config_label(getattr(result, "enable_reversal_probe", False)))}</td>
   <td>{_escape(_fee_to_risk_label(getattr(result, "max_fee_to_risk_ratio", "-")))}</td>
+  <td>{_escape(getattr(result, "trend_pullback_take_profit_mode", "TRAILING"))}</td>
   <td>{_escape(_history_period_label(getattr(result, "history_period", "")))}</td>
   <td>{_format_decimal(getattr(result, "final_equity", "0"), 2)}</td>
   <td class="{_pnl_class(net_pnl)}">{_format_decimal(net_pnl, 2)}</td>
@@ -1415,7 +1419,11 @@ def _render_recent_backtest_result_row(result: Any) -> str:
   <td>{_escape(getattr(result, "atr_period", "-"))}</td>
   <td>{_escape(getattr(result, "dmi_period", "-"))}</td>
   <td>{_escape(getattr(result, "swing_lookback", "-"))}</td>
+  <td>{_escape(getattr(result, "pullback_zone_atr_multiplier", "1"))}</td>
+  <td>{_escape(_bool_config_label(getattr(result, "require_pullback_close_beyond_fast_ma", False)))}</td>
+  <td>{_escape(_bool_config_label(getattr(result, "enable_reversal_probe", False)))}</td>
   <td>{_escape(_fee_to_risk_label(getattr(result, "max_fee_to_risk_ratio", "-")))}</td>
+  <td>{_escape(getattr(result, "trend_pullback_take_profit_mode", "TRAILING"))}</td>
   <td>{_escape(_history_period_label(getattr(result, "history_period", "")))}</td>
   <td>{_format_decimal(getattr(result, "initial_equity", "0"), 2)}</td>
   <td>{_format_decimal(getattr(result, "final_equity", "0"), 2)}</td>
@@ -1436,6 +1444,13 @@ def _average_combo_label(result: Any) -> str:
 def _fee_to_risk_label(value: Any) -> str:
     text = str(value)
     return "关闭" if text in {"0", "0.0", "0.00"} else text
+
+
+def _bool_config_label(value: Any) -> str:
+    if isinstance(value, bool):
+        return "是" if value else "否"
+    text = str(value).strip().lower()
+    return "是" if text in {"1", "true", "yes", "是"} else "否"
 
 
 def _sort_recent_backtest_results(results: list[Any]) -> list[Any]:
@@ -1473,7 +1488,7 @@ def _history_period_label(value: Any) -> str:
     labels = {
         "3m": "最近3个月",
         "6m": "最近6个月",
-        "1y": "最近1年",
+        "1y": "1年",
         "2y": "最近2年",
     }
     return labels.get(str(value), str(value or "-"))

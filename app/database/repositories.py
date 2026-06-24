@@ -339,6 +339,12 @@ def _strategy_backtest_summary(
         max_drawdown=max_drawdown,
         max_drawdown_pct=max_drawdown_pct,
         profit_loss_ratio=_summary_profit_loss_ratio(trades or []),
+        trend_pullback_take_profit_mode=str(payload.get("trend_pullback_take_profit_mode") or "TRAILING"),
+        pullback_zone_atr_multiplier=str(payload.get("pullback_zone_atr_multiplier") or "1"),
+        require_pullback_close_beyond_fast_ma=str(
+            payload.get("require_pullback_close_beyond_fast_ma") or "False"
+        ),
+        enable_reversal_probe=str(payload.get("enable_reversal_probe") or "False"),
         bucket_metrics=_summary_bucket_metrics(trades or []),
     )
 

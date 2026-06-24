@@ -86,6 +86,10 @@ class StrategyBacktestRunSummary:
     max_drawdown: str = "0.00"
     max_drawdown_pct: str = "0.00"
     profit_loss_ratio: str = "0.00"
+    trend_pullback_take_profit_mode: str = "TRAILING"
+    pullback_zone_atr_multiplier: str = "1"
+    require_pullback_close_beyond_fast_ma: str = "False"
+    enable_reversal_probe: str = "False"
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
 
 

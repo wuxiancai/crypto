@@ -361,6 +361,10 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
                 swing_lookback=25,
                 max_fee_to_risk_ratio="0.25",
                 history_period="1y",
+                trend_pullback_take_profit_mode="FIXED",
+                pullback_zone_atr_multiplier="0.5",
+                require_pullback_close_beyond_fast_ma="True",
+                enable_reversal_probe="False",
                 initial_equity="1000.00",
                 final_equity="1044.00",
                 total_trades=25,
@@ -375,10 +379,15 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
     assert "参数组合对比" in html
     assert "recent-results-scroll" in html
     assert "EMA50 / MA200" in html
-    assert "<th>ATR</th><th>DMI</th><th>Swing</th><th>手续费/风险</th>" in html
+    assert "<th>ATR</th><th>DMI</th><th>Swing</th><th>Zone</th><th>收盘确认</th><th>反转试仓</th><th>手续费过滤</th><th>止盈</th><th>周期</th>" in html
     assert "<td>14</td>" in html
     assert "<td>25</td>" in html
+    assert "<td>0.5</td>" in html
+    assert "<td>是</td>" in html
+    assert "<td>否</td>" in html
     assert "<td>0.25</td>" in html
+    assert "<td>FIXED</td>" in html
+    assert "<td>1年</td>" in html
     assert "<td>关闭</td>" in html
     assert "11 / 14 / 胜率 44%" in html
     assert html.index("BTCUSDT") < html.index("ETHUSDT")
@@ -702,7 +711,8 @@ def test_strategy_backtest_page_supports_long_history_periods():
     assert 'name="history_period"' in html
     assert "最近3个月" in html
     assert "最近6个月" in html
-    assert "最近1年" in html
+    assert "1年" in html
+    assert "最近1年" not in html
     assert "最近2年" in html
     assert '<option value="2y" selected>' in html
 
