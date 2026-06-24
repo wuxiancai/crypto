@@ -790,10 +790,14 @@ def test_paper_status_page_renders_interactive_strategy_chart_controls(tmp_path)
     assert 'data-chart-symbol="BTCUSDT"' in html
     assert 'data-chart-interval="1d"' in html
     assert "open_time" in html
-    assert "悬停查看详情，滚轮查看更多K线" in html
+    assert "悬停查看详情，滚轮缩放K线，Shift+滚轮平移" in html
+    assert 'data-chart-default-window-size="80"' in html
     assert "chart-tooltip" in html
     assert "bindInteractiveCharts" in html
     assert "renderInteractiveChart" in html
+    assert "zoomChartWindow" in html
+    assert "shiftChartWindow" in html
+    assert "event.shiftKey" in html
     assert "mousemove" in html
     assert "wheel" in html
     assert "data-chart-crosshair-x" in html
@@ -1103,6 +1107,58 @@ def test_paper_status_page_shows_layered_day_core_full_trigger_chain(tmp_path):
     assert "1h 空头基础" in html
     assert "15m 空头入场条件" in html
     assert "15m 空头已确认" in html
+
+
+def test_paper_status_page_normalizes_legacy_15m_entry_zone_condition(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "60669.9",
+                        "action": "SHORT_ENTRY",
+                        "strategy_type": "SHORT_DAY_CORE",
+                        "nearest_strategy": {
+                            "name": "SHORT_DAY_CORE",
+                            "matched": 11,
+                            "total": 12,
+                            "action": "SHORT_ENTRY",
+                        },
+                        "condition_statuses": [
+                            {"strategy": "SHORT_DAY_CORE", "text": "日线空头基础", "passed": True, "detail": "EMA15 < MA60"},
+                            {
+                                "strategy": "SHORT_DAY_CORE",
+                                "text": "15m 空头反弹到快线区域",
+                                "passed": False,
+                                "detail": "反弹区: high >= fast_ma - atr; 顺势延续: close < fast_ma",
+                            },
+                            {"strategy": "SHORT_DAY_CORE", "text": "15m 空头已确认", "passed": True, "detail": "close < open"},
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "15m 空头反弹到快线区域" not in html
+    assert "15m 空头入场条件" in html
+    assert "未满足</span> 15m 空头入场条件" not in html
+    assert "满足</span> 15m 空头入场条件" in html
+    assert "兼容旧状态" in html
+    assert "所有关键条件已满足" in html
 
 
 def test_paper_status_page_shows_only_nearest_strategy_conditions_in_compact_view(tmp_path):

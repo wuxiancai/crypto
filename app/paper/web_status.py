@@ -263,7 +263,11 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
           svg.addEventListener("mouseleave", () => hideChartHover(svg));
           svg.addEventListener("wheel", (event) => {{
             event.preventDefault();
-            shiftChartWindow(svg, event.deltaY);
+            if (event.shiftKey) {{
+              shiftChartWindow(svg, event.deltaY);
+            }} else {{
+              zoomChartWindow(svg, event);
+            }}
           }}, {{ passive: false }});
         }}
         renderInteractiveChart(svg);
@@ -296,9 +300,9 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
     }}
     function chartWindowSize(svg, points) {{
-      const configured = Number(svg.dataset.chartWindowSize || 80);
+      const configured = Number(svg.dataset.chartWindowSize || svg.dataset.chartDefaultWindowSize || 80);
       const size = Number.isFinite(configured) ? configured : 80;
-      return Math.min(points.length, Math.max(20, Math.floor(size)));
+      return Math.min(points.length, Math.max(12, Math.floor(size)));
     }}
     function chartVisibleSlice(svg) {{
       const points = chartPoints(svg);
@@ -455,6 +459,29 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       const current = Math.min(maxOffset, Math.max(0, Number(svg.dataset.chartOffset || 0)));
       const next = deltaY > 0 ? current + 6 : current - 6;
       svg.dataset.chartOffset = String(Math.min(maxOffset, Math.max(0, next)));
+      renderInteractiveChart(svg);
+    }}
+    function zoomChartWindow(svg, event) {{
+      const points = chartPoints(svg);
+      if (points.length < 2) {{
+        return;
+      }}
+      const currentSize = chartWindowSize(svg, points);
+      const rect = svg.getBoundingClientRect();
+      const geometry = CHART_GEOMETRY;
+      const plotWidth = geometry.width - geometry.left - geometry.right;
+      const viewX = (event.clientX - rect.left) * geometry.width / rect.width;
+      const ratio = Math.min(1, Math.max(0, (viewX - geometry.left) / plotWidth));
+      const currentOffset = Math.min(Math.max(0, points.length - currentSize), Math.max(0, Number(svg.dataset.chartOffset || 0)));
+      const currentEnd = points.length - currentOffset;
+      const currentStart = Math.max(0, currentEnd - currentSize);
+      const anchor = currentStart + Math.round(ratio * Math.max(currentSize - 1, 1));
+      const nextSizeRaw = event.deltaY > 0 ? currentSize + 10 : currentSize - 10;
+      const nextSize = Math.min(points.length, Math.max(12, Math.floor(nextSizeRaw)));
+      const nextStart = Math.min(Math.max(0, points.length - nextSize), Math.max(0, anchor - Math.round(ratio * Math.max(nextSize - 1, 1))));
+      const nextOffset = Math.max(0, points.length - (nextStart + nextSize));
+      svg.dataset.chartWindowSize = String(nextSize);
+      svg.dataset.chartOffset = String(nextOffset);
       renderInteractiveChart(svg);
     }}
     async function refreshDashboard() {{
@@ -2091,20 +2118,43 @@ def _nearest_strategy_for_conditions(nearest: Any, conditions: list[dict[str, An
         return nearest
     if not isinstance(nearest, dict):
         return nearest
-    name = str(nearest.get("name") or "")
-    matched = int(nearest.get("matched") or 0)
-    total = int(nearest.get("total") or 0)
-    if name != "SYSTEM" or matched != 0 or total != 0:
-        return nearest
     condition_strategy = conditions[0].get("strategy")
     if not condition_strategy:
         return nearest
     required = [condition for condition in conditions if condition.get("required", True)]
-    return {
-        **nearest,
-        "name": condition_strategy,
-        "matched": sum(1 for condition in required if condition.get("passed")),
-        "total": len(required),
+    rendered_matched = sum(1 for condition in required if condition.get("passed"))
+    rendered_total = len(required)
+    name = str(nearest.get("name") or "")
+    matched = int(nearest.get("matched") or 0)
+    total = int(nearest.get("total") or 0)
+    if name == "SYSTEM" and matched == 0 and total == 0:
+        return {
+            **nearest,
+            "name": condition_strategy,
+            "matched": rendered_matched,
+            "total": rendered_total,
+        }
+    if (
+        name == condition_strategy
+        and _is_layered_strategy_name(condition_strategy)
+        and (matched != rendered_matched or total != rendered_total)
+    ):
+        return {
+            **nearest,
+            "matched": rendered_matched,
+            "total": rendered_total,
+        }
+    return nearest
+
+
+def _is_layered_strategy_name(strategy: Any) -> bool:
+    return str(strategy or "") in {
+        "SHORT_DAY_CORE",
+        "LONG_DAY_CORE",
+        "SHORT_4H_1H_ADDON",
+        "LONG_4H_1H_ADDON",
+        "SHORT_4H_HEDGE",
+        "LONG_4H_HEDGE",
     }
 
 
@@ -2120,9 +2170,47 @@ def _normalize_condition(condition: dict[str, Any]) -> dict[str, Any] | None:
         detail = "-"
     normalized = dict(condition)
     normalized["strategy"] = str(strategy) if strategy else "-"
-    normalized["text"] = str(text)
+    normalized["text"] = _normalize_condition_text(str(text))
     normalized["detail"] = str(detail)
+    if _legacy_entry_zone_condition_is_satisfied(normalized):
+        normalized["passed"] = True
+        normalized["detail"] = _append_condition_detail(
+            normalized["detail"],
+            "兼容旧状态：价格已在快线顺势侧，按15m入场条件满足显示",
+        )
     return normalized
+
+
+def _normalize_condition_text(text: str) -> str:
+    replacements = {
+        "15m 空头反弹到快线区域": "15m 空头入场条件",
+        "15m 多头回踩到快线区域": "15m 多头入场条件",
+    }
+    return replacements.get(text, text)
+
+
+def _legacy_entry_zone_condition_is_satisfied(condition: dict[str, Any]) -> bool:
+    text = str(condition.get("text") or "")
+    if text not in {"15m 空头入场条件", "15m 多头入场条件"}:
+        return False
+    if bool(condition.get("passed")):
+        return False
+    detail = str(condition.get("detail") or "")
+    if "顺势延续" in detail:
+        return True
+    if text == "15m 空头入场条件" and "close < fast_ma" in detail:
+        return True
+    if text == "15m 多头入场条件" and "close > fast_ma" in detail:
+        return True
+    return False
+
+
+def _append_condition_detail(detail: str, addition: str) -> str:
+    if not detail or detail == "-":
+        return addition
+    if addition in detail:
+        return detail
+    return f"{detail}; {addition}"
 
 
 def _strategy_condition_text(strategy: Any) -> str:
@@ -2287,7 +2375,7 @@ def _render_chart_panel(
     <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span>{_escape(fast_label)}</span>
     <span class="legend-item"><span class="legend-swatch" style="background:#9333ea"></span>{_escape(slow_label)}</span>
     <span>{_escape(symbol)} · {_escape(interval)}</span>
-    <span class="chart-help">悬停查看详情，滚轮查看更多K线</span>
+    <span class="chart-help">悬停查看详情，滚轮缩放K线，Shift+滚轮平移</span>
   </div>
   {_render_chart_svg(points, fast_label=fast_label, slow_label=slow_label, symbol=str(symbol), interval=interval)}
 </div>"""
@@ -2423,7 +2511,7 @@ def _render_chart_svg(points: list[dict[str, Any]], fast_label: str, slow_label:
     slow_line = f'<polyline points="{slow_path}" fill="none" stroke="#9333ea" stroke-width="2" />' if slow_path else ""
     grid = _chart_grid(width, padding_left, padding_top, plot_width, plot_height, minimum, maximum)
     chart_points = _chart_points_json(points)
-    return f"""<svg class="interactive-chart" viewBox="0 0 {width} {height}" width="100%" height="320" role="img" aria-label="K线图 {_escape(fast_label)} {_escape(slow_label)}" data-interactive-chart="1" data-chart-points="{chart_points}" data-chart-window-size="80" data-chart-offset="0" data-chart-symbol="{_escape(symbol)}" data-chart-interval="{_escape(interval)}" data-chart-fast-label="{_escape(fast_label)}" data-chart-slow-label="{_escape(slow_label)}">
+    return f"""<svg class="interactive-chart" viewBox="0 0 {width} {height}" width="100%" height="320" role="img" aria-label="K线图 {_escape(fast_label)} {_escape(slow_label)}" data-interactive-chart="1" data-chart-points="{chart_points}" data-chart-default-window-size="80" data-chart-window-size="80" data-chart-offset="0" data-chart-symbol="{_escape(symbol)}" data-chart-interval="{_escape(interval)}" data-chart-fast-label="{_escape(fast_label)}" data-chart-slow-label="{_escape(slow_label)}">
   <rect x="0" y="0" width="{width}" height="{height}" fill="#ffffff" />
   {grid}
   {''.join(candles)}
