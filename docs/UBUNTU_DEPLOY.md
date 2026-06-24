@@ -58,6 +58,12 @@ cat .env.ports.generated
 
 本项目不再固定 Postgres 容器名，避免和旧部署或其他 Compose 项目的容器名冲突。
 
+## PostgreSQL 资源限制
+
+个人 2c2g 云服务器部署时，PostgreSQL 必须限制内存和连接数，避免与同机其他项目共同运行时抢占自动交易进程资源。
+
+建议在 PostgreSQL 启动参数中显式设置较小的 `shared_buffers`、`work_mem`、`maintenance_work_mem` 和 `max_connections`，并按服务器实际内存继续收紧。云服务器只运行自动交易所需进程，不在服务器上执行批量回测、参数网格搜索、开发测试或其他重计算任务。
+
 如果服务器上残留早期版本创建的固定名容器，可以先查看：
 
 ```bash
