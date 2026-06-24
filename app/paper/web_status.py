@@ -91,14 +91,16 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .ticker-item {{ display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 10px; border: 1px solid #d9e0ec; border-radius: 4px; background: #fff; white-space: nowrap; }}
     .ticker-symbol {{ color: #65748b; font-size: 12px; font-weight: 700; }}
     .ticker-price {{ color: #172033; font-size: 16px; font-weight: 700; }}
-    .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(280px, 1.2fr); gap: 12px; margin-bottom: 16px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
-    .strategy-detail-panel {{ padding: 9px 10px; }}
-    .strategy-detail-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }}
-    .strategy-detail-block {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 8px; font-family: Menlo, Consolas, monospace; font-size: 10px; line-height: 1.25; color: #344055; }}
-    .strategy-detail-row {{ display: flex; gap: 3px; min-width: 0; }}
+    .strategy-detail-panel {{ grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 7px 10px; overflow-x: auto; }}
+    .strategy-detail-panel .label {{ flex: 0 0 auto; margin-bottom: 0; }}
+    .strategy-detail-grid {{ display: flex; align-items: center; gap: 16px; min-width: max-content; }}
+    .strategy-detail-block {{ display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; white-space: nowrap; font-family: Menlo, Consolas, monospace; font-size: 11px; line-height: 1.2; color: #344055; }}
+    .strategy-detail-block + .strategy-detail-block {{ padding-left: 16px; border-left: 1px solid #e6ebf2; }}
+    .strategy-detail-row {{ display: inline-flex; align-items: baseline; gap: 3px; min-width: 0; }}
     .strategy-detail-key {{ color: #65748b; white-space: nowrap; }}
-    .strategy-detail-value {{ color: #172033; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+    .strategy-detail-value {{ color: #172033; white-space: nowrap; }}
     .form-grid {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: end; }}
     .form-field {{ display: grid; gap: 6px; }}
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
