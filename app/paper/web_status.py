@@ -1737,10 +1737,11 @@ def _render_strategy_condition_card(evaluation: dict[str, Any]) -> str:
     conditions = _conditions_for_strategy(evaluation.get("condition_statuses", []), strategy_name)
     if not conditions:
         return ""
+    display_nearest = _nearest_strategy_for_conditions(nearest, conditions)
     rows = "".join(_render_condition_row(condition) for condition in conditions)
     return f"""<div class="panel">
   <div class="condition-summary">
-    <div class="condition-title">{_escape(_nearest_strategy_summary(nearest, evaluation.get("symbol")))}</div>
+    <div class="condition-title">{_escape(_nearest_strategy_summary(display_nearest, evaluation.get("symbol")))}</div>
     <div class="condition-missing">{_escape(_missing_conditions_summary(conditions))}</div>
   </div>
   <div class="condition-list">{rows}</div>
@@ -1778,7 +1779,7 @@ def _condition_status_label(passed: bool) -> str:
 def _nearest_strategy_summary(nearest: Any, symbol: Any = None) -> str:
     if not isinstance(nearest, dict) or not nearest:
         return "当前趋势：暂无"
-    name = nearest.get("name") or "-"
+    name = _strategy_condition_group_label(nearest.get("name")) or "-"
     matched = nearest.get("matched", 0)
     total = nearest.get("total", 0)
     prefix = f"{symbol} " if symbol else ""
@@ -1794,9 +1795,11 @@ def _nearest_strategy_name(nearest: Any) -> str | None:
 
 def _conditions_for_strategy(raw_conditions: Any, strategy_name: str | None) -> list[dict[str, Any]]:
     conditions = [
-        condition
+        normalized
         for condition in raw_conditions
         if isinstance(condition, dict)
+        for normalized in [_normalize_condition(condition)]
+        if normalized is not None
     ]
     if strategy_name is None:
         return conditions
@@ -1808,11 +1811,77 @@ def _conditions_for_strategy(raw_conditions: Any, strategy_name: str | None) -> 
     return selected or conditions
 
 
+def _nearest_strategy_for_conditions(nearest: Any, conditions: list[dict[str, Any]]) -> Any:
+    if not conditions:
+        return nearest
+    if not isinstance(nearest, dict):
+        return nearest
+    name = str(nearest.get("name") or "")
+    matched = int(nearest.get("matched") or 0)
+    total = int(nearest.get("total") or 0)
+    if name != "SYSTEM" or matched != 0 or total != 0:
+        return nearest
+    condition_strategy = conditions[0].get("strategy")
+    if not condition_strategy:
+        return nearest
+    return {
+        **nearest,
+        "name": condition_strategy,
+        "matched": sum(1 for condition in conditions if condition.get("passed")),
+        "total": len(conditions),
+    }
+
+
+def _normalize_condition(condition: dict[str, Any]) -> dict[str, Any] | None:
+    strategy = condition.get("strategy") or condition.get("strategy_type")
+    text = condition.get("text") or _strategy_condition_text(strategy)
+    if not text:
+        return None
+    detail = condition.get("detail")
+    if isinstance(detail, (list, tuple)):
+        detail = "; ".join(str(item) for item in detail)
+    elif detail is None:
+        detail = "-"
+    normalized = dict(condition)
+    normalized["strategy"] = str(strategy) if strategy else "-"
+    normalized["text"] = str(text)
+    normalized["detail"] = str(detail)
+    return normalized
+
+
+def _strategy_condition_text(strategy: Any) -> str:
+    labels = {
+        "DAY_CORE": "日线趋势明确",
+        "SHORT_DAY_CORE": "日线空头主趋势",
+        "LONG_DAY_CORE": "日线多头主趋势",
+        "SHORT_4H_1H_ADDON": "4h/1h 空头顺势加仓",
+        "LONG_4H_1H_ADDON": "4h/1h 多头顺势加仓",
+        "SHORT_4H_HEDGE": "4h 空头对冲",
+        "LONG_4H_HEDGE": "4h 多头对冲",
+    }
+    return labels.get(str(strategy or ""), "")
+
+
+def _strategy_condition_group_label(strategy: Any) -> str:
+    labels = {
+        "DAY_CORE": "日线主趋势",
+        "SHORT_DAY_CORE": "日线核心做空",
+        "LONG_DAY_CORE": "日线核心做多",
+        "SHORT_4H_1H_ADDON": "4h/1h 顺势做空",
+        "LONG_4H_1H_ADDON": "4h/1h 顺势做多",
+        "SHORT_4H_HEDGE": "4h 对冲做空",
+        "LONG_4H_HEDGE": "4h 对冲做多",
+        "SYSTEM": "系统",
+    }
+    key = str(strategy or "")
+    return labels.get(key, key)
+
+
 def _missing_conditions_summary(conditions: list[dict[str, Any]]) -> str:
     missing = [
         str(condition.get("text"))
         for condition in conditions
-        if not condition.get("passed")
+        if not condition.get("passed") and condition.get("text")
     ]
     if not missing:
         return "所有关键条件已满足，等待下一根已收盘 K 线确认或执行。"

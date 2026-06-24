@@ -25,6 +25,13 @@
 
 ## 本轮修复
 
+- 2026-06-24 策略触发条件 `None / SYSTEM 0/0` 展示修复：
+  - 根因是分层策略 diagnostics 输出的是 `strategy_type/detail/passed`，而状态页旧渲染只认 `strategy/text/detail`，导致页面把缺失字段显示成 `None`，并把无候选策略时的占位 `SYSTEM 0/0` 当成当前趋势展示。
+  - `app/strategy/layered_strategy.py` 的 diagnostics 已补齐 `strategy`、`text` 和字符串 `detail`，原始状态文件/复盘 JSON 更易读。
+  - `app/paper/strategy_adapter.py` 在无候选策略时会基于 diagnostics 生成最近策略摘要，例如 `DAY_CORE 0/1`，不再输出无意义的 `SYSTEM 0/0`。
+  - `app/paper/web_status.py` 增加兼容规范化：同时支持旧 `strategy/text/detail` 和新 `strategy_type/detail`，会把 `DAY_CORE` 等策略编码显示为中文说明，并过滤无法展示的空诊断。
+  - `scripts/start.sh` 在 migration 后、启动 Paper realtime 前执行 `scripts/sync_klines.py --symbols BTCUSDT ETHUSDT --intervals 1d 4h 1h 15m --limit ${KLINE_SYNC_LIMIT:-160} --write`，每次启动都会补齐分层策略所需历史 K 线。默认 160 根覆盖当前 `MA60 + 图表展示` 的历史需求，可用环境变量 `KLINE_SYNC_LIMIT` 调整。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_realtime_strategy_adapter.py tests/test_deploy_script.py tests/test_v1_1_sync_klines.py tests/test_v1_0_real_market_paper_runner.py -q`，55 passed；`.venv/bin/python -m py_compile app/paper/web_status.py app/paper/strategy_adapter.py app/strategy/layered_strategy.py scripts/sync_klines.py` 通过；`git diff --check` 通过。
 - 2026-06-24 Ubuntu 部署改为 systemd 托管：
   - 新增 `scripts/install_systemd_service.sh`，默认安装并启动 `crypto-paper.service`，服务使用 `START_MODE=foreground` 调用 `scripts/start.sh`，由 systemd 负责开机自启、断线后继续运行和异常重启。
   - `scripts/start.sh` 新增 `START_MODE=background|foreground`：手动启动保持后台模式；systemd 模式下以前台父进程等待 Paper runner / Web 状态页，任一子进程退出则清理并交给 systemd 重启。

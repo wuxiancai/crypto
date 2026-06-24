@@ -795,6 +795,55 @@ def test_paper_status_page_shows_strategy_trigger_conditions(tmp_path):
     assert "condition-fail" in html
 
 
+def test_paper_status_page_hides_malformed_system_placeholder_conditions(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "62720",
+                        "action": "WAIT",
+                        "strategy_type": "SYSTEM",
+                        "reason": ["no layered strategy candidate ready"],
+                        "nearest_strategy": {
+                            "name": "SYSTEM",
+                            "matched": 0,
+                            "total": 0,
+                            "action": "WAIT",
+                        },
+                        "condition_statuses": [
+                            {
+                                "strategy_type": "DAY_CORE",
+                                "passed": False,
+                                "detail": ["daily trend unclear"],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "None" not in html
+    assert "SYSTEM · 已满足 0/0" not in html
+    assert "当前趋势：BTCUSDT 日线主趋势 · 已满足 0/1" in html
+    assert "还差：日线趋势明确" in html
+    assert "daily trend unclear" in html
+
+
 def test_paper_status_page_shows_only_nearest_strategy_conditions_in_compact_view(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 

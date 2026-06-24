@@ -165,17 +165,13 @@ def _build_layered_signal_if_available(
         ),
     )
     if decision.signal is None:
+        diagnostics = list(decision.diagnostics)
         return StrategySignal(
             action="WAIT",
             strategy_type="SYSTEM",
             reason=["no layered strategy candidate ready"],
-            condition_statuses=list(decision.diagnostics),
-            nearest_strategy={
-                "name": decision.candidates[0] if decision.candidates else "SYSTEM",
-                "matched": 0,
-                "total": 0,
-                "action": "WAIT",
-            },
+            condition_statuses=diagnostics,
+            nearest_strategy=_nearest_layered_strategy(decision.candidates, diagnostics),
         )
     return StrategySignal(
         action=decision.signal.action,
@@ -195,6 +191,31 @@ def _build_layered_signal_if_available(
             "action": decision.signal.action,
         },
     )
+
+
+def _nearest_layered_strategy(
+    candidates: tuple[str, ...],
+    diagnostics: list[dict[str, object]],
+) -> dict[str, object]:
+    if candidates:
+        name = candidates[0]
+    elif diagnostics:
+        name = str(diagnostics[0].get("strategy") or diagnostics[0].get("strategy_type") or "SYSTEM")
+    else:
+        name = "SYSTEM"
+    selected = [
+        diagnostic
+        for diagnostic in diagnostics
+        if str(diagnostic.get("strategy") or diagnostic.get("strategy_type") or "") == name
+    ]
+    if not selected and not candidates:
+        selected = diagnostics
+    return {
+        "name": name,
+        "matched": sum(1 for diagnostic in selected if diagnostic.get("passed")),
+        "total": len(selected),
+        "action": "WAIT",
+    }
 
 
 def _trend_snapshot_from(frame: TrendFrame) -> TrendSnapshot:

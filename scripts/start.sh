@@ -9,6 +9,7 @@ VENV_PYTHON="$ROOT_DIR/.venv/bin/python"
 PORT_ENV="$ROOT_DIR/.env.ports.generated"
 REGENERATE_PORTS="${REGENERATE_PORTS:-0}"
 START_MODE="${START_MODE:-background}"
+KLINE_SYNC_LIMIT="${KLINE_SYNC_LIMIT:-160}"
 RUNTIME_DIR="$ROOT_DIR/runtime"
 LOG_DIR="$RUNTIME_DIR/logs"
 PAPER_REALTIME_PID=""
@@ -113,6 +114,17 @@ PY
 done
 
 DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" -m alembic upgrade head
+
+sync_required_klines() {
+  echo "检查并补齐策略所需 K 线数据..."
+  DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" scripts/sync_klines.py \
+    --symbols BTCUSDT ETHUSDT \
+    --intervals 1d 4h 1h 15m \
+    --limit "$KLINE_SYNC_LIMIT" \
+    --write
+}
+
+sync_required_klines
 
 start_paper_realtime() {
   if [[ "$START_MODE" == "foreground" ]]; then
