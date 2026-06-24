@@ -52,8 +52,13 @@ def paper_snapshot_from_payload(payload: dict[str, Any]) -> PaperSnapshot:
 def save_paper_snapshot(snapshot: PaperSnapshot, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = paper_snapshot_to_payload(snapshot)
-    preserved_fields = _read_preserved_state_fields(path)
+    existing_payload = _read_existing_state_payload(path)
+    preserved_fields = _read_preserved_state_fields(existing_payload)
     payload.update(preserved_fields)
+    if not payload.get("signal_evaluations"):
+        existing_signal_evaluations = existing_payload.get("signal_evaluations")
+        if isinstance(existing_signal_evaluations, list) and existing_signal_evaluations:
+            payload["signal_evaluations"] = existing_signal_evaluations
     path.write_text(
         json.dumps(payload, indent=2, sort_keys=True),
         encoding="utf-8",
@@ -67,13 +72,17 @@ def load_paper_snapshot(path: Path) -> PaperSnapshot | None:
     return paper_snapshot_from_payload(payload)
 
 
-def _read_preserved_state_fields(path: Path) -> dict[str, Any]:
+def _read_existing_state_payload(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _read_preserved_state_fields(payload: dict[str, Any]) -> dict[str, Any]:
     preserved: dict[str, Any] = {}
     prices = payload.get("market_prices")
     if isinstance(prices, dict):

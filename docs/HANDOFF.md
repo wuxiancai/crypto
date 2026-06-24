@@ -25,6 +25,11 @@
 
 ## 本轮修复
 
+- 2026-06-24 平仓后策略条件和 K 线图保留修复：
+  - 根因：实时 Paper 平仓时会生成 `SYSTEM / position closed on current kline` 临时信号，并把同一交易对同一周期的真实策略评估替换掉；状态页随后读不到 `condition_statuses` 和 `chart_timeframes`，就显示“暂无策略触发条件 / 暂无K线图数据”。
+  - 修复：平仓事件仍写入复盘事件和成交记录，但不再覆盖 `signal_evaluations`；保存 Paper 快照时，如果新快照没有策略评估而旧状态文件有最近一次有效策略评估，会保留旧评估，避免启动、价格更新或平仓后擦掉页面诊断数据。
+  - 说明：截图中的 `61917.54` 是空单移动止盈保护线，不是 21:44 那根 1m K 线最高价；系统用持仓入场周期的已收盘 K 线高低点判断是否触发，`exit_time` 记录的是该 K 线 `close_time` 并按 UTC+8 展示。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_0_persistent_paper_stream.py tests/test_v1_0_paper_persistence.py -q`，31 passed；`py_compile` 和 `git diff --check` 通过。
 - 2026-06-24 合约持仓金额与杠杆显示修复：
   - 永续合约持仓表和模拟交易记录不再把币数量作为主展示列，改为显示 `USDT` 列，数值为 `开仓价 × 币数量`，更符合 USDT 本位合约账户阅读习惯。
   - 持仓和成交记录新增“杠杆”列；新状态会持久化 `leverage`，旧状态缺失时默认按当前系统默认 `10X` 显示。

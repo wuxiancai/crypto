@@ -82,10 +82,11 @@ async def run_persistent_paper_kline_stream(
                 strategy_type="SYSTEM",
                 reason=["position closed on current kline"],
             )
-        signal_evaluations = _append_signal_evaluation(
-            signal_evaluations,
-            _signal_evaluation_from(kline=kline, signal=signal, evaluated_at_ms=_now_ms()),
-        )
+        if closed_fill is None:
+            signal_evaluations = _append_signal_evaluation(
+                signal_evaluations,
+                _signal_evaluation_from(kline=kline, signal=signal, evaluated_at_ms=_now_ms()),
+            )
         latest_snapshot = replace(
             engine.snapshot(),
             runtime_started_at_ms=runtime_started_at_ms,

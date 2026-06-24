@@ -148,7 +148,92 @@ def test_persistent_paper_stream_does_not_reenter_on_same_kline_after_exit(tmp_p
 
     assert len(snapshot.fills) == 1
     assert snapshot.open_position is None
-    assert snapshot.signal_evaluations[-1].reason == ("position closed on current kline",)
+    assert snapshot.signal_evaluations == []
+
+
+def test_persistent_paper_stream_keeps_strategy_evaluation_after_exit(tmp_path):
+    from app.data.quality import Kline
+    from app.paper.persistence import load_paper_snapshot, save_paper_snapshot
+    from app.paper.stream import run_persistent_paper_kline_stream
+    from app.paper.trading import PaperConfig, PaperPosition, PaperSignalEvaluation, PaperSnapshot
+    from app.strategy.pullback_strategy import TradeSignal
+
+    state_path = tmp_path / "paper-state.json"
+    save_paper_snapshot(
+        PaperSnapshot(
+            equity=Decimal("10000"),
+            open_position=PaperPosition(
+                symbol="BTCUSDT",
+                side="SHORT",
+                strategy_type="SHORT_DAY_CORE",
+                bucket="DAY_CORE",
+                entry_time=0,
+                entry_price=Decimal("62768.60"),
+                stop_loss=Decimal("61917.54"),
+                take_profit=Decimal("61980.80"),
+                quantity=Decimal("0.0113"),
+                entry_fee=Decimal("0"),
+                trailing_active=True,
+            ),
+            fills=[],
+            rejected_signals=0,
+            signal_evaluations=[
+                PaperSignalEvaluation(
+                    evaluated_at_ms=1_000,
+                    symbol="BTCUSDT",
+                    interval="15m",
+                    close=Decimal("61325.6"),
+                    action="WAIT",
+                    strategy_type="SHORT_DAY_CORE",
+                    reason=("日线空头条件复核",),
+                    core_rules=("1d EMA15 < MA60：空头基础",),
+                    chart_points=({"time": 1_000, "close": "61325.6"},),
+                    chart_timeframes={"15m": ({"time": 1_000, "close": "61325.6"},)},
+                    condition_statuses=({"text": "日线空头基础", "passed": True},),
+                )
+            ],
+        ),
+        state_path,
+    )
+
+    async def source():
+        yield Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("61500"),
+            high=Decimal("61920"),
+            low=Decimal("61300"),
+            close=Decimal("61400"),
+            volume=Decimal("10"),
+        )
+
+    def signal_fn(kline: Kline, has_position: bool) -> TradeSignal:
+        raise AssertionError("closed positions must not evaluate a same-candle entry signal")
+
+    snapshot = asyncio.run(
+        run_persistent_paper_kline_stream(
+            config=PaperConfig(
+                initial_equity=Decimal("10000"),
+                risk_per_trade_pct=Decimal("0.01"),
+                maker_fee_rate=Decimal("0"),
+                taker_fee_rate=Decimal("0"),
+                slippage_pct=Decimal("0"),
+                trend_pullback_take_profit_mode="TRAILING",
+            ),
+            source=source(),
+            signal_fn=signal_fn,
+            state_path=state_path,
+        )
+    )
+
+    persisted = load_paper_snapshot(state_path)
+
+    assert len(snapshot.fills) == 1
+    assert snapshot.signal_evaluations[0].strategy_type == "SHORT_DAY_CORE"
+    assert snapshot.signal_evaluations[0].chart_timeframes["15m"][0]["close"] == "61325.6"
+    assert persisted == snapshot
 
 
 def test_persistent_paper_stream_records_wait_signal_reason(tmp_path):

@@ -91,6 +91,63 @@ def test_serializes_and_restores_paper_runtime_metadata():
     assert restored == snapshot
 
 
+def test_saving_paper_snapshot_preserves_existing_signal_evaluations_when_new_snapshot_is_empty(tmp_path):
+    import json
+
+    from app.paper.persistence import save_paper_snapshot
+    from app.paper.trading import PaperSnapshot
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1_000,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "61325.6",
+                        "action": "WAIT",
+                        "strategy_type": "SHORT_DAY_CORE",
+                        "reason": ["日线空头条件复核"],
+                        "core_rules": ["1d EMA15 < MA60：空头基础"],
+                        "chart_points": [{"time": 1_000, "close": "61325.6"}],
+                        "chart_timeframes": {
+                            "15m": [{"time": 1_000, "close": "61325.6"}]
+                        },
+                        "condition_statuses": [
+                            {"text": "日线空头基础", "passed": True}
+                        ],
+                        "nearest_strategy": {},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    save_paper_snapshot(
+        PaperSnapshot(
+            equity=Decimal("1005"),
+            open_position=None,
+            fills=[],
+            rejected_signals=0,
+            signal_evaluations=[],
+        ),
+        state_path,
+    )
+
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+
+    assert payload["equity"] == "1005"
+    assert payload["signal_evaluations"][0]["strategy_type"] == "SHORT_DAY_CORE"
+    assert payload["signal_evaluations"][0]["chart_timeframes"]["15m"][0]["close"] == "61325.6"
+
+
 def test_saving_paper_snapshot_preserves_existing_realtime_market_prices(tmp_path):
     import json
 
