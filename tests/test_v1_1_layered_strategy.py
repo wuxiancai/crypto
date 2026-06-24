@@ -126,7 +126,7 @@ def test_short_day_core_diagnostics_include_full_1d_4h_1h_15m_chain():
         "日线空头基础",
         "4h 空头基础",
         "1h 空头基础",
-        "15m 空头反弹到快线区域",
+        "15m 空头入场条件",
         "15m 空头已确认",
         "止损有效",
     ):
@@ -447,8 +447,71 @@ def test_layered_strategy_keeps_confirmed_daily_short_regime_when_current_moment
         if item.get("strategy") == "SHORT_DAY_CORE"
     }
     assert statuses["日线空头已确认"]["passed"] is True
-    assert statuses["当前日线空头动能"]["passed"] is False
-    assert statuses["当前日线空头动能"]["required"] is False
+    assert "当前日线空头动能" not in statuses
+
+
+def test_layered_strategy_allows_deep_short_continuation_without_fast_ma_rebound():
+    from app.strategy.layered_strategy import (
+        LayeredEntryFrame,
+        LayeredStrategyConfig,
+        LayeredStrategyInput,
+        TrendSnapshot,
+        build_layered_strategy_decision,
+    )
+
+    decision = build_layered_strategy_decision(
+        LayeredStrategyInput(
+            symbol="BTCUSDT",
+            daily=TrendSnapshot(
+                close=Decimal("62000"),
+                fast_ma=Decimal("64000"),
+                slow_ma=Decimal("66000"),
+                fast_ma_slope=Decimal("-200"),
+                adx=Decimal("25"),
+                di_plus=Decimal("15"),
+                di_minus=Decimal("30"),
+            ),
+            four_hour=TrendSnapshot(
+                close=Decimal("61800"),
+                fast_ma=Decimal("62500"),
+                slow_ma=Decimal("64000"),
+                fast_ma_slope=Decimal("-150"),
+                adx=Decimal("24"),
+                di_plus=Decimal("14"),
+                di_minus=Decimal("31"),
+            ),
+            one_hour=TrendSnapshot(
+                close=Decimal("61750"),
+                fast_ma=Decimal("62200"),
+                slow_ma=Decimal("63500"),
+                fast_ma_slope=Decimal("-80"),
+                adx=Decimal("23"),
+                di_plus=Decimal("16"),
+                di_minus=Decimal("29"),
+            ),
+            entry=LayeredEntryFrame(
+                close=Decimal("60000"),
+                open=Decimal("60400"),
+                high=Decimal("60600"),
+                low=Decimal("59800"),
+                fast_ma=Decimal("62000"),
+                atr=Decimal("300"),
+                recent_swing_low=Decimal("59500"),
+                recent_swing_high=Decimal("62800"),
+            ),
+        ),
+        LayeredStrategyConfig(),
+    )
+
+    assert decision.signal is not None
+    assert decision.signal.strategy_type == "SHORT_DAY_CORE"
+    statuses = {
+        str(item["text"]): item
+        for item in decision.diagnostics
+        if item.get("strategy") == "SHORT_DAY_CORE"
+    }
+    assert statuses["15m 空头入场条件"]["passed"] is True
+    assert "顺势延续" in str(statuses["15m 空头入场条件"]["detail"])
 
 
 def test_layered_strategy_flips_daily_short_to_long_only_after_daily_long_regime_confirms():

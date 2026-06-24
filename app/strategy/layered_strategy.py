@@ -346,33 +346,37 @@ def _trend_diagnostics(
     config: LayeredStrategyConfig,
     regime: TrendRegime | None = None,
 ) -> list[dict[str, object]]:
-    prefix = "当前" if regime is not None else ""
-    momentum_required = regime is None
     if direction == "UP":
-        return [
+        conditions = [
             _condition(strategy_type, f"{label}基础", _bullish_basis(snapshot), _ma_detail(snapshot, "UP")),
             *_regime_confirmation_condition(strategy_type, label, regime, "LONG"),
             _condition(strategy_type, f"{label}斜率", _bullish_slope(snapshot), _slope_detail(snapshot, "UP")),
-            _condition(
-                strategy_type,
-                f"{prefix}{label}动能",
-                _bullish_momentum(snapshot, config),
-                _momentum_detail(snapshot, config, "UP"),
-                required=momentum_required,
-            ),
         ]
-    return [
+        if regime is None:
+            conditions.append(
+                _condition(
+                    strategy_type,
+                    f"{label}动能",
+                    _bullish_momentum(snapshot, config),
+                    _momentum_detail(snapshot, config, "UP"),
+                )
+            )
+        return conditions
+    conditions = [
         _condition(strategy_type, f"{label}基础", _bearish_basis(snapshot), _ma_detail(snapshot, "DOWN")),
         *_regime_confirmation_condition(strategy_type, label, regime, "SHORT"),
         _condition(strategy_type, f"{label}斜率", _bearish_slope(snapshot), _slope_detail(snapshot, "DOWN")),
-        _condition(
-            strategy_type,
-            f"{prefix}{label}动能",
-            _bearish_momentum(snapshot, config),
-            _momentum_detail(snapshot, config, "DOWN"),
-            required=momentum_required,
-        ),
     ]
+    if regime is None:
+        conditions.append(
+            _condition(
+                strategy_type,
+                f"{label}动能",
+                _bearish_momentum(snapshot, config),
+                _momentum_detail(snapshot, config, "DOWN"),
+            )
+        )
+    return conditions
 
 
 def _entry_diagnostics(
@@ -383,12 +387,12 @@ def _entry_diagnostics(
 ) -> list[dict[str, object]]:
     if direction == "UP":
         return [
-            _condition(strategy_type, f"{label}回踩到快线区域", _long_entry_zone(entry), _entry_zone_detail(entry, "UP")),
+            _condition(strategy_type, f"{label}入场条件", _long_entry_setup(entry), _entry_setup_detail(entry, "UP")),
             _condition(strategy_type, f"{label}已确认", _bullish_entry_confirmation(entry), _entry_confirmation_detail(entry, "UP")),
             _condition(strategy_type, "止损有效", entry.close > entry.recent_swing_low, f"entry={entry.close} > swing_low={entry.recent_swing_low}"),
         ]
     return [
-        _condition(strategy_type, f"{label}反弹到快线区域", _short_entry_zone(entry), _entry_zone_detail(entry, "DOWN")),
+        _condition(strategy_type, f"{label}入场条件", _short_entry_setup(entry), _entry_setup_detail(entry, "DOWN")),
         _condition(strategy_type, f"{label}已确认", _bearish_entry_confirmation(entry), _entry_confirmation_detail(entry, "DOWN")),
         _condition(strategy_type, "止损有效", entry.close < entry.recent_swing_high, f"entry={entry.close} < swing_high={entry.recent_swing_high}"),
     ]
@@ -429,11 +433,19 @@ def _condition(
 
 
 def _bullish_entry(entry: LayeredEntryFrame) -> bool:
-    return _long_entry_zone(entry) and _bullish_entry_confirmation(entry) and entry.close > entry.recent_swing_low
+    return _long_entry_setup(entry) and _bullish_entry_confirmation(entry) and entry.close > entry.recent_swing_low
 
 
 def _bearish_entry(entry: LayeredEntryFrame) -> bool:
-    return _short_entry_zone(entry) and _bearish_entry_confirmation(entry) and entry.close < entry.recent_swing_high
+    return _short_entry_setup(entry) and _bearish_entry_confirmation(entry) and entry.close < entry.recent_swing_high
+
+
+def _long_entry_setup(entry: LayeredEntryFrame) -> bool:
+    return _long_entry_zone(entry) or entry.close > entry.fast_ma
+
+
+def _short_entry_setup(entry: LayeredEntryFrame) -> bool:
+    return _short_entry_zone(entry) or entry.close < entry.fast_ma
 
 
 def _long_entry_zone(entry: LayeredEntryFrame) -> bool:
@@ -454,10 +466,18 @@ def _bearish_entry_confirmation(entry: LayeredEntryFrame) -> bool:
     return entry.close < entry.open
 
 
-def _entry_zone_detail(entry: LayeredEntryFrame, direction: str) -> str:
+def _entry_setup_detail(entry: LayeredEntryFrame, direction: str) -> str:
     if direction == "UP":
-        return f"low={entry.low} <= fast_ma+ATR={entry.fast_ma + entry.atr}, close={entry.close} >= fast_ma-ATR={entry.fast_ma - entry.atr}"
-    return f"high={entry.high} >= fast_ma-ATR={entry.fast_ma - entry.atr}, close={entry.close} <= fast_ma+ATR={entry.fast_ma + entry.atr}"
+        return (
+            f"回踩区: low={entry.low} <= fast_ma+ATR={entry.fast_ma + entry.atr}, "
+            f"close={entry.close} >= fast_ma-ATR={entry.fast_ma - entry.atr}; "
+            f"顺势延续: close={entry.close} > fast_ma={entry.fast_ma}"
+        )
+    return (
+        f"反弹区: high={entry.high} >= fast_ma-ATR={entry.fast_ma - entry.atr}, "
+        f"close={entry.close} <= fast_ma+ATR={entry.fast_ma + entry.atr}; "
+        f"顺势延续: close={entry.close} < fast_ma={entry.fast_ma}"
+    )
 
 
 def _entry_confirmation_detail(entry: LayeredEntryFrame, direction: str) -> str:

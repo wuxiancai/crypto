@@ -979,7 +979,7 @@ def test_paper_status_page_hides_malformed_system_placeholder_conditions(tmp_pat
     assert "daily trend unclear" in html
 
 
-def test_paper_status_page_treats_confirmed_regime_momentum_as_observation(tmp_path):
+def test_paper_status_page_omits_non_required_confirmed_regime_momentum(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 
     state_path = tmp_path / "paper-state.json"
@@ -1037,11 +1037,11 @@ def test_paper_status_page_treats_confirmed_regime_momentum_as_observation(tmp_p
 
     assert "当前趋势：BTCUSDT 日线核心做空 · 已满足 2/2" in html
     assert "condition-pass" in html
-    assert "condition-info" in html
-    assert "观察" in html
+    assert "condition-status condition-info" not in html
+    assert "观察" not in html
     assert "日线空头基础" in html
     assert "日线空头斜率" in html
-    assert "当前日线空头动能" in html
+    assert "当前日线空头动能" not in html
     assert "所有关键条件已满足" in html
     assert "还差：当前日线空头动能" not in html
     assert "日线趋势明确" not in html
@@ -1061,7 +1061,7 @@ def test_paper_status_page_shows_layered_day_core_full_trigger_chain(tmp_path):
         {"strategy": "SHORT_DAY_CORE", "text": "1h 空头基础", "passed": True, "detail": "EMA15 < MA60"},
         {"strategy": "SHORT_DAY_CORE", "text": "1h 空头斜率", "passed": True, "detail": "slope < 0"},
         {"strategy": "SHORT_DAY_CORE", "text": "1h 空头动能", "passed": True, "detail": "DI- > DI+"},
-        {"strategy": "SHORT_DAY_CORE", "text": "15m 空头反弹到快线区域", "passed": True, "detail": "high >= fast_ma-ATR"},
+        {"strategy": "SHORT_DAY_CORE", "text": "15m 空头入场条件", "passed": True, "detail": "反弹区或顺势延续"},
         {"strategy": "SHORT_DAY_CORE", "text": "15m 空头已确认", "passed": True, "detail": "close < open"},
         {"strategy": "SHORT_DAY_CORE", "text": "止损有效", "passed": True, "detail": "entry < swing_high"},
     ]
@@ -1101,7 +1101,7 @@ def test_paper_status_page_shows_layered_day_core_full_trigger_chain(tmp_path):
     assert "日线空头基础" in html
     assert "4h 空头基础" in html
     assert "1h 空头基础" in html
-    assert "15m 空头反弹到快线区域" in html
+    assert "15m 空头入场条件" in html
     assert "15m 空头已确认" in html
 
 

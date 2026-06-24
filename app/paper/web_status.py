@@ -2074,7 +2074,7 @@ def _conditions_for_strategy(raw_conditions: Any, strategy_name: str | None) -> 
         for condition in raw_conditions
         if isinstance(condition, dict)
         for normalized in [_normalize_condition(condition)]
-        if normalized is not None
+        if normalized is not None and normalized.get("required", True)
     ]
     if strategy_name is None:
         return conditions

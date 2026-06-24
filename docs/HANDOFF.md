@@ -25,6 +25,10 @@
 
 ## 本轮修复
 
+- 2026-06-24 分层策略条件展示与 15m 入场优化：
+  - 已确认 regime 下的“当前日线/4h/1h 动能”不再作为观察项显示；页面只展示真正参与触发或确认链路的条件，避免用户误读“观察”是否影响开仓。
+  - 15m 入场条件从“必须反弹/回踩到快线区域”调整为“反弹/回踩到快线区域，或价格已在快线顺势侧并继续确认”。强空头深跌后，即使小反弹不到快线附近，只要 1d/4h/1h 空头链路完整、15m 收阴确认且止损有效，也可以触发空头入场。
+  - 状态页旧状态文件中的 `required=false` 条件会被过滤，不再显示“观察”。
 - 2026-06-24 实时 Paper K 线落库修复：
   - 根因：实时 Paper 进程收到 Binance WebSocket 已收盘 K 线后，只更新内存策略缓存、Paper 状态文件和复盘事件，没有同步写入 `klines` 表；因此进程运行期间新产生的 15m / 1h K 线会等到下次 `scripts/start.sh` 的 REST 同步才插入数据库。
   - 修复：`RealMarketPaperConfig` 新增 `kline_session_factory`；实时 K 线源在进入撮合引擎前会调用 `upsert_klines()` 持久化 WebSocket 与启动 catchup K 线，写库失败只记录日志，不中断 Paper 交易循环。
@@ -64,7 +68,7 @@
 - 2026-06-24 模拟交易看板持仓与条件展示修复：
   - 状态页“全部模拟交易记录”现在会合并显示当前未平仓子仓和已平仓记录；未平仓记录显示为“持仓中”，避免出现已有持仓但交易记录区域为空的误导。
   - 顶部统计卡从“模拟成交次数”改为“模拟交易记录”，计数包含当前持仓中的开仓记录和已平仓记录。
-  - 分层策略 diagnostics 新增 `required` 标记；已确认 regime 下的“当前日线/4h/1h 动能”只作为观察项，不再计入“还差”条件，也不再显示为红色未满足。
+  - 分层策略 diagnostics 新增 `required` 标记；已确认 regime 下的“当前日线/4h/1h 动能”不会再作为触发条件展示，避免无关观察项干扰阅读。
   - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_1_layered_strategy.py tests/test_v1_0_realtime_strategy_adapter.py -q`，37 passed；`py_compile` 和 `git diff --check` 通过。
 - 2026-06-24 分层趋势 regime 状态机修复：
   - 已将 `1d / 4h / 1h` 从“每根最新 K 线即时重新投票”调整为“最近一次完整确认后保持 regime，直到反向也完整确认才翻转”。完整确认仍要求均线方向、快线斜率、ADX 和 DI 方向同时满足。
@@ -74,7 +78,7 @@
   - 覆盖测试：新增 regime 保持、反向确认翻转、日线核心仓反转退出、hedge 仓保留等回归。
 - 2026-06-24 分层策略触发条件诊断细化：
   - 根因：当日线 `EMA15 < MA60` 但 ADX/DI 动能过滤未满足时，`app/strategy/layered_strategy.py` 只输出笼统的 `DAY_CORE false / daily trend unclear`，状态页显示为“日线趋势明确 0/1”，会让用户误以为均线空头也没有被识别。
-  - 修复：分层策略诊断拆为“基础 / 已确认 / 斜率 / 当前动能”条件；例如日线均线空头会显示“日线空头基础：满足”，若当前 ADX 或 DI 不达标则明确显示“当前日线空头动能：未满足”并带计算明细，但不会抹掉已确认的日线 regime。
+  - 修复：分层策略诊断拆为“基础 / 已确认 / 斜率 / 动能”条件；未形成 regime 时动能参与确认，已确认 regime 后页面以“已确认”代表此前动能确认，不再显示当前动能观察项。
   - 覆盖测试：新增策略核心和状态页回归，防止再次退回“日线趋势明确”这种黑盒提示。
 - 2026-06-24 Ubuntu 部署 `docker-compose-plugin` 缺包修复：
   - 根因：`scripts/deploy_ubuntu.sh` 在 Docker CE 源不可用时执行 `apt-get install docker.io docker-compose-plugin`，某些 Ubuntu 镜像默认源没有 `docker-compose-plugin`，导致 Docker Engine 安装阶段直接失败并输出 `E: Unable to locate package docker-compose-plugin`。
