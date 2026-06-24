@@ -63,7 +63,7 @@ def test_start_script_supports_systemd_foreground_mode():
 def test_start_script_syncs_required_klines_before_realtime_runner():
     content = Path("scripts/start.sh").read_text(encoding="utf-8")
 
-    assert 'KLINE_SYNC_LIMIT="${KLINE_SYNC_LIMIT:-160}"' in content
+    assert 'KLINE_SYNC_LIMIT="${KLINE_SYNC_LIMIT:-800}"' in content
     assert "scripts/sync_klines.py" in content
     assert "--intervals 1d 4h 1h 15m" in content
     assert "--write" in content

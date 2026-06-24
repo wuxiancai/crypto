@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import hashlib
 import json
 from decimal import Decimal
@@ -22,8 +23,40 @@ from app.strategy.layered_strategy import (
 )
 
 
-def upsert_klines(session: Session, rows: list[Kline]) -> int:
-    written = 0
+@dataclass(frozen=True)
+class KlineUpsertStats:
+    inserted: int = 0
+    updated: int = 0
+    unchanged: int = 0
+
+    @property
+    def written(self) -> int:
+        return self.inserted + self.updated
+
+    @property
+    def processed(self) -> int:
+        return self.inserted + self.updated + self.unchanged
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, int):
+            return self.written == other
+        if isinstance(other, KlineUpsertStats):
+            return (
+                self.inserted,
+                self.updated,
+                self.unchanged,
+            ) == (
+                other.inserted,
+                other.updated,
+                other.unchanged,
+            )
+        return NotImplemented
+
+
+def upsert_klines(session: Session, rows: list[Kline]) -> KlineUpsertStats:
+    inserted = 0
+    updated = 0
+    unchanged = 0
     for row in rows:
         existing = session.execute(
             select(KlineRecord).where(
@@ -34,6 +67,9 @@ def upsert_klines(session: Session, rows: list[Kline]) -> int:
         ).scalar_one_or_none()
         if existing is None:
             session.add(_to_record(row))
+            inserted += 1
+        elif _record_matches_kline(existing, row):
+            unchanged += 1
         else:
             existing.close_time = row.close_time
             existing.open = row.open
@@ -42,9 +78,21 @@ def upsert_klines(session: Session, rows: list[Kline]) -> int:
             existing.close = row.close
             existing.volume = row.volume
             existing.is_closed = row.is_closed
-        written += 1
+            updated += 1
     session.commit()
-    return written
+    return KlineUpsertStats(inserted=inserted, updated=updated, unchanged=unchanged)
+
+
+def _record_matches_kline(record: KlineRecord, row: Kline) -> bool:
+    return (
+        record.close_time == row.close_time
+        and record.open == row.open
+        and record.high == row.high
+        and record.low == row.low
+        and record.close == row.close
+        and record.volume == row.volume
+        and record.is_closed == row.is_closed
+    )
 
 
 def _to_record(row: Kline) -> KlineRecord:

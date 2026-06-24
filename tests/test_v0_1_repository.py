@@ -25,8 +25,21 @@ def test_upserts_klines_by_symbol_interval_open_time():
     )
 
     with Session(engine) as session:
-        assert upsert_klines(session, [row]) == 1
-        assert upsert_klines(session, [row.model_copy(update={"close": Decimal("106")})]) == 1
+        inserted = upsert_klines(session, [row])
+        unchanged = upsert_klines(session, [row])
+        updated = upsert_klines(session, [row.model_copy(update={"close": Decimal("106")})])
+
+        assert inserted.inserted == 1
+        assert inserted.updated == 0
+        assert inserted.unchanged == 0
+        assert unchanged.inserted == 0
+        assert unchanged.updated == 0
+        assert unchanged.unchanged == 1
+        assert unchanged.written == 0
+        assert updated.inserted == 0
+        assert updated.updated == 1
+        assert updated.unchanged == 0
+        assert updated == 1
 
         saved = session.execute(select(KlineRecord)).scalar_one()
         assert saved.close == Decimal("106")

@@ -41,13 +41,16 @@ async def sync_klines(symbols: Sequence[str], intervals: Sequence[str], limit: i
             assert session_factory is not None
             try:
                 with session_factory() as session:
-                    written = upsert_klines(session, rows)
+                    stats = upsert_klines(session, rows)
             except SQLAlchemyError as exc:
                 raise RuntimeError(
                     "failed to write klines to DATABASE_URL. "
                     "Start PostgreSQL first or set DATABASE_URL to a reachable database."
                 ) from exc
-            print(f"WROTE {symbol} {interval}: {written} klines")
+            print(
+                f"SYNC {symbol} {interval}: fetched {len(rows)} closed klines, "
+                f"inserted {stats.inserted}, updated {stats.updated}, unchanged {stats.unchanged}"
+            )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

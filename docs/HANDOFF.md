@@ -25,6 +25,12 @@
 
 ## 本轮修复
 
+- 2026-06-24 启动 K 线同步日志与默认历史长度修复：
+  - 根因不是第二次启动真的重新“补齐”了 159 根，而是 `upsert_klines()` 旧返回值把已存在行也算作 `written`，`sync_klines.py` 又统一打印 `WROTE ... klines`，导致日志语义误导。
+  - `upsert_klines()` 现在返回 `inserted / updated / unchanged`，并跳过完全相同 K 线的数据库更新；`sync_klines.py` 输出 `SYNC ... fetched / inserted / updated / unchanged`，第二次启动可直接看出已有数据未变化。
+  - `scripts/start.sh` 默认 `KLINE_SYNC_LIMIT` 从 160 调整为 800。日线约 800 根，可覆盖 2 年回测窗口加 MA60 预热；1d 的 `1 年 + 61 根` 理解成立，2 年则需要约 `730 + 60`。
+  - 当前 Web 回测/批量回测的 1 年、2 年历史仍由回测逻辑按 Binance REST 分页拉取并缓存，不只依赖启动同步写入数据库的最近 800 根。启动同步主要保证实时 Paper、状态页和基础历史检查有足够近期 K 线。
+  - 不在启动时默认拉满 15m/1h/4h 的 2 年数据库历史：15m 两年约 7 万根/交易对，2c2g 服务器每次启动做完整补齐会拖慢启动；完整回测由分页回测路径负责。
 - 2026-06-24 策略 K 线图交互修复：
   - 根因是状态页 K 线图只由后端输出静态 SVG，页面只绑定了交易对/周期 tab 切换，没有给 K 线图绑定 hover、tooltip、十字线或滚轮窗口切换事件；不是策略逻辑错误，也不是本次截图现象本身指向 K 线数据不足。
   - `app/paper/web_status.py` 现在会在 SVG 上嵌入完整图表点 JSON，并保留 `open_time/close_time/time`；前端加载后会重绘可视窗口，支持鼠标悬停查看时间、OHLC、快慢均线值，支持滚轮在已下发历史 K 线窗口内前后移动。

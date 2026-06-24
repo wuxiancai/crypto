@@ -51,6 +51,47 @@ def test_sync_klines_dry_run_fetches_each_symbol_interval_without_writing(monkey
     assert "DRY-RUN ETHUSDT 15m: fetched 1 closed klines" in output
 
 
+def test_sync_klines_reports_write_counts(monkeypatch, capsys):
+    from app.data.quality import INTERVAL_MS, Kline
+    from app.database.repositories import KlineUpsertStats
+    import scripts.sync_klines as sync
+
+    async def fake_fetch_klines(symbol, interval, limit, settings):
+        return [
+            Kline(
+                symbol=symbol,
+                interval=interval,
+                open_time=0,
+                close_time=INTERVAL_MS[interval] - 1,
+                open=Decimal("100"),
+                high=Decimal("101"),
+                low=Decimal("99"),
+                close=Decimal("100"),
+                volume=Decimal("10"),
+            )
+        ]
+
+    class FakeSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    monkeypatch.setattr(sync, "fetch_klines", fake_fetch_klines)
+    monkeypatch.setattr(sync, "build_session_factory", lambda _settings: lambda: FakeSession())
+    monkeypatch.setattr(
+        sync,
+        "upsert_klines",
+        lambda _session, _rows: KlineUpsertStats(inserted=1, updated=2, unchanged=3),
+    )
+
+    asyncio.run(sync.sync_klines(["BTCUSDT"], ["1d"], limit=6, dry_run=False))
+
+    output = capsys.readouterr().out
+    assert "SYNC BTCUSDT 1d: fetched 1 closed klines, inserted 1, updated 2, unchanged 3" in output
+
+
 def test_sync_klines_reports_database_write_failure(monkeypatch):
     import pytest
     from sqlalchemy.exc import OperationalError
