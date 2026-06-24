@@ -25,6 +25,10 @@
 
 ## 本轮修复
 
+- 2026-06-24 新增统一停止脚本：
+  - 新增 `scripts/stop.sh`，用于停止本项目相关进程：先尝试停止 `crypto-paper.service`，再通过 pid 文件和进程 pattern 兜底停止 `scripts/run_paper_realtime.py`、`scripts/run_paper_status_web.py`，最后停止 PostgreSQL 容器。
+  - 默认会停止 PostgreSQL；如只停止 Paper/Web，可执行 `STOP_POSTGRES=0 bash scripts/stop.sh`。
+  - `docs/UBUNTU_DEPLOY.md` 的停止服务说明已统一改为 `bash scripts/stop.sh`。
 - 2026-06-24 启动 K 线同步日志与默认历史长度修复：
   - 根因不是第二次启动真的重新“补齐”了 159 根，而是 `upsert_klines()` 旧返回值把已存在行也算作 `written`，`sync_klines.py` 又统一打印 `WROTE ... klines`，导致日志语义误导。
   - `upsert_klines()` 现在返回 `inserted / updated / unchanged`，并跳过完全相同 K 线的数据库更新；`sync_klines.py` 输出 `SYNC ... fetched / inserted / updated / unchanged`，第二次启动可直接看出已有数据未变化。

@@ -182,21 +182,16 @@ sudo journalctl -u crypto-paper.service -f
 
 ## 停止服务
 
-systemd 部署下停止服务：
+统一停止入口：
 
 ```bash
-sudo systemctl stop crypto-paper.service
+bash scripts/stop.sh
 ```
 
-无 systemd 手动启动模式下停止模拟交易和 Web 页面：
+该脚本会先尝试停止 `crypto-paper.service`，再兜底停止 Paper 实时交易进程、Web 状态页进程和 PostgreSQL 容器。
+
+如只想停止 Paper/Web，保留 PostgreSQL 容器运行：
 
 ```bash
-pkill -f scripts/run_paper_realtime.py
-pkill -f scripts/run_paper_status_web.py
-```
-
-无 systemd 手动启动模式下停止 PostgreSQL：
-
-```bash
-docker compose --env-file .env.ports.generated down
+STOP_POSTGRES=0 bash scripts/stop.sh
 ```

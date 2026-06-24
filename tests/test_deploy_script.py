@@ -87,3 +87,17 @@ def test_systemd_install_script_uses_start_script_in_foreground_mode():
     assert "Restart=always" in content
     assert "systemctl enable" in content
     assert "systemctl restart" in content
+
+
+def test_stop_script_stops_all_project_processes():
+    content = Path("scripts/stop.sh").read_text(encoding="utf-8")
+
+    assert 'SERVICE_NAME="${SERVICE_NAME:-crypto-paper}"' in content
+    assert "sudo systemctl stop" in content
+    assert "runtime/paper-realtime.pid" in content or "paper-realtime.pid" in content
+    assert "runtime/paper-status-web.pid" in content or "paper-status-web.pid" in content
+    assert "scripts/run_paper_realtime.py" in content
+    assert "scripts/run_paper_status_web.py" in content
+    assert "pgrep -f" in content
+    assert "compose --env-file \"$PORT_ENV\" stop postgres" in content
+    assert 'STOP_POSTGRES="${STOP_POSTGRES:-1}"' in content
