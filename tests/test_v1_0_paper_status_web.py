@@ -101,7 +101,8 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
 
     assert "10080" in html
     assert "模拟交易看板" in html
-    assert "系统运行时间" in html
+    assert "运行时间" in html
+    assert "系统运行时间" not in html
     assert "2 分钟" in html
     assert "账户权益" in html
     assert "持仓情况" in html
@@ -117,16 +118,16 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "当前策略详情" in html
     assert "Paper复盘" in html
     assert 'href="/paper/events"' in html
-    assert "symbol = BTCUSDT" in html
-    assert "fast_ma = EMA15" in html
-    assert "slow_ma = MA60" in html
-    assert "atr_period = 14" in html
-    assert "dmi_period = 12" in html
-    assert "swing_lookback = 20" in html
-    assert "max_fee_to_risk_ratio = 0" in html
-    assert "trend_pullback_take_profit_mode = TRAILING" in html
-    assert "require_pullback_close_beyond_fast_ma = false" in html
-    assert "enable_reversal_probe = false" in html
+    assert "币种" in html
+    assert "快线" in html
+    assert "慢线" in html
+    assert "EMA15" in html
+    assert "MA60" in html
+    assert "DMI" in html
+    assert "Swing" in html
+    assert "费险" in html
+    assert "TRAILING" in html
+    assert "false" in html
     assert "ETHUSDT" in html
     assert "做空" in html
     assert "BTCUSDT" in html
@@ -269,7 +270,7 @@ def test_status_page_uses_soft_refresh_without_full_page_meta_reload(tmp_path):
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
     assert '<meta http-equiv="refresh"' not in html
-    assert "5 秒自动刷新" in html
+    assert "5 秒自动刷新" not in html
     assert "setInterval(refreshDashboard, 5000)" in html
     assert "fetch(window.location.href" in html
     assert "snapshotActiveCharts" in html
@@ -472,8 +473,8 @@ def test_paper_status_page_explains_missing_strategy_data_and_shows_price_ticker
     payload = build_paper_status_payload(state_path)
     html = render_paper_status_html(payload)
 
-    assert "永续实时价格" in html
-    assert "BTCUSDT" in html
+    assert "永续实时价格" not in html
+    assert "BTCUSDT 永续" in html
     assert "63424.90" in html
     assert "ETHUSDT" in html
     assert "1707.37" in html

@@ -87,15 +87,18 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     h1 {{ font-size: 24px; margin: 0; }}
     .badge {{ font-size: 13px; padding: 6px 10px; border: 1px solid #b8c2d6; border-radius: 4px; background: #fff; }}
     .nav-button {{ color: #b42318; text-decoration: none; font-weight: 700; border-color: #ef4444; }}
-    .ticker-strip {{ flex: 1; min-width: 280px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }}
-    .ticker-item {{ display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 10px; border: 1px solid #d9e0ec; border-radius: 4px; background: #fff; }}
+    .ticker-strip {{ flex: 1; min-width: 420px; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: nowrap; }}
+    .ticker-item {{ display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 10px; border: 1px solid #d9e0ec; border-radius: 4px; background: #fff; white-space: nowrap; }}
     .ticker-symbol {{ color: #65748b; font-size: 12px; font-weight: 700; }}
     .ticker-price {{ color: #172033; font-size: 16px; font-weight: 700; }}
-    .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(230px, 1fr); gap: 12px; margin-bottom: 16px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(280px, 1.2fr); gap: 12px; margin-bottom: 16px; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
-    .strategy-detail-panel {{ padding: 10px 12px; max-height: 86px; overflow-y: auto; }}
-    .strategy-detail-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }}
-    .strategy-detail-block {{ font-family: Menlo, Consolas, monospace; font-size: 11px; line-height: 1.35; color: #344055; white-space: pre-wrap; }}
+    .strategy-detail-panel {{ padding: 9px 10px; }}
+    .strategy-detail-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }}
+    .strategy-detail-block {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 8px; font-family: Menlo, Consolas, monospace; font-size: 10px; line-height: 1.25; color: #344055; }}
+    .strategy-detail-row {{ display: flex; gap: 3px; min-width: 0; }}
+    .strategy-detail-key {{ color: #65748b; white-space: nowrap; }}
+    .strategy-detail-value {{ color: #172033; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .form-grid {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: end; }}
     .form-field {{ display: grid; gap: 6px; }}
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
@@ -144,7 +147,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       main {{ padding: 14px; }}
       header {{ align-items: flex-start; flex-direction: column; }}
       .header-meta {{ justify-content: flex-start; }}
-      .ticker-strip {{ justify-content: flex-start; width: 100%; }}
+      .ticker-strip {{ justify-content: flex-start; width: 100%; min-width: 0; overflow-x: auto; }}
       .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .strategy-detail-panel {{ grid-column: 1 / -1; max-height: none; }}
       .strategy-detail-grid {{ grid-template-columns: 1fr; }}
@@ -162,8 +165,8 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       <div class="header-meta">
         <a class="badge nav-button" href="/backtest" target="_blank" rel="noopener">策略回测</a>
         <a class="badge" href="/paper/events" target="_blank" rel="noopener">Paper复盘</a>
-        <div class="badge">系统运行时间：{_format_duration(payload.get("runtime_seconds"))}</div>
-        <div class="badge">{_status_label(payload.get("status"))} · 5 秒自动刷新</div>
+        <div class="badge">运行时间：{_format_duration(payload.get("runtime_seconds"))}</div>
+        <div class="badge">{_status_label(payload.get("status"))}</div>
       </div>
     </header>
     <section class="grid">
@@ -1290,7 +1293,7 @@ def _render_market_prices(prices: dict[str, Any]) -> str:
     symbols = ("BTCUSDT", "ETHUSDT")
     items = "".join(
         f"""<div class="ticker-item">
-  <span class="ticker-symbol">{symbol} 永续实时价格</span>
+  <span class="ticker-symbol">{symbol} 永续</span>
   <span class="ticker-price">{_format_decimal(prices.get(symbol), 2)}</span>
 </div>"""
         for symbol in symbols
@@ -1301,7 +1304,7 @@ def _render_market_prices(prices: dict[str, Any]) -> str:
 def _render_strategy_details(details: list[dict[str, Any]]) -> str:
     effective_details = details or _default_strategy_details()
     blocks = "".join(
-        f'<div class="strategy-detail-block">{_escape(_strategy_detail_text(detail))}</div>'
+        f'<div class="strategy-detail-block">{_render_strategy_detail_rows(detail)}</div>'
         for detail in effective_details
     )
     return f"""<div class="panel strategy-detail-panel">
@@ -1310,25 +1313,24 @@ def _render_strategy_details(details: list[dict[str, Any]]) -> str:
 </div>"""
 
 
-def _strategy_detail_text(detail: dict[str, Any]) -> str:
-    ordered_keys = (
-        "symbol",
-        "fast_ma",
-        "slow_ma",
-        "atr_period",
-        "dmi_period",
-        "swing_lookback",
-        "max_fee_to_risk_ratio",
-        "trend_pullback_take_profit_mode",
-        "pullback_zone_atr_multiplier",
-        "require_pullback_close_beyond_fast_ma",
-        "enable_reversal_probe",
+def _render_strategy_detail_rows(detail: dict[str, Any]) -> str:
+    labels = (
+        ("币种", "symbol"),
+        ("快线", "fast_ma"),
+        ("慢线", "slow_ma"),
+        ("ATR", "atr_period"),
+        ("DMI", "dmi_period"),
+        ("Swing", "swing_lookback"),
+        ("费险", "max_fee_to_risk_ratio"),
+        ("止盈", "trend_pullback_take_profit_mode"),
+        ("Zone", "pullback_zone_atr_multiplier"),
+        ("收盘", "require_pullback_close_beyond_fast_ma"),
+        ("反转", "enable_reversal_probe"),
     )
-    lines = [
-        f"{key} = {_strategy_detail_value(detail.get(key))}"
-        for key in ordered_keys
-    ]
-    return "\n".join(lines)
+    return "".join(
+        f'<div class="strategy-detail-row"><span class="strategy-detail-key">{_escape(label)}</span><span class="strategy-detail-value">{_escape(_strategy_detail_value(detail.get(key)))}</span></div>'
+        for label, key in labels
+    )
 
 
 def _strategy_detail_value(value: Any) -> str:
