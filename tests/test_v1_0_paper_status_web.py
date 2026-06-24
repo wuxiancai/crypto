@@ -288,10 +288,13 @@ def test_status_page_shows_multiple_strategy_bucket_positions(tmp_path):
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
     assert "2 个策略子仓" in html
+    assert "模拟交易记录" in html
+    assert "持仓中" in html
     assert "SHORT_DAY_CORE" in html
     assert "LONG_4H_HEDGE" in html
     assert "DAY_CORE" in html
     assert "FOUR_HOUR_HEDGE" in html
+    assert "暂无模拟交易记录" not in html
 
 
 def test_status_page_uses_soft_refresh_without_full_page_meta_reload(tmp_path):
@@ -945,7 +948,7 @@ def test_paper_status_page_hides_malformed_system_placeholder_conditions(tmp_pat
     assert "daily trend unclear" in html
 
 
-def test_paper_status_page_shows_layered_bearish_details_instead_of_unclear_trend(tmp_path):
+def test_paper_status_page_treats_confirmed_regime_momentum_as_observation(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 
     state_path = tmp_path / "paper-state.json"
@@ -968,7 +971,7 @@ def test_paper_status_page_shows_layered_bearish_details_instead_of_unclear_tren
                         "nearest_strategy": {
                             "name": "SHORT_DAY_CORE",
                             "matched": 2,
-                            "total": 3,
+                            "total": 2,
                             "action": "WAIT",
                         },
                         "condition_statuses": [
@@ -988,6 +991,7 @@ def test_paper_status_page_shows_layered_bearish_details_instead_of_unclear_tren
                                 "strategy": "SHORT_DAY_CORE",
                                 "text": "当前日线空头动能",
                                 "passed": False,
+                                "required": False,
                                 "detail": "ADX=12 >= 20, DI-=20 > DI+=25",
                             },
                         ],
@@ -1000,13 +1004,15 @@ def test_paper_status_page_shows_layered_bearish_details_instead_of_unclear_tren
 
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
-    assert "当前趋势：BTCUSDT 日线核心做空 · 已满足 2/3" in html
+    assert "当前趋势：BTCUSDT 日线核心做空 · 已满足 2/2" in html
     assert "condition-pass" in html
-    assert "condition-fail" in html
+    assert "condition-info" in html
+    assert "观察" in html
     assert "日线空头基础" in html
     assert "日线空头斜率" in html
     assert "当前日线空头动能" in html
-    assert "还差：当前日线空头动能" in html
+    assert "所有关键条件已满足" in html
+    assert "还差：当前日线空头动能" not in html
     assert "日线趋势明确" not in html
 
 

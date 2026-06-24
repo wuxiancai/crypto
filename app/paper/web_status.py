@@ -136,6 +136,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .condition-status {{ font-weight: 700; white-space: nowrap; }}
     .condition-pass {{ color: #0a7c52; }}
     .condition-fail {{ color: #b42318; }}
+    .condition-info {{ color: #65748b; }}
     .condition-detail {{ color: #65748b; overflow-wrap: anywhere; margin-top: 6px; }}
     .condition-detail summary {{ cursor: pointer; color: #65748b; }}
     .chart-wrap {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 10px; overflow-x: auto; }}
@@ -186,7 +187,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     <section class="grid">
       <div class="panel"><div class="label">账户权益 USDT</div><div class="value">{_format_decimal(payload.get("equity"), 2)}</div></div>
       <div class="panel"><div class="label">持仓情况</div><div class="value">{_position_title(positions)}</div></div>
-      <div class="panel"><div class="label">模拟成交次数</div><div class="value">{len(fills)}</div></div>
+      <div class="panel"><div class="label">模拟交易记录</div><div class="value">{len(fills) + len(positions)}</div></div>
       <div class="panel"><div class="label" id="rejected-signals">拒绝信号</div><div class="value">{_escape(payload.get("rejected_signals"))}</div></div>
       {_render_system_metrics(payload.get("system_metrics", {}))}
       {_render_strategy_details(payload.get("strategy_details", []))}
@@ -197,7 +198,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     </section>
     <section style="margin-top: 16px;">
       <h2>全部模拟交易记录</h2>
-      {_render_fills(fills)}
+      {_render_fills(fills, positions)}
     </section>
     <section style="margin-top: 16px;">
       <h2>策略触发条件</h2>
@@ -1467,10 +1468,12 @@ def _selected_attr(selected: bool) -> str:
     return " selected" if selected else ""
 
 
-def _render_fills(fills: list[dict[str, Any]]) -> str:
-    if not fills:
-        return '<div class="empty">暂无模拟成交</div>'
-    rows = "\n".join(_render_fill_row(fill) for fill in fills)
+def _render_fills(fills: list[dict[str, Any]], positions: list[dict[str, Any]] | None = None) -> str:
+    open_trades = _open_position_trade_rows(positions or [])
+    trade_rows = [*open_trades, *fills]
+    if not trade_rows:
+        return '<div class="empty">暂无模拟交易记录</div>'
+    rows = "\n".join(_render_fill_row(fill) for fill in trade_rows)
     return f"""<div class="table-wrap trade-scroll">
 <table>
   <thead>
@@ -2006,15 +2009,18 @@ def _latest_condition_evaluations_by_symbol(evaluations: list[dict[str, Any]]) -
 
 def _render_condition_row(condition: dict[str, Any]) -> str:
     passed = bool(condition.get("passed"))
-    status_class = "condition-pass" if passed else "condition-fail"
+    required = bool(condition.get("required", True))
+    status_class = "condition-pass" if passed else ("condition-fail" if required else "condition-info")
     return f"""<div class="condition-row">
-  <div><span class="condition-status {status_class}">{_condition_status_label(passed)}</span> {_escape(condition.get("text"))}</div>
+  <div><span class="condition-status {status_class}">{_condition_status_label(passed, required)}</span> {_escape(condition.get("text"))}</div>
   <details class="condition-detail"><summary>计算明细</summary>{_escape(condition.get("detail"))}</details>
 </div>"""
 
 
-def _condition_status_label(passed: bool) -> str:
-    return "满足" if passed else "未满足"
+def _condition_status_label(passed: bool, required: bool = True) -> str:
+    if passed:
+        return "满足"
+    return "未满足" if required else "观察"
 
 
 def _nearest_strategy_summary(nearest: Any, symbol: Any = None) -> str:
@@ -2065,11 +2071,12 @@ def _nearest_strategy_for_conditions(nearest: Any, conditions: list[dict[str, An
     condition_strategy = conditions[0].get("strategy")
     if not condition_strategy:
         return nearest
+    required = [condition for condition in conditions if condition.get("required", True)]
     return {
         **nearest,
         "name": condition_strategy,
-        "matched": sum(1 for condition in conditions if condition.get("passed")),
-        "total": len(conditions),
+        "matched": sum(1 for condition in required if condition.get("passed")),
+        "total": len(required),
     }
 
 
@@ -2122,7 +2129,7 @@ def _missing_conditions_summary(conditions: list[dict[str, Any]]) -> str:
     missing = [
         str(condition.get("text"))
         for condition in conditions
-        if not condition.get("passed") and condition.get("text")
+        if condition.get("required", True) and not condition.get("passed") and condition.get("text")
     ]
     if not missing:
         return "所有关键条件已满足，等待下一根已收盘 K 线确认或执行。"
@@ -2462,6 +2469,30 @@ def _fmt(value: Decimal) -> str:
     return format(value.quantize(Decimal("0.01")), "f")
 
 
+def _open_position_trade_rows(positions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = []
+    for position in positions:
+        if not isinstance(position, dict):
+            continue
+        rows.append(
+            {
+                "symbol": position.get("symbol"),
+                "side": position.get("side"),
+                "strategy_type": position.get("strategy_type"),
+                "entry_time": position.get("entry_time"),
+                "exit_time": None,
+                "entry_price": position.get("entry_price"),
+                "exit_price": None,
+                "quantity": position.get("quantity"),
+                "fees": position.get("entry_fee"),
+                "funding_fee": None,
+                "net_pnl": None,
+                "exit_reason": "OPEN",
+            }
+        )
+    return rows
+
+
 def _render_fill_row(fill: dict[str, Any]) -> str:
     pnl = str(fill.get("net_pnl", "0"))
     pnl_class = "loss" if pnl.startswith("-") else "profit"
@@ -2509,6 +2540,8 @@ def _exit_reason_label(reason: Any, detail: Any = None) -> str:
         return detail_text or "移动止盈"
     if reason == "LIQUIDATION":
         return "强平"
+    if reason == "OPEN":
+        return "持仓中"
     return _escape(reason)
 
 

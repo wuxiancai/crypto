@@ -319,18 +319,31 @@ def _trend_diagnostics(
     regime: TrendRegime | None = None,
 ) -> list[dict[str, object]]:
     prefix = "当前" if regime is not None else ""
+    momentum_required = regime is None
     if direction == "UP":
         return [
             _condition(strategy_type, f"{label}基础", _bullish_basis(snapshot), _ma_detail(snapshot, "UP")),
             *_regime_confirmation_condition(strategy_type, label, regime, "LONG"),
             _condition(strategy_type, f"{label}斜率", _bullish_slope(snapshot), _slope_detail(snapshot, "UP")),
-            _condition(strategy_type, f"{prefix}{label}动能", _bullish_momentum(snapshot, config), _momentum_detail(snapshot, config, "UP")),
+            _condition(
+                strategy_type,
+                f"{prefix}{label}动能",
+                _bullish_momentum(snapshot, config),
+                _momentum_detail(snapshot, config, "UP"),
+                required=momentum_required,
+            ),
         ]
     return [
         _condition(strategy_type, f"{label}基础", _bearish_basis(snapshot), _ma_detail(snapshot, "DOWN")),
         *_regime_confirmation_condition(strategy_type, label, regime, "SHORT"),
         _condition(strategy_type, f"{label}斜率", _bearish_slope(snapshot), _slope_detail(snapshot, "DOWN")),
-        _condition(strategy_type, f"{prefix}{label}动能", _bearish_momentum(snapshot, config), _momentum_detail(snapshot, config, "DOWN")),
+        _condition(
+            strategy_type,
+            f"{prefix}{label}动能",
+            _bearish_momentum(snapshot, config),
+            _momentum_detail(snapshot, config, "DOWN"),
+            required=momentum_required,
+        ),
     ]
 
 
@@ -351,13 +364,20 @@ def _regime_confirmation_condition(
     return [_condition(strategy_type, f"{label}已确认", passed, detail)]
 
 
-def _condition(strategy_type: str, text: str, passed: bool, detail: str) -> dict[str, object]:
+def _condition(
+    strategy_type: str,
+    text: str,
+    passed: bool,
+    detail: str,
+    required: bool = True,
+) -> dict[str, object]:
     return {
         "strategy": strategy_type,
         "strategy_type": strategy_type,
         "text": text,
         "passed": passed,
         "detail": detail,
+        "required": required,
     }
 
 

@@ -25,6 +25,11 @@
 
 ## 本轮修复
 
+- 2026-06-24 模拟交易看板持仓与条件展示修复：
+  - 状态页“全部模拟交易记录”现在会合并显示当前未平仓子仓和已平仓记录；未平仓记录显示为“持仓中”，避免出现已有持仓但交易记录区域为空的误导。
+  - 顶部统计卡从“模拟成交次数”改为“模拟交易记录”，计数包含当前持仓中的开仓记录和已平仓记录。
+  - 分层策略 diagnostics 新增 `required` 标记；已确认 regime 下的“当前日线/4h/1h 动能”只作为观察项，不再计入“还差”条件，也不再显示为红色未满足。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_paper_status_web.py tests/test_v1_1_layered_strategy.py tests/test_v1_0_realtime_strategy_adapter.py -q`，37 passed；`py_compile` 和 `git diff --check` 通过。
 - 2026-06-24 分层趋势 regime 状态机修复：
   - 已将 `1d / 4h / 1h` 从“每根最新 K 线即时重新投票”调整为“最近一次完整确认后保持 regime，直到反向也完整确认才翻转”。完整确认仍要求均线方向、快线斜率、ADX 和 DI 方向同时满足。
   - 日线主趋势现在由 `daily_regime` 决定：日线空头确认后，即使当前 ADX/DI 降温，也不会立刻抹掉空头主趋势；只有日线 `EMA15 > MA60` 且 ADX/DI 多头确认后，才从空头主趋势反转为多头主趋势。多头反向同理。

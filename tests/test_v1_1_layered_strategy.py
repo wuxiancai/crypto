@@ -317,6 +317,7 @@ def test_layered_strategy_keeps_confirmed_daily_short_regime_when_current_moment
     }
     assert statuses["日线空头已确认"]["passed"] is True
     assert statuses["当前日线空头动能"]["passed"] is False
+    assert statuses["当前日线空头动能"]["required"] is False
 
 
 def test_layered_strategy_flips_daily_short_to_long_only_after_daily_long_regime_confirms():

@@ -217,10 +217,11 @@ def _nearest_layered_strategy(
     ]
     if not selected and not candidates:
         selected = diagnostics
+    required = [diagnostic for diagnostic in selected if diagnostic.get("required", True)]
     return {
         "name": name,
-        "matched": sum(1 for diagnostic in selected if diagnostic.get("passed")),
-        "total": len(selected),
+        "matched": sum(1 for diagnostic in required if diagnostic.get("passed")),
+        "total": len(required),
         "action": "WAIT",
     }
 
