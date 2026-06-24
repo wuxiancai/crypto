@@ -1219,11 +1219,10 @@ def _render_position(position: dict[str, Any] | None) -> str:
         ("交易对", _escape(position.get("symbol"))),
         ("方向", _side_label(position.get("side"))),
         ("使用策略", _escape(position.get("strategy_type"))),
-        ("入场 / 止损 / 止盈激活价", " / ".join([
-            _format_decimal(position.get("entry_price"), 2),
-            _format_decimal(position.get("stop_loss"), 2),
-            _format_decimal(position.get("take_profit"), 2),
-        ])),
+        ("入场", _format_decimal(position.get("entry_price"), 2)),
+        ("初始止损", _format_decimal(_initial_stop_loss_value(position), 2)),
+        ("当前保护线", _format_decimal(position.get("stop_loss"), 2)),
+        ("止盈激活价", _format_decimal(position.get("take_profit"), 2)),
         ("止盈逻辑", "移动止盈中" if position.get("trailing_active") else "等待激活"),
         ("数量", _format_decimal(position.get("quantity"), 4)),
     ]
@@ -1245,6 +1244,7 @@ def _render_positions(positions: list[dict[str, Any]]) -> str:
             f"<td>{_escape(position.get('strategy_type'))}</td>"
             f"<td>{_escape(position.get('bucket') or '-')}</td>"
             f"<td>{_format_decimal(position.get('entry_price'), 2)}</td>"
+            f"<td>{_format_decimal(_initial_stop_loss_value(position), 2)}</td>"
             f"<td>{_format_decimal(position.get('stop_loss'), 2)}</td>"
             f"<td>{_format_decimal(position.get('take_profit'), 2)}</td>"
             f"<td>{'移动止盈中' if position.get('trailing_active') else '等待激活'}</td>"
@@ -1254,9 +1254,13 @@ def _render_positions(positions: list[dict[str, Any]]) -> str:
     return (
         '<div class="table-wrap"><table class="compact-position">'
         "<thead><tr><th>交易对</th><th>方向</th><th>使用策略</th><th>Bucket</th>"
-        "<th>入场</th><th>止损</th><th>止盈激活价</th><th>止盈逻辑</th><th>数量</th></tr></thead>"
+        "<th>入场</th><th>初始止损</th><th>当前保护线</th><th>止盈激活价</th><th>止盈逻辑</th><th>数量</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
+
+
+def _initial_stop_loss_value(position: dict[str, Any]) -> Any:
+    return position.get("initial_stop_loss") or position.get("stop_loss")
 
 
 def _render_history_period_options(selected: Any) -> str:

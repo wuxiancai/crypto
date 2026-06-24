@@ -25,8 +25,9 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
                     "strategy_type": "TREND_PULLBACK",
                     "entry_time": 1000,
                     "entry_price": "1800",
-                    "stop_loss": "1820",
+                    "stop_loss": "1760",
                     "take_profit": "1760",
+                    "initial_stop_loss": "1820",
                     "quantity": "0.5",
                     "entry_fee": "0.36",
                     "trailing_active": True,
@@ -106,8 +107,12 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "2 分钟" in html
     assert "账户权益" in html
     assert "持仓情况" in html
+    assert "初始止损" in html
+    assert "当前保护线" in html
     assert "止盈激活价" in html
     assert "止盈逻辑" in html
+    assert "1820.00" in html
+    assert "1760.00" in html
     assert "移动止盈中" in html
     assert "全部模拟交易记录" in html
     assert "开仓时间 UTC+8" in html
@@ -264,6 +269,7 @@ def test_status_page_shows_multiple_strategy_bucket_positions(tmp_path):
                         "entry_price": "62000",
                         "stop_loss": "65000",
                         "take_profit": "56000",
+                        "initial_stop_loss": "65000",
                         "quantity": "0.01",
                         "entry_fee": "0",
                     },
@@ -274,8 +280,10 @@ def test_status_page_shows_multiple_strategy_bucket_positions(tmp_path):
                         "bucket": "FOUR_HOUR_HEDGE",
                         "entry_time": 2000,
                         "entry_price": "64000",
-                        "stop_loss": "63000",
+                        "stop_loss": "65000",
                         "take_profit": "66000",
+                        "initial_stop_loss": "63000",
+                        "trailing_active": True,
                         "quantity": "0.02",
                         "entry_fee": "0",
                     },
@@ -296,9 +304,12 @@ def test_status_page_shows_multiple_strategy_bucket_positions(tmp_path):
     assert "LONG_4H_HEDGE" in html
     assert "DAY_CORE" in html
     assert "FOUR_HOUR_HEDGE" in html
+    assert "初始止损" in html
+    assert "当前保护线" in html
     assert "止盈激活价" in html
     assert "止盈逻辑" in html
     assert "等待激活" in html
+    assert "移动止盈中" in html
     assert "暂无模拟交易记录" not in html
 
 
