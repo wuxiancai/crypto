@@ -152,6 +152,53 @@ def test_required_history_keeps_enough_points_to_draw_slow_ma_line():
     assert _required_history_limit(config) == 139
 
 
+def test_default_realtime_signal_blocks_entries_near_funding_settlement():
+    from app.data.binance import FundingSnapshot
+    from app.paper.live_runner import build_default_realtime_signal_fn
+    from app.paper.strategy_adapter import RealtimeStrategyConfig
+
+    warmup_klines = [
+        *(
+            _kline("BTCUSDT", "4h", index, close)
+            for index, close in enumerate(["100", "104", "108", "112", "116", "120"])
+        ),
+        *(
+            _kline("BTCUSDT", "1h", index, close)
+            for index, close in enumerate(["108", "112", "116", "120", "124", "128"])
+        ),
+        *(
+            _kline("BTCUSDT", "15m", index, close)
+            for index, close in enumerate(["120", "124", "128", "124"])
+        ),
+    ]
+    entry_kline = _kline("BTCUSDT", "15m", 4, "126", open_price="125")
+    funding_snapshots = {
+        "BTCUSDT": FundingSnapshot(
+            symbol="BTCUSDT",
+            last_funding_rate=Decimal("0.0001"),
+            next_funding_time=entry_kline.close_time + 10 * 60 * 1000,
+            event_time=entry_kline.close_time,
+        )
+    }
+    signal_fn = build_default_realtime_signal_fn(
+        RealtimeStrategyConfig(
+            ema_fast_period=3,
+            ema_slow_period=5,
+            atr_period=3,
+            dmi_period=3,
+            swing_lookback=5,
+        ),
+        warmup_klines=warmup_klines,
+        funding_snapshots=funding_snapshots,
+    )
+
+    signal = signal_fn(entry_kline, has_position=False)
+
+    assert signal.action == "WAIT"
+    assert signal.strategy_type == "TREND_PULLBACK"
+    assert "funding_settlement_window" in signal.reason
+
+
 def test_real_market_paper_runner_writes_strategy_details_to_state(tmp_path):
     import json
 

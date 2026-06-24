@@ -144,7 +144,7 @@
 - 当前已支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE` 信号；趋势转换信号会使用自身 `risk_pct` 风险上限。
 - 当前已实现永续合约默认成本：maker 挂单手续费 0.02%，taker 吃单手续费 0.05%；入场按 taker，止损按 taker，止盈按 maker。
 - 当前已输出整体指标与按 `strategy_type` 拆分的交易次数、胜负、gross_pnl、fees、net_pnl。
-- 当前已实现 8 小时资金费率模拟，资金费进入 trade 与整体指标；当前资金费率为可配置参数，默认 0，尚未自动接入 Binance 实时 funding rate。
+- 当前已实现 8 小时资金费率模拟，资金费进入 trade 与整体指标；实时 Paper 启动时会从 Binance USDⓈ-M Futures Mark Price / Premium Index 拉取 `lastFundingRate` 和 `nextFundingTime`，用于 Funding 入场过滤。拉取失败时会记录并降级为不启用自动 funding 阻断，避免打断 Paper runner。
 - 当前已实现交易所 `quantity_step`、`min_qty`、`min_notional` 过滤；价格精度仍待进一步细化为不同订单类型的 tick 方向。
 - 当前已实现止损专用滑点与跳空越过止损时的极端成交价。
 - 当前已实现限价未触达不成交、限价部分成交比例和 partial_fills 统计。
@@ -216,6 +216,7 @@
 说明：
 
 - 当前已实现 Funding 过滤器：距离结算时间 <= 15 分钟禁止新开仓，abs(funding_rate) >= 0.0015 禁止新开仓，abs(funding_rate) >= 0.0005 输出 WARN 并将仓位乘数降为 0.5。
+- 2026-06-24 实时 Paper 默认接入 Binance funding snapshot：启动时按 symbol 拉取 `lastFundingRate` 和 `nextFundingTime`，默认信号函数会在新开仓前执行 Funding filter；命中结算窗口或高费率时转为 WAIT，并在原因中记录 funding rate 与距离结算分钟数。
 - 当前已实现 AI filter 接口与 deterministic stub：默认 `enabled = false` 时输出 ALLOW；新闻不可用时 fallback BLOCK；显式模拟重大风险事件时 BLOCK。
 - 当前已实现 AI filter 日志 entry：记录输入 payload、输出 payload、fallback_reason、provider 和 evaluated_at，真实 LLM 仍未接入且默认关闭。
 

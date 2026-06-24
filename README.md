@@ -9,6 +9,7 @@
 - Paper/Backtest 多策略子仓。
 - 事件驱动回测。
 - 真实行情驱动的 Paper Trading。
+- Binance funding snapshot 驱动的模拟入场过滤。
 - 中文 Web 状态页与回测页面。
 - PostgreSQL 持久化与 Alembic migration。
 - 风控模块、状态机和第二版 Live 前自检预留校验能力。

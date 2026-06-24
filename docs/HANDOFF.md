@@ -205,7 +205,7 @@
 - V0.3 回测已支持永续合约默认成本：maker 挂单手续费 0.02%，taker 吃单手续费 0.05%；入场 taker，止损 taker，止盈 maker。
 - V0.3 回测已输出整体指标与按 `strategy_type` 拆分指标。
 - V0.3 回测已支持 `quantity_step`、`min_qty`、`min_notional` 交易所过滤，并记录 rejected_entries。
-- V0.3 回测已支持 8 小时资金费率模拟，funding_fee 会进入 trade 与 metrics；资金费率当前为可配置参数，默认 0，尚未自动接入 Binance 实时 funding rate。
+- V0.3 回测已支持 8 小时资金费率模拟，funding_fee 会进入 trade 与 metrics；实时 Paper 已接入 Binance Mark Price / Premium Index funding snapshot，用于新开仓前 Funding 过滤。回测 funding rate 仍为可配置输入，默认 0。
 - V0.3 回测已支持止损专用滑点，且跳空越过止损时按更差的开盘价作为极端成交基准。
 - V0.3 回测已支持限价未触达不成交、限价部分成交比例和 partial_fills 统计。
 - V0.3 回测已支持价格 tick 方向细化：买入向上取 tick，卖出向下取 tick。
@@ -233,6 +233,7 @@
 - V0.5 已实现 Kill Switch 状态转移：触发后禁止新开仓，可标记是否平仓，并记录操作者、原因、触发时间和解除操作者。
 - V0.5 已实现订单、成交、持仓状态机：覆盖订单提交、部分成交、完全成交、止损提交/确认/失败、止盈提交、退出成交；主订单成交但止损失败会进入 CRITICAL 并暂停新开仓。
 - V0.6 已实现 Funding 过滤器：距离结算时间 <= 15 分钟禁止新开仓，abs(funding_rate) >= 0.0015 禁止新开仓，abs(funding_rate) >= 0.0005 输出 WARN 并将仓位乘数降为 0.5。
+- 2026-06-24 实时 Paper 默认按 symbol 拉取 Binance funding snapshot；拉取失败只打印 `Funding snapshot fetch skipped` 并继续运行，避免外部 REST 问题影响模拟交易主循环。
 - V0.6 已实现 AI filter 接口与 deterministic stub：默认 `enabled = false` 时输出 ALLOW；新闻不可用时 fallback BLOCK；显式模拟重大风险事件时 BLOCK。
 - V0.6 已实现 AI filter 日志 entry：记录输入 payload、输出 payload、fallback_reason、provider 和 evaluated_at，真实 LLM 仍未接入且默认关闭。
 - 第二版预留能力已实现 Live 启动前自检纯校验层：任一失败项都会禁止启动 Live，并一次性返回所有 failed_checks。

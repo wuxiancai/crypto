@@ -55,6 +55,79 @@ def test_binance_kline_payload_parses_to_closed_decimal_kline():
     assert row.is_closed is True
 
 
+def test_binance_premium_index_payload_parses_funding_snapshot():
+    from app.data.binance import parse_binance_premium_index
+
+    snapshot = parse_binance_premium_index(
+        {
+            "symbol": "BTCUSDT",
+            "lastFundingRate": "0.00038246",
+            "nextFundingTime": 1_597_392_000_000,
+            "time": 1_597_370_495_002,
+        }
+    )
+
+    assert snapshot.symbol == "BTCUSDT"
+    assert snapshot.last_funding_rate == Decimal("0.00038246")
+    assert snapshot.next_funding_time == 1_597_392_000_000
+    assert snapshot.event_time == 1_597_370_495_002
+
+
+def test_fetch_funding_snapshots_reads_mark_price_endpoint(monkeypatch):
+    from app.config.settings import Settings
+    from app.data import binance
+    from app.data.binance import fetch_funding_snapshots
+
+    requests: list[tuple[str, dict[str, str]]] = []
+
+    class FakeResponse:
+        status_code = 200
+
+        def __init__(self, symbol: str):
+            self._symbol = symbol
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "symbol": self._symbol,
+                "lastFundingRate": "0.0005",
+                "nextFundingTime": 1_597_392_000_000,
+                "time": 1_597_370_495_002,
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        async def get(self, path, params):
+            requests.append((path, params))
+            return FakeResponse(str(params["symbol"]))
+
+    monkeypatch.setattr(binance.httpx, "AsyncClient", FakeClient)
+
+    snapshots = asyncio.run(
+        fetch_funding_snapshots(
+            ("BTCUSDT", "ETHUSDT"),
+            settings=Settings(binance_base_url="https://fapi.binance.com"),
+        )
+    )
+
+    assert requests == [
+        ("/fapi/v1/premiumIndex", {"symbol": "BTCUSDT"}),
+        ("/fapi/v1/premiumIndex", {"symbol": "ETHUSDT"}),
+    ]
+    assert snapshots["BTCUSDT"].last_funding_rate == Decimal("0.0005")
+    assert snapshots["ETHUSDT"].next_funding_time == 1_597_392_000_000
+
+
 def test_fetch_klines_retries_timeout_before_success(monkeypatch):
     import httpx
 

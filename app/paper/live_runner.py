@@ -7,7 +7,7 @@ from pathlib import Path
 import time
 from typing import Any
 
-from app.data.binance import fetch_klines
+from app.data.binance import FundingSnapshot, fetch_funding_snapshots, fetch_klines
 from app.data.quality import Kline
 from app.paper.binance_stream import (
     TickerPrice,
@@ -19,6 +19,7 @@ from app.paper.persistence import _fill_to_payload, _position_to_payload, load_p
 from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
 from app.paper.stream import PaperStreamEvent, PaperStreamEventSink, SignalFn, run_persistent_paper_kline_stream
 from app.paper.trading import PaperConfig, PaperSnapshot
+from app.risk.funding_filter import evaluate_funding_filter
 from app.strategy.signal_router import StrategySignal
 
 
@@ -55,6 +56,7 @@ class RealMarketPaperConfig:
     leverage: Decimal = Decimal("10")
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
+    auto_funding_filter_enabled: bool = True
     max_fee_to_risk_ratio: Decimal | None = Decimal("0")
     trend_pullback_take_profit_mode: str = "TRAILING"
     strategy_config: RealtimeStrategyConfig = field(default_factory=default_paper_strategy_config)
@@ -79,6 +81,11 @@ async def run_real_market_paper(
     historical_klines = warmup_klines
     if historical_klines is None and source is None and config.historical_warmup_enabled:
         historical_klines = await fetch_realtime_warmup_klines(config)
+    funding_snapshots = (
+        await fetch_realtime_funding_snapshots(config)
+        if source is None and config.auto_funding_filter_enabled
+        else {}
+    )
     catchup_klines = (
         _missing_klines_since_last_update(config.state_path, historical_klines or [])
         if source is None
@@ -110,6 +117,7 @@ async def run_real_market_paper(
             or build_default_realtime_signal_fn(
                 config.strategy_config,
                 warmup_klines=historical_klines or [],
+                funding_snapshots=funding_snapshots,
             ),
             state_path=config.state_path,
             event_sink=_paper_runtime_event_sink(config.event_session_factory),
@@ -197,6 +205,14 @@ async def fetch_realtime_warmup_klines(config: RealMarketPaperConfig) -> list[Kl
     return sorted(warmup, key=lambda kline: (kline.symbol, kline.interval, kline.open_time))
 
 
+async def fetch_realtime_funding_snapshots(config: RealMarketPaperConfig) -> dict[str, FundingSnapshot]:
+    try:
+        return await fetch_funding_snapshots(config.symbols)
+    except Exception as exc:
+        print(f"Funding snapshot fetch skipped: {exc}")
+        return {}
+
+
 def save_paper_strategy_details(config: RealMarketPaperConfig) -> None:
     payload = _read_state_payload_for_market_price(config.state_path, config.initial_equity)
     payload["strategy_details"] = [
@@ -232,6 +248,7 @@ def _strategy_detail_payload(symbol: str, config: RealMarketPaperConfig) -> dict
 def build_default_realtime_signal_fn(
     config: RealtimeStrategyConfig,
     warmup_klines: list[Kline] | tuple[Kline, ...] = (),
+    funding_snapshots: dict[str, FundingSnapshot] | None = None,
 ) -> SignalFn:
     max_history = _required_history_limit(config)
     cache = MultiTimeframeKlineCache(
@@ -255,9 +272,61 @@ def build_default_realtime_signal_fn(
                 strategy_type="SYSTEM",
                 reason=["non-entry interval observed"],
             )
-        return build_realtime_strategy_signal(frame, config=config)
+        signal = build_realtime_strategy_signal(frame, config=config)
+        return _apply_funding_filter(
+            signal=signal,
+            kline=kline,
+            funding_snapshots=funding_snapshots or {},
+        )
 
     return signal_fn
+
+
+def _apply_funding_filter(
+    signal: StrategySignal,
+    kline: Kline,
+    funding_snapshots: dict[str, FundingSnapshot],
+) -> StrategySignal:
+    if signal.action not in {"LONG_ENTRY", "SHORT_ENTRY", "REVERSAL_LONG_ENTRY", "REVERSAL_SHORT_ENTRY"}:
+        return signal
+    snapshot = funding_snapshots.get(kline.symbol)
+    if snapshot is None:
+        return signal
+    minutes_to_settlement = max(0, (snapshot.next_funding_time - kline.close_time) // 60_000)
+    result = evaluate_funding_filter(
+        funding_rate=snapshot.last_funding_rate,
+        minutes_to_settlement=int(minutes_to_settlement),
+    )
+    if result.decision == "ALLOW":
+        return signal
+    return StrategySignal(
+        action="WAIT",
+        strategy_type=signal.strategy_type,
+        bucket=signal.bucket,
+        reason=[
+            *signal.reason,
+            *result.reasons,
+            f"funding_rate={snapshot.last_funding_rate}",
+            f"minutes_to_settlement={minutes_to_settlement}",
+        ],
+        entry_price=signal.entry_price,
+        stop_loss=signal.stop_loss,
+        take_profit=signal.take_profit,
+        risk_reward=signal.risk_reward,
+        signal_level=signal.signal_level,
+        score=signal.score,
+        risk_pct=signal.risk_pct,
+        max_standard_position_pct=signal.max_standard_position_pct,
+        core_rules=signal.core_rules,
+        chart_points=signal.chart_points,
+        chart_timeframes=signal.chart_timeframes,
+        condition_statuses=signal.condition_statuses,
+        nearest_strategy={
+            **signal.nearest_strategy,
+            "action": "WAIT",
+            "funding_decision": result.decision,
+        },
+    )
 
 
 async def _chain_klines(
