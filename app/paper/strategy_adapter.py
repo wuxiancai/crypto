@@ -419,14 +419,16 @@ def _chart_points(
     if not klines:
         return []
     closes = [kline.close for kline in klines]
-    ema50_values = _moving_average(closes, config.ema_fast_period, config.fast_ma_type)
-    ema200_values = _moving_average(closes, config.ema_slow_period, config.slow_ma_type)
+    fast_values = _moving_average(closes, config.ema_fast_period, config.fast_ma_type)
+    slow_values = _moving_average(closes, config.ema_slow_period, config.slow_ma_type)
+    fast_label = _average_label(config.fast_ma_type, config.ema_fast_period)
+    slow_label = _average_label(config.slow_ma_type, config.ema_slow_period)
     start = max(0, len(klines) - max_points)
     points: list[dict[str, str]] = []
-    for kline, ema50_value, ema200_value in zip(
+    for kline, fast_value, slow_value in zip(
         klines[start:],
-        ema50_values[start:],
-        ema200_values[start:],
+        fast_values[start:],
+        slow_values[start:],
         strict=True,
     ):
         point = {
@@ -435,11 +437,15 @@ def _chart_points(
             "high": str(kline.high),
             "low": str(kline.low),
             "close": str(kline.close),
+            "fast_ma_label": fast_label,
+            "slow_ma_label": slow_label,
         }
-        if ema50_value is not None:
-            point["ema50"] = str(ema50_value)
-        if ema200_value is not None:
-            point["ema200"] = str(ema200_value)
+        if fast_value is not None:
+            point["ma_fast"] = str(fast_value)
+            point["ema50"] = str(fast_value)
+        if slow_value is not None:
+            point["ma_slow"] = str(slow_value)
+            point["ema200"] = str(slow_value)
         points.append(point)
     return points
 

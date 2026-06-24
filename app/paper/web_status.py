@@ -1638,11 +1638,11 @@ def _render_chart_symbol_panel(evaluation: dict[str, Any], active: bool) -> str:
 
 def _render_chart_controls_and_panels(
     evaluation: dict[str, Any],
-    chart_timeframes: dict[str, list[dict[str, Decimal]]],
+    chart_timeframes: dict[str, list[dict[str, Any]]],
     symbol_scoped: bool,
     group: str = "default",
 ) -> str:
-    preferred_order = ("4h", "1h", "15m")
+    preferred_order = ("1d", "4h", "1h", "15m")
     intervals = [
         interval
         for interval in preferred_order
@@ -1672,7 +1672,7 @@ def _render_chart_controls_and_panels(
   {panels}"""
 
 
-def _chart_timeframes_from_evaluation(evaluation: dict[str, Any]) -> dict[str, list[dict[str, Decimal]]]:
+def _chart_timeframes_from_evaluation(evaluation: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     raw_timeframes = evaluation.get("chart_timeframes")
     if isinstance(raw_timeframes, dict):
         chart_timeframes = {
@@ -1701,7 +1701,7 @@ def _render_chart_symbol_tab(symbol: str, active: bool) -> str:
 
 def _render_chart_panel(
     interval: str,
-    points: list[dict[str, Decimal]],
+    points: list[dict[str, Any]],
     symbol: Any,
     active: bool,
     symbol_scoped: bool = False,
@@ -1709,14 +1709,15 @@ def _render_chart_panel(
 ) -> str:
     active_class = " active" if active else ""
     chart_id = _chart_id(interval, symbol=str(symbol) if symbol_scoped else None)
+    fast_label, slow_label = _chart_average_labels(points)
     return f"""<div class="chart-panel{active_class}" data-chart-panel="{chart_id}" data-chart-group="{_escape(group)}">
   <div class="legend">
     <span class="legend-item"><span class="legend-swatch" style="background:#0a7c52"></span>K线</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span>EMA50</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:#9333ea"></span>EMA200</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span>{_escape(fast_label)}</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#9333ea"></span>{_escape(slow_label)}</span>
     <span>{_escape(symbol)} · {_escape(interval)}</span>
   </div>
-  {_render_chart_svg(points)}
+  {_render_chart_svg(points, fast_label=fast_label, slow_label=slow_label)}
 </div>"""
 
 
@@ -1765,24 +1766,41 @@ def _render_core_rules(rules: Any) -> str:
     return f'<ul class="rule-list">{items}</ul>'
 
 
-def _normalise_chart_points(raw_points: Any) -> list[dict[str, Decimal]]:
-    points: list[dict[str, Decimal]] = []
+def _normalise_chart_points(raw_points: Any) -> list[dict[str, Any]]:
+    points: list[dict[str, Any]] = []
     if not isinstance(raw_points, list):
         return points
     for raw in raw_points:
         if not isinstance(raw, dict):
             continue
-        point: dict[str, Decimal] = {}
-        for key in ("open", "high", "low", "close", "ema50", "ema200"):
+        point: dict[str, Any] = {}
+        for key in ("open", "high", "low", "close"):
             value = _to_decimal(raw.get(key))
             if value is not None:
                 point[key] = value
+        fast_value = _to_decimal(raw.get("ma_fast", raw.get("ema50")))
+        slow_value = _to_decimal(raw.get("ma_slow", raw.get("ema200")))
+        if fast_value is not None:
+            point["ma_fast"] = fast_value
+        if slow_value is not None:
+            point["ma_slow"] = slow_value
+        point["fast_ma_label"] = str(raw.get("fast_ma_label") or "EMA15")
+        point["slow_ma_label"] = str(raw.get("slow_ma_label") or "MA60")
         if {"open", "high", "low", "close"}.issubset(point):
             points.append(point)
     return points
 
 
-def _render_chart_svg(points: list[dict[str, Decimal]]) -> str:
+def _chart_average_labels(points: list[dict[str, Any]]) -> tuple[str, str]:
+    for point in points:
+        fast_label = str(point.get("fast_ma_label") or "").strip()
+        slow_label = str(point.get("slow_ma_label") or "").strip()
+        if fast_label or slow_label:
+            return fast_label or "EMA15", slow_label or "MA60"
+    return "EMA15", "MA60"
+
+
+def _render_chart_svg(points: list[dict[str, Any]], fast_label: str, slow_label: str) -> str:
     width = 1080
     height = 320
     padding_left = 48
@@ -1794,7 +1812,7 @@ def _render_chart_svg(points: list[dict[str, Decimal]]) -> str:
     values: list[Decimal] = []
     for point in points:
         values.extend([point["high"], point["low"]])
-        values.extend(value for key, value in point.items() if key in {"ema50", "ema200"})
+        values.extend(value for key, value in point.items() if key in {"ma_fast", "ma_slow"})
     minimum = min(values)
     maximum = max(values)
     if maximum == minimum:
@@ -1824,15 +1842,17 @@ def _render_chart_svg(points: list[dict[str, Decimal]]) -> str:
             f'<line x1="{_fmt(x)}" y1="{_fmt(high_y)}" x2="{_fmt(x)}" y2="{_fmt(low_y)}" stroke="{color}" stroke-width="1" />'
             f'<rect x="{_fmt(x - Decimal(candle_width) / 2)}" y="{_fmt(body_top)}" width="{candle_width}" height="{_fmt(body_height)}" fill="{color}" />'
         )
-    ema50_path = _line_path(points, "ema50", x_at, y_at)
-    ema200_path = _line_path(points, "ema200", x_at, y_at)
+    fast_path = _line_path(points, "ma_fast", x_at, y_at)
+    slow_path = _line_path(points, "ma_slow", x_at, y_at)
+    fast_line = f'<polyline points="{fast_path}" fill="none" stroke="#2563eb" stroke-width="2" />' if fast_path else ""
+    slow_line = f'<polyline points="{slow_path}" fill="none" stroke="#9333ea" stroke-width="2" />' if slow_path else ""
     grid = _chart_grid(width, padding_left, padding_top, plot_width, plot_height, minimum, maximum)
-    return f"""<svg viewBox="0 0 {width} {height}" width="100%" height="320" role="img" aria-label="K线图 EMA50 EMA200">
+    return f"""<svg viewBox="0 0 {width} {height}" width="100%" height="320" role="img" aria-label="K线图 {_escape(fast_label)} {_escape(slow_label)}">
   <rect x="0" y="0" width="{width}" height="{height}" fill="#ffffff" />
   {grid}
   {''.join(candles)}
-  <polyline points="{ema50_path}" fill="none" stroke="#2563eb" stroke-width="2" />
-  <polyline points="{ema200_path}" fill="none" stroke="#9333ea" stroke-width="2" />
+  {fast_line}
+  {slow_line}
 </svg>"""
 
 
@@ -1859,7 +1879,7 @@ def _chart_grid(
 
 
 def _line_path(
-    points: list[dict[str, Decimal]],
+    points: list[dict[str, Any]],
     key: str,
     x_at: Any,
     y_at: Any,

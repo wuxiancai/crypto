@@ -511,7 +511,7 @@ def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp
                         "action": "WAIT",
                         "strategy_type": "TREND_PULLBACK",
                         "reason": ["price not in ema50 pullback zone"],
-                        "core_rules": ["4h EMA200 > EMA50：空头基础"],
+                        "core_rules": ["4h MA60 > EMA15：空头基础"],
                         "chart_points": [
                             {
                                 "open_time": 1,
@@ -519,8 +519,10 @@ def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp
                                 "high": "64200",
                                 "low": "63700",
                                 "close": "64000",
-                                "ema50": "63900",
-                                "ema200": "64100",
+                                "fast_ma_label": "EMA15",
+                                "slow_ma_label": "MA60",
+                                "ma_fast": "63900",
+                                "ma_slow": "64100",
                             },
                             {
                                 "open_time": 2,
@@ -528,8 +530,10 @@ def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp
                                 "high": "64300",
                                 "low": "63900",
                                 "close": "64100",
-                                "ema50": "63950",
-                                "ema200": "64090",
+                                "fast_ma_label": "EMA15",
+                                "slow_ma_label": "MA60",
+                                "ma_fast": "63950",
+                                "ma_slow": "64090",
                             },
                         ],
                     },
@@ -553,9 +557,14 @@ def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp
     assert "最近策略输出" not in html
     assert "non-strategy interval observed" not in html
     assert "策略K线图" in html
-    assert "EMA50" in html
-    assert "EMA200" in html
-    assert "4h EMA200 &gt; EMA50：空头基础" in html
+    assert "EMA15" in html
+    assert "MA60" in html
+    assert "EMA50</span>" not in html
+    assert "EMA200</span>" not in html
+    assert "4h MA60 &gt; EMA15：空头基础" in html
+    assert "K线图 EMA15 MA60" in html
+    assert 'stroke="#2563eb" stroke-width="2"' in html
+    assert 'stroke="#9333ea" stroke-width="2"' in html
     assert "<svg" in html
 
 
@@ -602,8 +611,10 @@ def test_paper_status_page_can_switch_strategy_chart_timeframes(tmp_path):
         "high": "110",
         "low": "95",
         "close": "105",
-        "ema50": "103",
-        "ema200": "101",
+        "fast_ma_label": "EMA15",
+        "slow_ma_label": "MA60",
+        "ma_fast": "103",
+        "ma_slow": "101",
     }
     state_path.write_text(
         json.dumps(
@@ -621,8 +632,9 @@ def test_paper_status_page_can_switch_strategy_chart_timeframes(tmp_path):
                         "action": "WAIT",
                         "strategy_type": "TREND_PULLBACK",
                         "reason": ["no actionable signal"],
-                        "core_rules": ["4h EMA50 > EMA200：多头基础"],
+                        "core_rules": ["4h EMA15 > MA60：多头基础"],
                         "chart_timeframes": {
+                            "1d": [point, {**point, "open_time": 2, "close": "107"}],
                             "4h": [point, {**point, "open_time": 2, "close": "106"}],
                             "1h": [point, {**point, "open_time": 2, "close": "104"}],
                             "15m": [point, {**point, "open_time": 2, "close": "103"}],
@@ -636,12 +648,18 @@ def test_paper_status_page_can_switch_strategy_chart_timeframes(tmp_path):
 
     html = render_paper_status_html(build_paper_status_payload(state_path))
 
+    assert 'data-chart-target="chart-1d"' in html
     assert 'data-chart-target="chart-4h"' in html
     assert 'data-chart-target="chart-1h"' in html
     assert 'data-chart-target="chart-15m"' in html
+    assert 'data-chart-panel="chart-1d"' in html
     assert 'data-chart-panel="chart-4h"' in html
     assert 'data-chart-panel="chart-1h"' in html
     assert 'data-chart-panel="chart-15m"' in html
+    assert html.index('data-chart-target="chart-1d"') < html.index('data-chart-target="chart-4h"')
+    assert html.index('data-chart-target="chart-4h"') < html.index('data-chart-target="chart-1h"')
+    assert html.index('data-chart-target="chart-1h"') < html.index('data-chart-target="chart-15m"')
+    assert ">1d<" in html
     assert ">4h<" in html
     assert ">1h<" in html
     assert ">15m<" in html
