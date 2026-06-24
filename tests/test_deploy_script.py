@@ -49,3 +49,30 @@ def test_start_script_stops_existing_project_before_starting():
     assert "scripts/run_paper_status_web.py" in content
     assert "compose --env-file \"$PORT_ENV\" stop postgres" in content
     assert content.index("stop_existing_project") < content.index("up -d --remove-orphans postgres")
+
+
+def test_start_script_supports_systemd_foreground_mode():
+    content = Path("scripts/start.sh").read_text(encoding="utf-8")
+
+    assert 'START_MODE="${START_MODE:-background}"' in content
+    assert '[[ "$START_MODE" == "foreground" ]]' in content
+    assert "wait -n" in content
+    assert "trap cleanup_foreground TERM INT" in content
+
+
+def test_deploy_script_installs_systemd_service():
+    content = Path("scripts/deploy_ubuntu.sh").read_text(encoding="utf-8")
+
+    assert "install_systemd_service" in content
+    assert "scripts/install_systemd_service.sh" in content
+    assert "systemctl" in content
+
+
+def test_systemd_install_script_uses_start_script_in_foreground_mode():
+    content = Path("scripts/install_systemd_service.sh").read_text(encoding="utf-8")
+
+    assert "START_MODE=foreground" in content
+    assert "ExecStart=/bin/bash ${ROOT_DIR}/scripts/start.sh" in content
+    assert "Restart=always" in content
+    assert "systemctl enable" in content
+    assert "systemctl restart" in content

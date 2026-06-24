@@ -69,13 +69,15 @@
 
 - [x] 提供 Ubuntu 一键部署脚本。
 - [x] 提供启动脚本。
+- [x] 提供 systemd 服务安装脚本，部署后随系统启动，不依赖 SSH 终端。
 - [x] 实现 PostgreSQL / Web 页面端口冲突自动顺延。
 - [x] 生成 `.env.ports.generated` 记录最终端口和 DATABASE_URL。
 
 说明：
 
-- `scripts/deploy_ubuntu.sh` 用于首次部署，会安装依赖、启动 Docker/PostgreSQL、执行 migration、启动真实行情 Paper Trading 和中文 Web 状态页。
-- `scripts/start.sh` 用于后续启动，会自动检测端口冲突并顺延。
+- `scripts/deploy_ubuntu.sh` 用于首次部署，会安装依赖、启动 Docker、安装并启用 `crypto-paper.service` systemd 服务；真实行情 Paper Trading 和中文 Web 状态页由 systemd 托管，关闭 SSH 终端后仍会继续运行，服务器重启后自动启动。
+- `scripts/install_systemd_service.sh` 可单独重装 systemd 服务；默认服务名为 `crypto-paper.service`。
+- `scripts/start.sh` 是服务内部启动入口，也可在无 systemd 环境下手动启动；默认会自动检测端口冲突并顺延，systemd 模式下使用 `START_MODE=foreground` 让 systemd 监控进程生命周期。
 - 默认 PostgreSQL 端口 `55432`，默认 Web 页面端口 `8765`；如被占用会自动尝试下一个端口。
 - 部署说明见 `docs/UBUNTU_DEPLOY.md`。
 

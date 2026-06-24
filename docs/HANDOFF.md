@@ -25,6 +25,15 @@
 
 ## 本轮修复
 
+- 2026-06-24 Ubuntu 部署改为 systemd 托管：
+  - 新增 `scripts/install_systemd_service.sh`，默认安装并启动 `crypto-paper.service`，服务使用 `START_MODE=foreground` 调用 `scripts/start.sh`，由 systemd 负责开机自启、断线后继续运行和异常重启。
+  - `scripts/start.sh` 新增 `START_MODE=background|foreground`：手动启动保持后台模式；systemd 模式下以前台父进程等待 Paper runner / Web 状态页，任一子进程退出则清理并交给 systemd 重启。
+  - `scripts/deploy_ubuntu.sh` 在检测到 systemd 时默认安装服务；没有 systemd 时才回退普通 `scripts/start.sh`。
+  - 部署文档已改为以 `sudo systemctl status/restart/stop crypto-paper.service` 和 `sudo journalctl -u crypto-paper.service -f` 为主。
+- 2026-06-24 批量参数回测页跟随分层策略优化：
+  - `/backtest/batch` 页面新增策略框架摘要，明确展示 `1d 主趋势 + 4h 子趋势 + 1h 确认 + 15m 入场`、默认 `EMA15 / MA60` 和 `ATR14 / DMI12 / Swing20` 过滤口径。
+  - 批量参数表单改为“基础范围 / 分层策略参数 / 执行控制”三组，布尔组合参数改为中文下拉选项，避免继续手填 `false,true`。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v1_0_strategy_backtest_page.py tests/test_v1_0_strategy_backtest_runner.py -q`，39 passed；`.venv/bin/python -m py_compile app/paper/web_status.py scripts/run_paper_status_web.py scripts/run_strategy_backtest_batch.py` 通过。
 - 2026-06-23 分层策略系统第一轮实现：
   - 新增 `app/strategy/layered_strategy.py`，提供 `LayeredStrategyConfig`、`LayeredStrategyInput`、`TrendSnapshot`、`LayeredEntryFrame` 和 `build_layered_strategy_decision()`。
   - 实时策略适配器在启用 `enable_layered_strategy` 且存在 `1d` 历史时走分层策略；旧 4h/1h/15m 路径在无 `1d` 时保持兼容。

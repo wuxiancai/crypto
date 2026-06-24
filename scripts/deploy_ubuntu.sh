@@ -65,4 +65,14 @@ ensure_docker() {
 install_python_packages
 ensure_docker
 
-bash "$ROOT_DIR/scripts/start.sh"
+install_systemd_service() {
+  if command -v systemctl >/dev/null 2>&1; then
+    bash "$ROOT_DIR/scripts/install_systemd_service.sh"
+    return
+  fi
+
+  echo "未检测到 systemd，回退为普通后台启动。"
+  bash "$ROOT_DIR/scripts/start.sh"
+}
+
+install_systemd_service

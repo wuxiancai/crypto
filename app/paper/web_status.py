@@ -1094,7 +1094,6 @@ def _render_bool_series_options(selected: Any) -> str:
         ("false", "否"),
         ("true", "是"),
         ("false,true", "否 + 是"),
-        ("true,false", "否 + 是"),
     ]
     return "".join(
         f'<option value="{_escape(value)}"{_selected_attr(value == selected_value)}>{_escape(label)}</option>'

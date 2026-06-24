@@ -20,8 +20,10 @@ bash scripts/deploy_ubuntu.sh
 - 启动 PostgreSQL。
 - 创建 `.venv` 并安装项目依赖。
 - 执行 Alembic migration。
-- 启动真实行情 Paper Trading。
-- 启动中文 Web 状态页。
+- 安装并启动 `crypto-paper.service` systemd 服务。
+- 由 systemd 托管真实行情 Paper Trading 和中文 Web 状态页。
+
+部署完成后，即使关闭 SSH 终端，服务也会继续运行；服务器重启后也会自动启动。
 
 ## 端口顺延机制
 
@@ -78,7 +80,16 @@ docker rm crypto_quant_postgres
 
 ## 再次启动
 
-如果依赖已经装好，只需要重新启动服务：
+部署后服务由 systemd 托管。常用命令：
+
+```bash
+sudo systemctl status crypto-paper.service --no-pager
+sudo systemctl restart crypto-paper.service
+sudo systemctl stop crypto-paper.service
+sudo journalctl -u crypto-paper.service -f
+```
+
+如果依赖已经装好，但当前服务器没有 systemd，才使用手动启动：
 
 ```bash
 bash scripts/start.sh
@@ -150,7 +161,7 @@ Web 页面地址: http://服务器IP:端口
 
 ## 日志
 
-日志目录：
+应用日志目录：
 
 ```bash
 runtime/logs
@@ -163,16 +174,28 @@ tail -f runtime/logs/paper-realtime.log
 tail -f runtime/logs/paper-status-web.log
 ```
 
+systemd 服务日志：
+
+```bash
+sudo journalctl -u crypto-paper.service -f
+```
+
 ## 停止服务
 
-停止模拟交易和 Web 页面：
+systemd 部署下停止服务：
+
+```bash
+sudo systemctl stop crypto-paper.service
+```
+
+无 systemd 手动启动模式下停止模拟交易和 Web 页面：
 
 ```bash
 pkill -f scripts/run_paper_realtime.py
 pkill -f scripts/run_paper_status_web.py
 ```
 
-停止 PostgreSQL：
+无 systemd 手动启动模式下停止 PostgreSQL：
 
 ```bash
 docker compose --env-file .env.ports.generated down

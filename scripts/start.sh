@@ -8,8 +8,11 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 VENV_PYTHON="$ROOT_DIR/.venv/bin/python"
 PORT_ENV="$ROOT_DIR/.env.ports.generated"
 REGENERATE_PORTS="${REGENERATE_PORTS:-0}"
+START_MODE="${START_MODE:-background}"
 RUNTIME_DIR="$ROOT_DIR/runtime"
 LOG_DIR="$RUNTIME_DIR/logs"
+PAPER_REALTIME_PID=""
+PAPER_WEB_PID=""
 
 mkdir -p "$RUNTIME_DIR" "$LOG_DIR"
 
@@ -111,20 +114,62 @@ done
 
 DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" -m alembic upgrade head
 
-nohup "$VENV_PYTHON" scripts/run_paper_realtime.py \
-  --symbols BTCUSDT ETHUSDT \
-  --intervals 5m 15m 1h 4h 1d \
-  --enable-layered-strategy \
-  --websocket-base-url "$BINANCE_WEBSOCKET_BASE_URL" \
-  --state-path "$PAPER_STATE_PATH" \
-  > "$LOG_DIR/paper-realtime.log" 2>&1 &
+start_paper_realtime() {
+  if [[ "$START_MODE" == "foreground" ]]; then
+    "$VENV_PYTHON" scripts/run_paper_realtime.py \
+      --symbols BTCUSDT ETHUSDT \
+      --intervals 5m 15m 1h 4h 1d \
+      --enable-layered-strategy \
+      --websocket-base-url "$BINANCE_WEBSOCKET_BASE_URL" \
+      --state-path "$PAPER_STATE_PATH" \
+      >> "$LOG_DIR/paper-realtime.log" 2>&1 &
+  else
+    nohup "$VENV_PYTHON" scripts/run_paper_realtime.py \
+      --symbols BTCUSDT ETHUSDT \
+      --intervals 5m 15m 1h 4h 1d \
+      --enable-layered-strategy \
+      --websocket-base-url "$BINANCE_WEBSOCKET_BASE_URL" \
+      --state-path "$PAPER_STATE_PATH" \
+      > "$LOG_DIR/paper-realtime.log" 2>&1 &
+  fi
+  PAPER_REALTIME_PID="$!"
+  echo "$PAPER_REALTIME_PID" > "$RUNTIME_DIR/paper-realtime.pid"
+}
 
-nohup "$VENV_PYTHON" scripts/run_paper_status_web.py \
-  --host 0.0.0.0 \
-  --port "$PAPER_WEB_PORT" \
-  --state-path "$PAPER_STATE_PATH" \
-  --error-log-path "$LOG_DIR/paper-realtime.log" \
-  > "$LOG_DIR/paper-status-web.log" 2>&1 &
+start_paper_status_web() {
+  if [[ "$START_MODE" == "foreground" ]]; then
+    "$VENV_PYTHON" scripts/run_paper_status_web.py \
+      --host 0.0.0.0 \
+      --port "$PAPER_WEB_PORT" \
+      --state-path "$PAPER_STATE_PATH" \
+      --error-log-path "$LOG_DIR/paper-realtime.log" \
+      >> "$LOG_DIR/paper-status-web.log" 2>&1 &
+  else
+    nohup "$VENV_PYTHON" scripts/run_paper_status_web.py \
+      --host 0.0.0.0 \
+      --port "$PAPER_WEB_PORT" \
+      --state-path "$PAPER_STATE_PATH" \
+      --error-log-path "$LOG_DIR/paper-realtime.log" \
+      > "$LOG_DIR/paper-status-web.log" 2>&1 &
+  fi
+  PAPER_WEB_PID="$!"
+  echo "$PAPER_WEB_PID" > "$RUNTIME_DIR/paper-status-web.pid"
+}
+
+cleanup_foreground() {
+  echo "Stopping crypto paper services..."
+  if [[ -n "$PAPER_REALTIME_PID" ]]; then
+    kill "$PAPER_REALTIME_PID" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$PAPER_WEB_PID" ]]; then
+    kill "$PAPER_WEB_PID" >/dev/null 2>&1 || true
+  fi
+  wait "$PAPER_REALTIME_PID" "$PAPER_WEB_PID" >/dev/null 2>&1 || true
+  POSTGRES_PORT="$POSTGRES_PORT" compose --env-file "$PORT_ENV" stop postgres >/dev/null 2>&1 || true
+}
+
+start_paper_realtime
+start_paper_status_web
 
 cat <<EOF
 启动完成
@@ -134,4 +179,13 @@ Web 页面端口: ${PAPER_WEB_PORT}
 Web 页面地址: http://服务器IP:${PAPER_WEB_PORT}
 端口配置文件: ${PORT_ENV}
 日志目录: ${LOG_DIR}
+启动模式: ${START_MODE}
 EOF
+
+if [[ "$START_MODE" == "foreground" ]]; then
+  trap cleanup_foreground TERM INT
+  wait -n "$PAPER_REALTIME_PID" "$PAPER_WEB_PID"
+  exit_code="$?"
+  cleanup_foreground
+  exit "$exit_code"
+fi
