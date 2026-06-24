@@ -1,10 +1,12 @@
 # Tasks
 
-更新时间：2026-06-23
+更新时间：2026-06-24
 
 ## 当前阶段
 
-当前 V0.6 AI/Funding 过滤纯风控层已完成，真实行情驱动 Paper Trading 已跑通基础闭环。用户已确认下一阶段不再继续微调旧 `TREND_PULLBACK`，而是升级为独立的分层策略系统：日线主趋势、4h 子趋势、1h 确认、15m 入场，并支持 Paper/Backtest 多策略子仓和主仓/hedge 仓共存。当前暂无 Binance API Key，测试网/真实下单闭环延后到 API Key 可用后再做。
+当前 V0.6 AI/Funding 过滤纯风控层已完成，真实行情驱动 Paper Trading 已跑通基础闭环。用户已确认下一阶段不再继续微调旧 `TREND_PULLBACK`，而是升级为独立的分层策略系统：日线主趋势、4h 子趋势、1h 确认、15m 入场，并支持 Paper/Backtest 多策略子仓和主仓/hedge 仓共存。
+
+版本边界：第一版只开发 Backtest、Paper Trading、Web 状态/复盘和模拟风控闭环，不开发测试网下单、真实下单、API 下单适配器或小资金实盘。第二版才允许开发 Live Trading；第二版开发永久暂停，除非用户明确发出“开始开发第二版实盘交易”的指令。
 
 ## 下一阶段：分层策略系统
 
@@ -197,7 +199,7 @@
 - 当前已实现止损候选选择：LONG 只接受低于入场价的止损，SHORT 只接受高于入场价的止损，并在最大止损距离内选择距离入场价最近的候选。
 - 当前已实现趋势转换分批止盈计划：TP1 = 1R 平 30%，TP2 = 前高/前低平 30%，TP3 = 4h EMA200 或方向校验后的 3R/结构位平 40%，TP1 后移动止损到保本。
 - 当前已实现 OrderPlan 合约：包含 symbol、side、strategy_type、order_type、entry_price、quantity、stop_loss、take_profit_levels、leverage、margin_type、position_mode、estimated_liquidation_price、liquidation_buffer_pct、reduce_only、client_order_id、strategy_version、config_snapshot_id。
-- 当前历史实现约束为 ONE_WAY + ISOLATED。下一阶段 Paper/Backtest 必须先支持策略子仓和同一 symbol 多空共存；Live HEDGE 模式必须另行自检和确认后才能接入。
+- 当前历史实现约束为 ONE_WAY + ISOLATED。第一版 Paper/Backtest 必须支持策略子仓和同一 symbol 多空共存；Live HEDGE 模式属于第二版，永久暂停，除非用户明确发令启动第二版。
 - 当前已实现 Stop Order Guard 判定层：校验真实持仓是否存在 symbol 匹配、退出方向正确、数量覆盖、reduceOnly、状态 NEW、触发价方向正确的有效止损单；缺失时输出补挂止损动作。
 - 当前已实现 Liquidation Guard 判定层：多单要求 liquidation_price < stop_loss < entry_price，空单要求 entry_price < stop_loss < liquidation_price，且止损价与强平价安全距离不低于 liquidation_buffer_pct。
 - 当前已实现 Kill Switch 状态转移：触发后禁止新开仓，可标记是否平仓，并记录操作者、原因、触发时间和解除操作者。
@@ -217,22 +219,24 @@
 - 当前已实现 AI filter 接口与 deterministic stub：默认 `enabled = false` 时输出 ALLOW；新闻不可用时 fallback BLOCK；显式模拟重大风险事件时 BLOCK。
 - 当前已实现 AI filter 日志 entry：记录输入 payload、输出 payload、fallback_reason、provider 和 evaluated_at，真实 LLM 仍未接入且默认关闭。
 
-## V1.0 小资金实盘准备
+## V2.0 实盘交易候选事项（永久暂停）
 
-- [ ] 测试网完整下单闭环。API Key 可用后再实现。
-- [x] Live 启动前自检。
-- [x] API 权限和 IP 白名单检查。
-- [x] 小资金实盘专用配置。
-- [ ] Paper Trading 连续 2 周无重大错误。
-- [ ] Stop Order Guard 和 Liquidation Guard 演练通过。
-- [ ] 主订单成交但止损失败的应急流程演练通过。
+> 以下事项不属于第一版。除非用户明确发出“开始开发第二版实盘交易”的指令，否则不得继续开发测试网、真实下单、API 下单适配器或小资金实盘。
+
+- [ ] （第二版暂停）测试网完整下单闭环。
+- [x] （第二版预留校验层）Live 启动前自检。
+- [x] （第二版预留校验层）API 权限和 IP 白名单检查。
+- [x] （第二版预留校验层）小资金实盘专用配置。
+- [ ] （第二版暂停）Paper Trading 连续 2 周无重大错误后，重新评估是否允许规划第二版。
+- [ ] （第二版暂停）Stop Order Guard 和 Liquidation Guard 演练通过。
+- [ ] （第二版暂停）主订单成交但止损失败的应急流程演练通过。
 
 说明：
 
-- 当前已实现 Live 启动前自检纯校验层：任一失败项都会禁止启动 Live，并一次性返回所有 failed_checks。
+- 当前已实现 Live 启动前自检纯校验层，但只作为第二版预留能力：任一失败项都会禁止启动 Live，并一次性返回所有 failed_checks。
 - 自检已覆盖：API 不允许提现、IP 白名单、USDⓈ-M Futures API 可用性、服务器时间偏差、database migration、缓存可用或降级、交易所规则同步、ONE_WAY、ISOLATED、leverage <= max_leverage、未知持仓、缺失止损持仓、Stop Order Guard、Liquidation Guard、数据延迟、Kill Switch、通知通道、小资金配置、`LIVE_TRADING_CONFIRM=I_UNDERSTAND_THE_RISK`。
-- 当前已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 10，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
-- 当前阶段没有 Binance API Key，不做真实或测试网下单；先用真实行情驱动 Paper Trading，验证策略、风控、状态机和连续运行稳定性。
+- 当前已实现小资金实盘专用配置校验，但只作为第二版预留能力：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 10，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
+- 当前阶段不做真实或测试网下单；先用真实行情驱动 Paper Trading，验证策略、风控、状态机和连续运行稳定性。API Key 可用也不能自动启动第二版。
 - 当前已实现 Paper Trading 连续运行健康检查：检测 WebSocket 连接、行情延迟、Paper 回撤、拒单数量和运行时错误；该模块用于后续“连续 2 周无重大错误”的自动化验收。
 - 当前已实现 Paper Trading 状态持久化/恢复入口：PaperSnapshot 可无损序列化为 JSON payload，并支持保存到本地状态文件和从状态文件恢复；Decimal 金额以字符串保存，避免浮点误差。
 - 当前已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓、成交和拒单计数。

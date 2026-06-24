@@ -1,11 +1,12 @@
 # Handoff
 
-更新时间：2026-06-23
+更新时间：2026-06-24
 
 ## 当前状态
 
 - 2026-06-23 用户已确认分层策略方向，并已进入第一轮实现。当前策略主线已从旧 `TREND_PULLBACK` / `REVERSAL_PROBE` 单仓位模型，调整为独立的分层策略系统：`SHORT_DAY_CORE`、`SHORT_4H_1H_ADDON`、`LONG_4H_HEDGE`、`LONG_DAY_CORE`、`LONG_4H_1H_ADDON`、`SHORT_4H_HEDGE`。
-- Paper/Backtest 已支持 strategy bucket 多策略子仓；同一 symbol 可以持有日线主趋势仓和 4h hedge 仓。Live HEDGE 模式仍需在 Binance API Key 可用后另做账户模式自检与确认。
+- Paper/Backtest 已支持 strategy bucket 多策略子仓；同一 symbol 可以持有日线主趋势仓和 4h hedge 仓。第一版不开发 Live HEDGE、测试网下单、真实下单或小资金实盘。
+- 版本边界已冻结：第一版只做 Backtest + Paper Trading + Web 状态/复盘 + 模拟风控；第二版才允许开发 Live Trading。第二版永久暂停，除非用户明确发出“开始开发第二版实盘交易”的指令。
 - 已再次审查并优化 `prd.md`，当前版本为 `v0.4-layered-strategy-draft`，并与分层策略实现口径对齐。
 - 已将长期上下文拆分为：
   - `docs/PROJECT_CONTEXT.md`
@@ -15,7 +16,7 @@
 - 当前项目已有 git 仓库，并已按功能节点持续提交。
 - V0.3 回测系统已补充真实策略信号复用、maker/taker 手续费和按策略统计。
 - V0.4 Paper Trading 已完成最小撮合与账户闭环。
-- 本轮继续补充 V0.4 Binance WebSocket transport，完成 V0.5 风控与订单计划核心模块，完成 V0.6 AI/Funding 过滤纯风控层，并开始 V1.0 小资金实盘准备。用户已明确当前暂无 API Key，下一阶段主线改为真实行情驱动的 Paper Trading，真实/测试网下单延后。
+- 本轮继续补充 V0.4 Binance WebSocket transport，完成 V0.5 风控与订单计划核心模块，完成 V0.6 AI/Funding 过滤纯风控层，并保留第二版 Live 自检/Guard 预留校验层。下一阶段主线是继续完善真实行情驱动的 Paper Trading；真实/测试网下单不属于第一版。
 - 用户明确要求系统越简单越好，后续开发必须避免过度设计。优先保持少模块、少抽象、少配置；任何新增组件都必须解决当前真实运行或复盘痛点。
 - 已新增 Ubuntu 一键部署脚本和启动脚本，带端口冲突自动顺延机制。
 - 个人 2c2g 云服务器部署约束：PostgreSQL 必须限制内存和连接数；云服务器只运行自动交易所需进程，不在服务器上执行批量回测、参数网格搜索、开发测试或其他重计算任务。
@@ -234,10 +235,10 @@
 - V0.6 已实现 Funding 过滤器：距离结算时间 <= 15 分钟禁止新开仓，abs(funding_rate) >= 0.0015 禁止新开仓，abs(funding_rate) >= 0.0005 输出 WARN 并将仓位乘数降为 0.5。
 - V0.6 已实现 AI filter 接口与 deterministic stub：默认 `enabled = false` 时输出 ALLOW；新闻不可用时 fallback BLOCK；显式模拟重大风险事件时 BLOCK。
 - V0.6 已实现 AI filter 日志 entry：记录输入 payload、输出 payload、fallback_reason、provider 和 evaluated_at，真实 LLM 仍未接入且默认关闭。
-- V1.0 已实现 Live 启动前自检纯校验层：任一失败项都会禁止启动 Live，并一次性返回所有 failed_checks。
+- 第二版预留能力已实现 Live 启动前自检纯校验层：任一失败项都会禁止启动 Live，并一次性返回所有 failed_checks。
 - Live 自检已覆盖：API 不允许提现、IP 白名单、USDⓈ-M Futures API 可用性、服务器时间偏差、database migration、缓存可用或降级、交易所规则同步、ONE_WAY、ISOLATED、leverage <= max_leverage、未知持仓、缺失止损持仓、Stop Order Guard、Liquidation Guard、数据延迟、Kill Switch、通知通道、小资金配置、`LIVE_TRADING_CONFIRM=I_UNDERSTAND_THE_RISK`。
-- V1.0 已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 10，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
-- 当前阶段不接入 Binance API 下单；先以真实行情驱动 Paper Trading，验证策略表现、风控和连续运行稳定性。测试网完整下单闭环等待 API Key 可用后再实现。
+- 第二版预留能力已实现小资金实盘专用配置校验：必须使用 `small_capital_live` profile，账户权益上限 <= 1000，单笔风险 <= 0.5%，每日亏损上限 <= 1.5%，最大杠杆 <= 10，仅允许 BTCUSDT / ETHUSDT，且必须 ONE_WAY + ISOLATED。
+- 当前阶段不接入 Binance API 下单；先以真实行情驱动 Paper Trading，验证策略表现、风控和连续运行稳定性。测试网完整下单闭环属于第二版，永久暂停，API Key 可用也不能自动触发开发。
 - 已实现 Paper Trading 连续运行健康检查：检测 WebSocket 连接、行情延迟、Paper 回撤、拒单数量和运行时错误；该模块用于后续“连续 2 周无重大错误”的自动化验收。
 - 已实现 Paper Trading 状态持久化/恢复入口：PaperSnapshot 可无损序列化为 JSON payload，并支持保存到本地状态文件和从状态文件恢复；Decimal 金额以字符串保存，避免浮点误差。
 - 已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓、成交和拒单计数。
@@ -383,7 +384,7 @@
 3. 下一步继续真实行情 Paper Trading：在真实运行环境观察 `/paper/events` 是否能稳定呈现连续事件；若事件量增长过快，再增加保留策略或分页。
 4. 使用 `/backtest` 或 `/backtest/batch` 在可访问 Binance REST 的 Ubuntu 环境先比较 EMA50/EMA200、EMA30/EMA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果，并可在页面查看终端风格日志或请求停止。当前回测已默认使用永续合约 maker 0.02%、taker 0.05%、10X 杠杆和 8 小时资金费模型，资金费率暂为可配置参数，默认 0。
 5. 下一步可继续增强 `/backtest`：增加按 bucket / strategy 的排序筛选，以及更长历史窗口的统一口径对比。
-6. 后续把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper/Live 执行适配器时，需要补充交易所规则校验、状态持久化、补挂止损、市价平仓、CRITICAL 告警和 `risk_events` 持久化。
+6. 后续只把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper 执行适配器和复盘链路。Live 执行适配器、补挂真实止损、市价平仓和真实 CRITICAL 告警属于第二版，永久暂停，除非用户明确发令启动第二版。
 
 ## 最近提交
 
@@ -498,7 +499,7 @@
 ## 风险提醒
 
 - 不要跳过真实 K 线入库直接写策略。
-- 不要在 Stop Order Guard 和 Liquidation Guard 完成前写 Live Trading。
+- 不要写 Live Trading、测试网下单、真实下单或小资金实盘；这些都属于第二版，永久暂停，除非用户明确发令启动第二版。
 - 回测和 Paper 必须共用同一套策略、风控和多周期对齐函数。
 - Mock 可以用于单元测试，但不能作为系统验收依据。
 - 不要把系统做复杂。下一步 Paper 复盘优先用最小可用持久化和 CLI 输出，暂不引入消息队列、复杂调度平台、插件系统或大型监控平台。

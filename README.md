@@ -11,9 +11,14 @@
 - 真实行情驱动的 Paper Trading。
 - 中文 Web 状态页与回测页面。
 - PostgreSQL 持久化与 Alembic migration。
-- 风控模块、状态机和 Live 前自检基础能力。
+- 风控模块、状态机和第二版 Live 前自检预留校验能力。
 
-当前默认运行模式以 `Backtest` 和 `Paper Trading` 为主，`Live Trading` 仍处于准备阶段，默认不开启。
+## 版本边界
+
+- 第一版只开发 `Backtest`、`Paper Trading`、Web 状态页、回测复盘和模拟风控闭环，不开发测试网下单、真实下单或真金白银实盘交易。
+- 第二版才允许开发 `Live Trading`、测试网下单、真实下单、API 下单适配器和小资金实盘。
+- 第二版开发永久暂停，除非用户明确发出“开始开发第二版实盘交易”的指令。
+- API Key 可用、Paper 连续运行、已有 Live Guard/自检代码或文档检查项，都不代表可以自动进入第二版。
 
 ## 当前实现范围
 
@@ -27,11 +32,11 @@
 - 回测页支持最近 `3m / 6m / 1y / 2y` 历史区间。
 - Web 页面支持查看 Paper 状态、策略条件、最近成交和回测结果。
 
-当前不建议理解为“生产级实盘系统”的部分：
+当前不属于第一版范围的部分：
 
-- 默认不做真实下单。
+- 测试网下单、真实下单和小资金实盘。
 - AI 新闻过滤仍是 deterministic stub，不负责预测方向。
-- Funding 过滤与 Live Guard 已有判定层，但尚未接入完整实盘执行闭环。
+- Funding 过滤与 Live Guard 已有判定层，但只作为模拟风控和第二版预留校验，不接入实盘执行闭环。
 
 ## 目录结构
 
@@ -69,7 +74,7 @@ tests/
 3. 1h 决定执行确认。
 4. 15m 决定具体入场、止损和执行触发。
 
-Paper、Backtest、Web 状态页和未来 Live 执行只能消费策略系统输出，不应再各自复制策略规则。
+Paper、Backtest 和 Web 状态页只能消费策略系统输出，不应再各自复制策略规则。未来第二版 Live 如果被用户明确启动，也必须消费同一策略系统输出。
 
 ### 策略命名
 
@@ -123,7 +128,7 @@ Paper、Backtest、Web 状态页和未来 Live 执行只能消费策略系统输
 - `LONG_DAY_CORE` 可以和 `SHORT_4H_HEDGE` 共存。
 - `LONG_DAY_CORE` 可以和 `LONG_4H_1H_ADDON` 共存。
 
-真实 Live 若要支持同一 symbol 多空共存，必须使用 Binance Futures HEDGE position mode。Paper/Backtest 先实现策略子仓模型，Live 仍需独立自检和用户确认后才能接入。
+第一版只在 Paper/Backtest 中实现策略子仓模型。第二版如果被用户明确启动，真实 Live 若要支持同一 symbol 多空共存，必须使用 Binance Futures HEDGE position mode，并重新进行独立设计、自检和用户确认。
 
 ### 风控与撮合规则
 
@@ -627,7 +632,7 @@ tail -n 100 runtime/logs/paper-status-web.log
 
 ### 4. 是否已经支持真实下单？
 
-当前主线路线不是实盘，而是“真实行情驱动的 Paper Trading + 回测验证 + 风控完善”。Live 模式的基础校验和模块已经在代码中准备了一部分，但默认不作为当前推荐运行方式。
+不支持。第一版只做“真实行情驱动的 Paper Trading + 回测验证 + 风控完善”。Live 模式的基础校验模块只是第二版预留能力；除非用户明确发出开始第二版实盘交易的指令，否则测试网、真实下单和小资金实盘开发永久暂停。
 
 ## 相关文档
 

@@ -1,12 +1,14 @@
 # Decisions
 
-更新时间：2026-06-23
+更新时间：2026-06-24
 
 ## 已冻结决策
 
-### D1. MVP 不直接实盘
+### D1. 第一版不开发实盘，第二版永久暂停
 
-MVP 默认只做 Backtest + Paper Trading。Live Trading 必须等回测、Paper、Stop Order Guard、Liquidation Guard、测试网和小资金配置全部通过后再开启。
+第一版只做 Backtest + Paper Trading + Web 状态/复盘 + 模拟风控闭环，不开发测试网下单、真实下单、API 下单适配器或小资金实盘。
+
+第二版才允许开发 Live Trading。第二版开发永久暂停，除非用户明确发出“开始开发第二版实盘交易”的指令。API Key 可用、Paper 连续稳定、Live 自检代码存在或 Guard 代码存在，都不能自动触发第二版。
 
 ### D2. 分层策略系统是新的策略主线
 
@@ -40,17 +42,17 @@ ADX 只表示趋势强度，不表示趋势方向。趋势判断必须使用：
 
 当日线为空头时，4h/1h 转多不代表必须平掉日线空头主仓；系统应允许 `LONG_4H_HEDGE` 与 `SHORT_DAY_CORE` 共存。当日线为多头时，对称允许 `SHORT_4H_HEDGE` 与 `LONG_DAY_CORE` 共存。
 
-### D6. 回测、Paper 和未来 Live 共享策略系统与多周期对齐
+### D6. 回测、Paper 共享策略系统与多周期对齐
 
 策略系统只能使用最近已收盘的 1d、4h、1h、15m K 线。禁止使用正在形成中的高周期 K 线。
 
-Backtest、Paper、Web 状态页和未来 Live 执行都必须调用同一套策略系统。其他模块不能复制策略条件，只能消费策略系统输出的 `StrategyDecision` / `StrategySignal` / diagnostics。
+Backtest、Paper 和 Web 状态页都必须调用同一套策略系统。其他模块不能复制策略条件，只能消费策略系统输出的 `StrategyDecision` / `StrategySignal` / diagnostics。未来第二版 Live 如果被用户明确启动，也必须复用同一策略系统与对齐逻辑。
 
-### D7. Paper/Backtest 先支持策略子仓，Live HEDGE 单独门槛
+### D7. 第一版只在 Paper/Backtest 支持策略子仓
 
 Paper 和 Backtest 必须从单仓位模型升级为策略子仓模型，至少支持同一 symbol 下主趋势 core 仓与反向 hedge 仓共存。
 
-Live 仍默认关闭。未来真实下单若要支持同一 symbol 多空共存，必须使用 Binance Futures HEDGE position mode，并通过独立自检、API 权限、小资金配置和用户确认。
+Live HEDGE 属于第二版，不在第一版开发。未来用户明确启动第二版后，真实下单若要支持同一 symbol 多空共存，必须使用 Binance Futures HEDGE position mode，并重新通过独立自检、API 权限、小资金配置和用户确认。
 
 ```yaml
 paper_backtest:
@@ -80,9 +82,9 @@ MVP 阶段 AI 过滤器默认关闭，只保留接口、日志和 deterministic 
 
 ### D12. 当前阶段只跑真实行情驱动的 Paper Trading
 
-当前没有 Binance API Key，不接入测试网或真实下单 API。系统下一阶段以真实行情 WebSocket / REST 数据驱动 Paper Trading，先验证策略、风控、状态机和连续运行稳定性。
+当前不接入测试网或真实下单 API。系统下一阶段以真实行情 WebSocket / REST 数据驱动 Paper Trading，先验证策略、风控、状态机和连续运行稳定性。
 
-真实自动交易接入必须等待：
+真实自动交易属于第二版且永久暂停；只有用户明确发出开始第二版实盘交易的指令后，才允许重新规划。届时至少必须重新评估：
 
 - Paper Trading 连续运行稳定。
 - 策略表现和风控演练通过。
