@@ -118,7 +118,7 @@
 - 历史实现已支持 `TREND_PULLBACK` 主趋势入场信号；下一阶段该名称仅作为兼容语义保留。
 - 做多要求：主趋势允许做多、价格回踩到快线/ATR 区域、15m 看涨确认、RR 达标。
 - 做空要求：主趋势允许做空、价格反弹到快线/ATR 区域、15m 看跌确认、RR 达标。
-- 当前主趋势策略使用 2R 阶梯移动止盈：触达第一个 2R 后不立即全平，而是把该 2R 价设为移动止盈价；每继续完成一个新的 2R 阶梯，移动止盈价再推进到新阶梯价；止损使用最近 swing low / swing high。
+- 当前主趋势策略使用 2R 阶梯移动止盈：触达第一个 2R 后不立即全平，先把保护线推进到开仓价；每继续完成一个新的 2R 阶梯，保护线推进到上一个已完成阶梯，避免短周期噪声刚触达激活价就打掉仓位；止损使用最近 swing low / swing high。
 - 历史实现已支持 `REVERSAL_PROBE` 趋势转换试仓信号；下一阶段如保留，应映射为更明确的 hedge/transition 策略。
 - 趋势转换输出通用事件 `REVERSAL_LONG_ENTRY` / `REVERSAL_SHORT_ENTRY`，并通过 `signal_level = EARLY | CONFIRMED` 区分早期/确认。
 - 趋势转换评分已执行 `min(raw_score, 100)` 封顶。
@@ -172,7 +172,7 @@
 
 - 当前 PaperTradingEngine 已从单仓位升级为 strategy bucket 多子仓撮合，支持同一 symbol 下 core / addon / hedge 子仓共存；旧 `open_position` 字段继续保留兼容。
 - 当前 Paper Trading 默认按永续合约模拟：初始资金 1000 USDT、默认 10X 杠杆、maker 0.02%、taker 0.05%、资金费每 8 小时结算一次；资金费率当前默认 0，可通过启动参数配置。
-- 当前 Paper Trading 的 `TREND_PULLBACK` 默认使用 2R 阶梯移动止盈：价格触达 2R 目标后进入“移动止盈中”，把 2R 价作为移动止盈价；价格继续顺势每推进一个 2R 阶梯，移动止盈价同步推进；回撤触达当前移动止盈价才平仓。可通过 `--trend-pullback-take-profit-mode FIXED` 回退固定止盈。
+- 当前 Paper Trading 的 `TREND_PULLBACK` 默认使用 2R 阶梯移动止盈：价格触达 2R 目标后进入“移动止盈中”，先保护到开仓价；价格继续顺势每推进一个 2R 阶梯，保护线只推进到上一个已完成阶梯；回撤触达当前移动保护线才平仓。可通过 `--trend-pullback-take-profit-mode FIXED` 回退固定止盈。
 - 当前已修复回测/Paper 出场撮合的关键未来函数问题：持仓会记录入场交易对和入场周期，只有同一交易对、同一周期的 K 线才能触发止盈/止损，避免 BTC 持仓被 ETH K 线平仓，或 15m 入场被同一时间的 1h/4h 高低点提前平仓。
 - Paper 当前支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE`，趋势转换信号同样使用自身 `risk_pct`。
 - 当前已实现稳定的 Paper CLI 状态格式化输出。

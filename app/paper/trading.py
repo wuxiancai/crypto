@@ -458,7 +458,8 @@ def _long_step_take_profit(position: PaperPosition, high: Decimal) -> Decimal:
     completed_steps = int((high - position.entry_price) // step_size)
     if completed_steps <= 0:
         return position.stop_loss
-    return position.entry_price + step_size * Decimal(completed_steps)
+    protected_steps = completed_steps - 1
+    return position.entry_price + step_size * Decimal(protected_steps)
 
 
 def _short_step_take_profit(position: PaperPosition, low: Decimal) -> Decimal:
@@ -466,7 +467,8 @@ def _short_step_take_profit(position: PaperPosition, low: Decimal) -> Decimal:
     completed_steps = int((position.entry_price - low) // step_size)
     if completed_steps <= 0:
         return position.stop_loss
-    return position.entry_price - step_size * Decimal(completed_steps)
+    protected_steps = completed_steps - 1
+    return position.entry_price - step_size * Decimal(protected_steps)
 
 
 def _stop_exit_reason(position: PaperPosition) -> str:

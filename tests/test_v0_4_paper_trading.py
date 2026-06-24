@@ -122,14 +122,31 @@ def test_trend_pullback_moves_take_profit_by_two_r_steps_and_exits_on_rebound():
     active_position = engine.snapshot().open_position
     assert active_position is not None
     assert active_position.trailing_active is True
-    assert active_position.stop_loss == Decimal("90")
+    assert active_position.stop_loss == Decimal("100")
 
-    continuation_fill = engine.on_kline(
+    noise_fill = engine.on_kline(
         Kline(
             symbol="BTCUSDT",
             interval="15m",
             open_time=1_800_000,
             close_time=2_699_999,
+            open=Decimal("89"),
+            high=Decimal("90"),
+            low=Decimal("88"),
+            close=Decimal("89"),
+            volume=Decimal("10"),
+        )
+    )
+
+    assert noise_fill is None
+    assert engine.snapshot().open_position is not None
+
+    continuation_fill = engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=2_700_000,
+            close_time=3_599_999,
             open=Decimal("89"),
             high=Decimal("89"),
             low=Decimal("80"),
@@ -141,26 +158,26 @@ def test_trend_pullback_moves_take_profit_by_two_r_steps_and_exits_on_rebound():
     assert continuation_fill is None
     trailed_position = engine.snapshot().open_position
     assert trailed_position is not None
-    assert trailed_position.stop_loss == Decimal("80")
+    assert trailed_position.stop_loss == Decimal("90")
 
     exit_fill = engine.on_kline(
         Kline(
             symbol="BTCUSDT",
             interval="15m",
-            open_time=2_700_000,
-            close_time=3_599_999,
-            open=Decimal("79"),
-            high=Decimal("80"),
-            low=Decimal("78"),
-            close=Decimal("79"),
+            open_time=3_600_000,
+            close_time=4_499_999,
+            open=Decimal("89"),
+            high=Decimal("90"),
+            low=Decimal("88"),
+            close=Decimal("89"),
             volume=Decimal("10"),
         )
     )
 
     assert exit_fill is not None
     assert exit_fill.exit_reason == "TRAILING_TAKE_PROFIT"
-    assert exit_fill.exit_price == Decimal("80")
-    assert exit_fill.net_pnl == Decimal("400")
+    assert exit_fill.exit_price == Decimal("90")
+    assert exit_fill.net_pnl == Decimal("200")
     assert engine.snapshot().open_position is None
 
 
@@ -222,14 +239,31 @@ def test_layered_day_core_uses_trailing_take_profit_instead_of_fixed_exit():
     assert active_position is not None
     assert active_position.strategy_type == "SHORT_DAY_CORE"
     assert active_position.trailing_active is True
-    assert active_position.stop_loss == Decimal("90")
+    assert active_position.stop_loss == Decimal("100")
 
-    continuation_fill = engine.on_kline(
+    noise_fill = engine.on_kline(
         Kline(
             symbol="BTCUSDT",
             interval="15m",
             open_time=1_800_000,
             close_time=2_699_999,
+            open=Decimal("89"),
+            high=Decimal("90"),
+            low=Decimal("88"),
+            close=Decimal("89"),
+            volume=Decimal("10"),
+        )
+    )
+
+    assert noise_fill is None
+    assert engine.snapshot().open_position is not None
+
+    continuation_fill = engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=2_700_000,
+            close_time=3_599_999,
             open=Decimal("89"),
             high=Decimal("89"),
             low=Decimal("80"),
@@ -241,26 +275,26 @@ def test_layered_day_core_uses_trailing_take_profit_instead_of_fixed_exit():
     assert continuation_fill is None
     trailed_position = engine.snapshot().open_position
     assert trailed_position is not None
-    assert trailed_position.stop_loss == Decimal("80")
+    assert trailed_position.stop_loss == Decimal("90")
 
     exit_fill = engine.on_kline(
         Kline(
             symbol="BTCUSDT",
             interval="15m",
-            open_time=2_700_000,
-            close_time=3_599_999,
-            open=Decimal("79"),
-            high=Decimal("80"),
-            low=Decimal("78"),
-            close=Decimal("79"),
+            open_time=3_600_000,
+            close_time=4_499_999,
+            open=Decimal("89"),
+            high=Decimal("90"),
+            low=Decimal("88"),
+            close=Decimal("89"),
             volume=Decimal("10"),
         )
     )
 
     assert exit_fill is not None
     assert exit_fill.exit_reason == "TRAILING_TAKE_PROFIT"
-    assert exit_fill.exit_price == Decimal("80")
-    assert exit_fill.net_pnl == Decimal("400")
+    assert exit_fill.exit_price == Decimal("90")
+    assert exit_fill.net_pnl == Decimal("200")
     assert engine.snapshot().open_position is None
 
 
@@ -317,14 +351,31 @@ def test_long_trend_pullback_moves_take_profit_by_two_r_steps_and_exits_on_pullb
     ) is None
     active_position = engine.snapshot().open_position
     assert active_position is not None
-    assert active_position.stop_loss == Decimal("110")
+    assert active_position.stop_loss == Decimal("100")
 
-    assert engine.on_kline(
+    noise_fill = engine.on_kline(
         Kline(
             symbol="BTCUSDT",
             interval="15m",
             open_time=1_800_000,
             close_time=2_699_999,
+            open=Decimal("111"),
+            high=Decimal("112"),
+            low=Decimal("110"),
+            close=Decimal("111"),
+            volume=Decimal("10"),
+        )
+    )
+
+    assert noise_fill is None
+    assert engine.snapshot().open_position is not None
+
+    assert engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=2_700_000,
+            close_time=3_599_999,
             open=Decimal("111"),
             high=Decimal("120"),
             low=Decimal("111"),
@@ -334,26 +385,26 @@ def test_long_trend_pullback_moves_take_profit_by_two_r_steps_and_exits_on_pullb
     ) is None
     trailed_position = engine.snapshot().open_position
     assert trailed_position is not None
-    assert trailed_position.stop_loss == Decimal("120")
+    assert trailed_position.stop_loss == Decimal("110")
 
     exit_fill = engine.on_kline(
         Kline(
             symbol="BTCUSDT",
             interval="15m",
-            open_time=2_700_000,
-            close_time=3_599_999,
-            open=Decimal("121"),
-            high=Decimal("122"),
-            low=Decimal("120"),
-            close=Decimal("121"),
+            open_time=3_600_000,
+            close_time=4_499_999,
+            open=Decimal("111"),
+            high=Decimal("112"),
+            low=Decimal("110"),
+            close=Decimal("111"),
             volume=Decimal("10"),
         )
     )
 
     assert exit_fill is not None
     assert exit_fill.exit_reason == "TRAILING_TAKE_PROFIT"
-    assert exit_fill.exit_price == Decimal("120")
-    assert exit_fill.net_pnl == Decimal("400")
+    assert exit_fill.exit_price == Decimal("110")
+    assert exit_fill.net_pnl == Decimal("200")
     assert engine.snapshot().open_position is None
 
 
