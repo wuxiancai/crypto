@@ -26,6 +26,9 @@ def build_paper_status_payload(
             "fills": [],
             "rejected_signals": 0,
             "runtime_seconds": 0,
+            "runtime_started_at_ms": None,
+            "current_time_ms": now_ms,
+            "initial_equity": "1000",
             "last_update_at_ms": None,
             "error_logs": _read_error_logs(error_log_path),
             "signal_evaluations": [],
@@ -53,6 +56,9 @@ def build_paper_status_payload(
         "fills": fills,
         "rejected_signals": payload.get("rejected_signals", 0),
         "runtime_seconds": _runtime_seconds(started_at, now_ms),
+        "runtime_started_at_ms": started_at,
+        "current_time_ms": now_ms,
+        "initial_equity": payload.get("initial_equity") or payload.get("starting_equity") or "1000",
         "last_update_at_ms": payload.get("last_update_at_ms"),
         "error_logs": _read_error_logs(error_log_path),
         "signal_evaluations": signal_evaluations,
@@ -96,8 +102,15 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .ticker-item {{ display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 10px; border: 1px solid #d9e0ec; border-radius: 4px; background: #fff; white-space: nowrap; }}
     .ticker-symbol {{ color: #65748b; font-size: 12px; font-weight: 700; }}
     .ticker-price {{ color: #172033; font-size: 16px; font-weight: 700; }}
-    .grid {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
+    .ticker-price-up {{ color: #0a7c52; }}
+    .ticker-price-down {{ color: #b42318; }}
+    .grid {{ display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
+    .return-panel {{ display: grid; gap: 5px; color: #b42318; font-size: 13px; line-height: 1.35; }}
+    .return-title {{ font-weight: 700; }}
+    .return-line {{ white-space: nowrap; }}
+    .return-profit {{ color: #0a7c52; }}
+    .return-loss {{ color: #b42318; }}
     .system-metrics {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 10px; font-size: 12px; line-height: 1.35; }}
     .metric-item {{ min-width: 0; }}
     .metric-key {{ color: #65748b; margin-right: 3px; }}
@@ -186,6 +199,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     </header>
     <section class="grid">
       <div class="panel"><div class="label">账户权益 USDT</div><div class="value">{_format_decimal(payload.get("equity"), 2)}</div></div>
+      {_render_runtime_return_panel(payload)}
       <div class="panel"><div class="label">持仓情况</div><div class="value">{_position_title(positions)}</div></div>
       <div class="panel"><div class="label">模拟交易记录</div><div class="value">{len(fills) + len(positions)}</div></div>
       <div class="panel"><div class="label" id="rejected-signals">拒绝信号</div><div class="value">{_escape(payload.get("rejected_signals"))}</div></div>
@@ -502,12 +516,34 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
         bindChartTabs();
         restoreActiveCharts(activeCharts);
         bindInteractiveCharts();
+        colorTickerPrices();
       }} catch (_error) {{
         return;
       }}
     }}
+    const lastTickerPrices = window.__lastTickerPrices || (window.__lastTickerPrices = {{}});
+    function colorTickerPrices() {{
+      document.querySelectorAll("[data-ticker-symbol]").forEach((node) => {{
+        const symbol = node.getAttribute("data-ticker-symbol") || "";
+        const price = Number(node.getAttribute("data-ticker-price"));
+        if (!symbol || !Number.isFinite(price)) {{
+          return;
+        }}
+        node.classList.remove("ticker-price-up", "ticker-price-down");
+        const previous = lastTickerPrices[symbol];
+        if (Number.isFinite(previous)) {{
+          if (price > previous) {{
+            node.classList.add("ticker-price-up");
+          }} else if (price < previous) {{
+            node.classList.add("ticker-price-down");
+          }}
+        }}
+        lastTickerPrices[symbol] = price;
+      }});
+    }}
     bindChartTabs();
     bindInteractiveCharts();
+    colorTickerPrices();
     setInterval(refreshDashboard, 5000);
   </script>
 </body>
@@ -1801,14 +1837,53 @@ def _render_error_logs(lines: list[str]) -> str:
 
 def _render_market_prices(prices: dict[str, Any]) -> str:
     symbols = ("BTCUSDT", "ETHUSDT")
-    items = "".join(
-        f"""<div class="ticker-item">
-  <span class="ticker-symbol">{symbol} 永续</span>
-  <span class="ticker-price">{_format_decimal(prices.get(symbol), 2)}</span>
-</div>"""
-        for symbol in symbols
-    )
+    items = "".join(_render_market_price_item(symbol, prices.get(symbol)) for symbol in symbols)
     return f'<div class="ticker-strip">{items}</div>'
+
+
+def _render_market_price_item(symbol: str, price: Any) -> str:
+    formatted = _format_decimal(price, 2)
+    decimal_value = _to_decimal(price)
+    data_price = f' data-ticker-price="{_escape(decimal_value)}"' if decimal_value is not None else ""
+    return f"""<div class="ticker-item">
+  <span class="ticker-symbol">{symbol} 永续</span>
+  <span class="ticker-price" data-ticker-symbol="{symbol}"{data_price}>{formatted}</span>
+</div>"""
+
+
+def _render_runtime_return_panel(payload: dict[str, Any]) -> str:
+    initial_equity = _to_decimal(payload.get("initial_equity")) or Decimal("1000")
+    current_equity = _to_decimal(payload.get("equity"))
+    started_at_ms = payload.get("runtime_started_at_ms")
+    current_time_ms = payload.get("current_time_ms")
+    if current_equity is None:
+        amount_text = "-"
+        rate_text = "-"
+        class_name = "return-line"
+    else:
+        profit = current_equity - initial_equity
+        rate = Decimal("0") if initial_equity == 0 else profit * Decimal("100") / initial_equity
+        amount_text = f"{_format_decimal(profit, 2)}USDT"
+        rate_text = f"{_format_decimal(rate, 2)}%"
+        class_name = "return-line return-profit" if profit >= 0 else "return-line return-loss"
+    days = _runtime_calendar_days(started_at_ms, current_time_ms)
+    return f"""<div class="panel return-panel">
+  <div class="return-title">{days}天收益</div>
+  <div class="{class_name}">收益：{amount_text}</div>
+  <div class="{class_name}">收益率：{rate_text}</div>
+</div>"""
+
+
+def _runtime_calendar_days(started_at_ms: Any, current_time_ms: Any) -> int:
+    try:
+        start_ms = int(started_at_ms)
+        now_ms = int(current_time_ms)
+    except (TypeError, ValueError):
+        return 0
+    utc_plus_8 = timezone(timedelta(hours=8))
+    start_date = datetime.fromtimestamp(start_ms / 1000, tz=utc_plus_8).date()
+    now_date = datetime.fromtimestamp(now_ms / 1000, tz=utc_plus_8).date()
+    return max(1, (now_date - start_date).days + 1)
 
 
 def _render_system_metrics(metrics: Any) -> str:
@@ -2311,21 +2386,22 @@ def _render_chart_controls_and_panels(
         for interval in chart_timeframes
         if interval not in preferred_order
     ]
+    active_interval = "15m" if "15m" in intervals else (intervals[0] if intervals else "")
     symbol = str(evaluation.get("symbol") or "UNKNOWN")
     tabs = "".join(
-        _render_chart_tab(interval=interval, active=index == 0, symbol=symbol if symbol_scoped else None, group=group)
-        for index, interval in enumerate(intervals)
+        _render_chart_tab(interval=interval, active=interval == active_interval, symbol=symbol if symbol_scoped else None, group=group)
+        for interval in intervals
     )
     panels = "".join(
         _render_chart_panel(
             interval=interval,
             points=chart_timeframes[interval],
             symbol=symbol,
-            active=index == 0,
+            active=interval == active_interval,
             symbol_scoped=symbol_scoped,
             group=group,
         )
-        for index, interval in enumerate(intervals)
+        for interval in intervals
     )
     return f"""<div class="chart-tabs">{tabs}</div>
   {panels}"""

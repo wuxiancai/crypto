@@ -128,7 +128,7 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "资金费" in html
     assert "使用策略" in html
     assert "当前策略详情" in html
-    assert "grid-template-columns: repeat(5, minmax(0, 1fr))" in html
+    assert "grid-template-columns: repeat(6, minmax(0, 1fr))" in html
     assert "系统性能" in html
     assert "strategy-detail-panel { grid-column: 1 / -1; display: flex" in html
     assert "strategy-detail-grid { display: grid; grid-template-columns: 1fr" in html
@@ -153,6 +153,39 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "止盈" in html
 
 
+def test_paper_status_html_shows_runtime_return_card(tmp_path):
+    from datetime import datetime, timezone, timedelta
+
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    utc_plus_8 = timezone(timedelta(hours=8))
+    started_at = int(datetime(2026, 6, 24, 10, 30, tzinfo=utc_plus_8).timestamp() * 1000)
+    current_time = int(datetime(2026, 6, 26, 0, 1, tzinfo=utc_plus_8).timestamp() * 1000)
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1018.14",
+                "initial_equity": "1000",
+                "open_position": None,
+                "open_positions": [],
+                "fills": [],
+                "rejected_signals": 0,
+                "runtime_started_at_ms": started_at,
+                "signal_evaluations": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path, current_time_ms=current_time))
+
+    assert "3天收益" in html
+    assert "收益：18.14USDT" in html
+    assert "收益率：1.81%" in html
+    assert "return-panel" in html
+
+
 def test_paper_status_html_shows_system_performance_card():
     from app.paper.web_status import render_paper_status_html
 
@@ -166,6 +199,9 @@ def test_paper_status_html_shows_system_performance_card():
             "fills": [],
             "rejected_signals": 0,
             "runtime_seconds": 0,
+            "runtime_started_at_ms": None,
+            "current_time_ms": 0,
+            "initial_equity": "1000",
             "last_update_at_ms": None,
             "error_logs": [],
             "signal_evaluations": [],
@@ -555,6 +591,11 @@ def test_paper_status_page_explains_missing_strategy_data_and_shows_price_ticker
     assert "63424.90" in html
     assert "ETHUSDT" in html
     assert "1707.37" in html
+    assert 'data-ticker-symbol="BTCUSDT"' in html
+    assert 'data-ticker-price="63424.90"' in html
+    assert "ticker-price-up" in html
+    assert "ticker-price-down" in html
+    assert "colorTickerPrices" in html
     assert payload["market_prices"] == {
         "BTCUSDT": "63424.90",
         "ETHUSDT": "1707.37",
@@ -735,6 +776,8 @@ def test_paper_status_page_can_switch_strategy_chart_timeframes(tmp_path):
     assert ">4h<" in html
     assert ">1h<" in html
     assert ">15m<" in html
+    assert 'class="chart-tab active" type="button" data-chart-target="chart-15m"' in html
+    assert 'class="chart-panel active" data-chart-panel="chart-15m"' in html
 
 
 def test_paper_status_page_renders_interactive_strategy_chart_controls(tmp_path):
