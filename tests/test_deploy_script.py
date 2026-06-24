@@ -101,3 +101,11 @@ def test_stop_script_stops_all_project_processes():
     assert "pgrep -f" in content
     assert "compose --env-file \"$PORT_ENV\" stop postgres" in content
     assert 'STOP_POSTGRES="${STOP_POSTGRES:-1}"' in content
+
+
+def test_status_web_disables_batch_backtest_by_default():
+    content = Path("scripts/run_paper_status_web.py").read_text(encoding="utf-8")
+
+    assert "PAPER_ENABLE_BATCH_BACKTEST" in content
+    assert "enable_batch_backtest: bool = False" in content
+    assert "默认禁用" in content

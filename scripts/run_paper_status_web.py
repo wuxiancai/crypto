@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 from collections import deque
 from dataclasses import replace
 from datetime import datetime
@@ -36,6 +37,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--state-path", type=Path, default=Path("runtime/paper-state.json"))
     parser.add_argument("--error-log-path", type=Path, default=Path("runtime/logs/paper-realtime.log"))
+    parser.add_argument(
+        "--enable-batch-backtest",
+        action="store_true",
+        default=os.getenv("PAPER_ENABLE_BATCH_BACKTEST") == "1",
+        help="Enable heavy batch backtest actions on this web process.",
+    )
     return parser.parse_args()
 
 
@@ -126,7 +133,7 @@ _BATCH_BACKTEST_JOBS = BatchBacktestJobManager()
 LOCAL_TZ = ZoneInfo("Asia/Shanghai")
 
 
-def make_handler(state_path: Path, error_log_path: Path):
+def make_handler(state_path: Path, error_log_path: Path, enable_batch_backtest: bool = False):
     class PaperStatusHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             parsed = urlparse(self.path)
@@ -135,7 +142,9 @@ def make_handler(state_path: Path, error_log_path: Path):
                 self._send_json(payload)
                 return
             if parsed.path == "/api/backtest/batch/status":
-                self._send_json(_BATCH_BACKTEST_JOBS.status())
+                status = _BATCH_BACKTEST_JOBS.status()
+                status["enabled"] = enable_batch_backtest
+                self._send_json(status)
                 return
             if parsed.path in {"/", "/index.html"}:
                 self._send_html(render_paper_status_html(payload))
@@ -156,21 +165,27 @@ def make_handler(state_path: Path, error_log_path: Path):
                 config = _batch_config_from_query(query)
                 error = None
                 info = None
-                if query.get("run") == ["1"]:
-                    if not _BATCH_BACKTEST_JOBS.start(config):
-                        error = "已有批量回测正在运行，请先停止或等待完成。"
-                if query.get("stop") == ["1"]:
-                    if not _BATCH_BACKTEST_JOBS.stop():
-                        error = "当前没有正在运行的批量回测。"
-                if query.get("clear") == ["1"]:
-                    if _BATCH_BACKTEST_JOBS.status().get("running"):
-                        error = "批量回测正在运行，请先停止或等待完成后再清空记录。"
-                    else:
-                        clear_message = _clear_strategy_backtest_records()
-                        if clear_message.startswith("清空回测记录失败"):
-                            error = clear_message
+                if not enable_batch_backtest:
+                    error = (
+                        "批量回测在 Web 进程中默认禁用，避免云服务器被公网请求触发重计算或清空记录。"
+                        "如需本机临时研究，请设置 PAPER_ENABLE_BATCH_BACKTEST=1 后重启状态页。"
+                    )
+                else:
+                    if query.get("run") == ["1"]:
+                        if not _BATCH_BACKTEST_JOBS.start(config):
+                            error = "已有批量回测正在运行，请先停止或等待完成。"
+                    if query.get("stop") == ["1"]:
+                        if not _BATCH_BACKTEST_JOBS.stop():
+                            error = "当前没有正在运行的批量回测。"
+                    if query.get("clear") == ["1"]:
+                        if _BATCH_BACKTEST_JOBS.status().get("running"):
+                            error = "批量回测正在运行，请先停止或等待完成后再清空记录。"
                         else:
-                            info = clear_message
+                            clear_message = _clear_strategy_backtest_records()
+                            if clear_message.startswith("清空回测记录失败"):
+                                error = clear_message
+                            else:
+                                info = clear_message
                 self._send_html(
                     render_strategy_backtest_batch_html(
                         config=config,
@@ -562,7 +577,14 @@ def _query_bool_list(
 
 def main() -> None:
     args = parse_args()
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(args.state_path, args.error_log_path))
+    server = ThreadingHTTPServer(
+        (args.host, args.port),
+        make_handler(
+            args.state_path,
+            args.error_log_path,
+            enable_batch_backtest=args.enable_batch_backtest,
+        ),
+    )
     print(f"Paper status page: http://{args.host}:{args.port}")
     print(f"Reading state: {args.state_path}")
     print(f"Reading error log: {args.error_log_path}")

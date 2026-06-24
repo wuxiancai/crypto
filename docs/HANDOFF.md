@@ -25,6 +25,11 @@
 
 ## 本轮修复
 
+- 2026-06-24 最后一次上线体检修复：
+  - `docker-compose.yml` 已为 PostgreSQL 增加小型 Ubuntu 云服务器资源限制：`shared_buffers=128MB`、`work_mem=4MB`、`maintenance_work_mem=64MB`、`max_connections=30`、`mem_limit=512m`，落实 2c2g 服务器只跑自动交易所需进程的部署约束。
+  - `scripts/run_paper_status_web.py` 的 Web 批量回测动作默认禁用；`/backtest/batch?run=1`、`stop=1`、`clear=1` 不再在默认状态页进程中执行，避免公网访问触发重计算或清空回测归档。本机临时研究时可显式设置 `PAPER_ENABLE_BATCH_BACKTEST=1`。
+  - `README.md` 已修正默认周期为 `1d / 4h / 1h / 15m / 5m`，并把停止方式统一为 `bash scripts/stop.sh`。
+  - `docs/UBUNTU_DEPLOY.md` 已同步说明 Postgres 资源限制和批量回测禁用策略。
 - 2026-06-24 新增统一停止脚本：
   - 新增 `scripts/stop.sh`，用于停止本项目相关进程：先尝试停止 `crypto-paper.service`，再通过 pid 文件和进程 pattern 兜底停止 `scripts/run_paper_realtime.py`、`scripts/run_paper_status_web.py`，最后停止 PostgreSQL 容器。
   - 默认会停止 PostgreSQL；如只停止 Paper/Web，可执行 `STOP_POSTGRES=0 bash scripts/stop.sh`。

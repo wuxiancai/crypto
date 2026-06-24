@@ -28,10 +28,11 @@
 - Python 3.11 项目，依赖管理基于 `pip install -e .`。
 - 数据源为 Binance USDⓈ-M Futures REST + WebSocket。
 - 默认交易对为 `BTCUSDT`、`ETHUSDT`。
-- 默认周期为 `4h / 1h / 15m / 5m`。
+- 默认周期为 `1d / 4h / 1h / 15m / 5m`。
 - PostgreSQL 通过 Docker Compose 启动。
 - 回测页支持最近 `3m / 6m / 1y / 2y` 历史区间。
 - Web 页面支持查看 Paper 状态、策略条件、最近成交和回测结果。
+- Web 批量参数回测默认禁用，避免 Ubuntu 云服务器被公网请求触发重计算；本机临时研究时可设置 `PAPER_ENABLE_BATCH_BACKTEST=1` 后重启状态页。
 
 当前不属于第一版范围的部分：
 
@@ -559,17 +560,16 @@ runtime/paper-state.json
 
 ## 停止服务
 
-停止 Paper 和 Web：
+统一停止本项目相关进程：
 
 ```bash
-pkill -f scripts/run_paper_realtime.py
-pkill -f scripts/run_paper_status_web.py
+bash scripts/stop.sh
 ```
 
-停止 PostgreSQL：
+该脚本会先尝试停止 `crypto-paper.service`，再兜底停止 Paper、Web 和 PostgreSQL。只停止 Paper/Web、保留 PostgreSQL 时：
 
 ```bash
-docker compose --env-file .env.ports.generated down
+STOP_POSTGRES=0 bash scripts/stop.sh
 ```
 
 ## 测试与验证

@@ -64,7 +64,15 @@ cat .env.ports.generated
 
 个人 2c2g 云服务器部署时，PostgreSQL 必须限制内存和连接数，避免与同机其他项目共同运行时抢占自动交易进程资源。
 
-建议在 PostgreSQL 启动参数中显式设置较小的 `shared_buffers`、`work_mem`、`maintenance_work_mem` 和 `max_connections`，并按服务器实际内存继续收紧。云服务器只运行自动交易所需进程，不在服务器上执行批量回测、参数网格搜索、开发测试或其他重计算任务。
+当前 `docker-compose.yml` 已为 PostgreSQL 设置保守启动参数：`shared_buffers=128MB`、`work_mem=4MB`、`maintenance_work_mem=64MB`、`max_connections=30`，并限制容器内存为 `512m`。云服务器只运行自动交易所需进程，不在服务器上执行批量回测、参数网格搜索、开发测试或其他重计算任务。
+
+状态页里的批量参数回测动作默认禁用，避免公网请求触发重计算或清空回测归档。本机临时研究确实需要使用批量页时，手动设置：
+
+```bash
+PAPER_ENABLE_BATCH_BACKTEST=1 bash scripts/run_paper_status_web.py
+```
+
+systemd 部署不建议开启该变量。
 
 如果服务器上残留早期版本创建的固定名容器，可以先查看：
 

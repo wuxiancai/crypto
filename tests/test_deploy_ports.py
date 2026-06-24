@@ -68,6 +68,16 @@ def test_compose_does_not_pin_postgres_container_name():
     assert "container_name:" not in content
 
 
+def test_compose_limits_postgres_resources_for_small_ubuntu_host():
+    content = Path("docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "mem_limit: 512m" in content
+    assert "shared_buffers=128MB" in content
+    assert "work_mem=4MB" in content
+    assert "maintenance_work_mem=64MB" in content
+    assert "max_connections=30" in content
+
+
 def test_ubuntu_start_subscribes_layered_strategy_intervals():
     content = Path("scripts/start.sh").read_text(encoding="utf-8")
 
