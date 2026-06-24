@@ -25,6 +25,14 @@
 
 ## 本轮修复
 
+- 2026-06-24 Ubuntu 部署 `docker-compose-plugin` 缺包修复：
+  - 根因：`scripts/deploy_ubuntu.sh` 在 Docker CE 源不可用时执行 `apt-get install docker.io docker-compose-plugin`，某些 Ubuntu 镜像默认源没有 `docker-compose-plugin`，导致 Docker Engine 安装阶段直接失败并输出 `E: Unable to locate package docker-compose-plugin`。
+  - 修复：`docker.io` 改为单独安装；Docker Compose 改为独立探测安装，按 `docker-compose-plugin` -> `docker-compose-v2` -> `docker-compose` 顺序回退，全部失败才给出明确错误。
+  - 已同步 `docs/UBUNTU_DEPLOY.md` 的 Compose 包名回退和缺包排障说明。
+- 2026-06-24 状态页系统性能监控：
+  - 模拟交易看板顶部统计卡已新增“系统性能”，展示 CPU 使用率、剩余内存、Swap、剩余硬盘容量和网速。
+  - 指标读取不新增第三方依赖；Ubuntu/Linux 下直接读取 `/proc/stat`、`/proc/meminfo`、`/proc/net/dev`，磁盘容量使用 `statvfs`，读取失败时显示 `-`，不影响 Paper 状态页。
+  - 网速按当前请求与上次请求之间的网卡收发字节差估算；状态页 5 秒软刷新时会自然更新。
 - 2026-06-24 最后一次上线体检修复：
   - `docker-compose.yml` 已为 PostgreSQL 增加小型 Ubuntu 云服务器资源限制：`shared_buffers=128MB`、`work_mem=4MB`、`maintenance_work_mem=64MB`、`max_connections=30`、`mem_limit=512m`，落实 2c2g 服务器只跑自动交易所需进程的部署约束。
   - `scripts/run_paper_status_web.py` 的 Web 批量回测动作默认禁用；`/backtest/batch?run=1`、`stop=1`、`clear=1` 不再在默认状态页进程中执行，避免公网访问触发重计算或清空回测归档。本机临时研究时可显式设置 `PAPER_ENABLE_BATCH_BACKTEST=1`。

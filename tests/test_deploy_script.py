@@ -19,6 +19,17 @@ def test_deploy_script_prefers_existing_docker_and_supports_docker_ce():
     assert "docker compose version" in content
 
 
+def test_deploy_script_does_not_require_compose_plugin_when_installing_docker_io():
+    content = Path("scripts/deploy_ubuntu.sh").read_text(encoding="utf-8")
+
+    assert "sudo apt-get install -y docker.io docker-compose-plugin" not in content
+    assert "sudo apt-get install -y docker.io" in content
+    assert "install_compose_package" in content
+    assert "sudo apt-get install -y docker-compose-plugin" in content
+    assert "sudo apt-get install -y docker-compose-v2" in content
+    assert "sudo apt-get install -y docker-compose" in content
+
+
 def test_start_script_reuses_existing_generated_ports():
     content = Path("scripts/start.sh").read_text(encoding="utf-8")
 

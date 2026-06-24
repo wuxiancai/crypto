@@ -34,8 +34,14 @@ install_docker_engine() {
   if docker_ce_available; then
     sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   else
-    sudo apt-get install -y docker.io docker-compose-plugin
+    sudo apt-get install -y docker.io
   fi
+}
+
+install_compose_package() {
+  sudo apt-get install -y docker-compose-plugin \
+    || sudo apt-get install -y docker-compose-v2 \
+    || sudo apt-get install -y docker-compose
 }
 
 ensure_compose() {
@@ -46,10 +52,11 @@ ensure_compose() {
     return
   fi
 
-  if docker_ce_available; then
-    sudo apt-get install -y docker-compose-plugin
-  else
-    sudo apt-get install -y docker-compose-plugin || sudo apt-get install -y docker-compose
+  install_compose_package
+
+  if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+    echo "Docker Compose 安装失败。请检查 apt 源，或手动安装 docker compose / docker-compose 后重试。" >&2
+    exit 1
   fi
 }
 

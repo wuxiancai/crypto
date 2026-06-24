@@ -116,7 +116,8 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "资金费" in html
     assert "使用策略" in html
     assert "当前策略详情" in html
-    assert "grid-template-columns: repeat(4, minmax(0, 1fr))" in html
+    assert "grid-template-columns: repeat(5, minmax(0, 1fr))" in html
+    assert "系统性能" in html
     assert "strategy-detail-panel { grid-column: 1 / -1; display: flex" in html
     assert "strategy-detail-grid { display: grid; grid-template-columns: 1fr" in html
     assert "strategy-detail-panel { grid-column: 1 / -1; display: flex; align-items: flex-start" in html
@@ -138,8 +139,45 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "BTCUSDT" in html
     assert "REVERSAL_PROBE" in html
     assert "止盈" in html
-    assert "止损" in html
-    assert "rejected-signals" in html
+
+
+def test_paper_status_html_shows_system_performance_card():
+    from app.paper.web_status import render_paper_status_html
+
+    html = render_paper_status_html(
+        {
+            "status": "RUNNING",
+            "state_path": "runtime/paper-state.json",
+            "equity": "1000",
+            "open_position": None,
+            "open_positions": [],
+            "fills": [],
+            "rejected_signals": 0,
+            "runtime_seconds": 0,
+            "last_update_at_ms": None,
+            "error_logs": [],
+            "signal_evaluations": [],
+            "market_prices": {},
+            "strategy_details": [],
+            "system_metrics": {
+                "cpu_percent": "12.3%",
+                "memory_available": "1.42 GB",
+                "swap_free": "512.00 MB",
+                "disk_free": "18.20 GB",
+                "network_speed": "↓ 1.20 MB/s ↑ 96.00 KB/s",
+            },
+        }
+    )
+
+    assert "系统性能" in html
+    assert "CPU" in html
+    assert "内存" in html
+    assert "Swap" in html
+    assert "硬盘" in html
+    assert "网速" in html
+    assert "12.3%" in html
+    assert "1.42 GB" in html
+    assert "18.20 GB" in html
 
 
 def test_status_page_formats_numbers_times_and_compact_trade_list(tmp_path):

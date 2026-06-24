@@ -1,10 +1,13 @@
 import html
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import time
 from typing import Any
+
+_SYSTEM_METRICS_LAST_SAMPLE: dict[str, Any] | None = None
 
 
 def build_paper_status_payload(
@@ -28,6 +31,7 @@ def build_paper_status_payload(
             "signal_evaluations": [],
             "market_prices": {},
             "strategy_details": _default_strategy_details(),
+            "system_metrics": _system_metrics_payload(state_path.parent, now_ms),
         }
 
     payload = json.loads(state_path.read_text(encoding="utf-8"))
@@ -60,6 +64,7 @@ def build_paper_status_payload(
             fills=fills,
         ),
         "strategy_details": _strategy_details_from_payload(payload.get("strategy_details")),
+        "system_metrics": _system_metrics_payload(state_path.parent, now_ms),
     }
 
 
@@ -91,8 +96,13 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .ticker-item {{ display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 10px; border: 1px solid #d9e0ec; border-radius: 4px; background: #fff; white-space: nowrap; }}
     .ticker-symbol {{ color: #65748b; font-size: 12px; font-weight: 700; }}
     .ticker-price {{ color: #172033; font-size: 16px; font-weight: 700; }}
-    .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }}
     .panel {{ background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; padding: 14px; }}
+    .system-metrics {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 10px; font-size: 12px; line-height: 1.35; }}
+    .metric-item {{ min-width: 0; }}
+    .metric-key {{ color: #65748b; margin-right: 3px; }}
+    .metric-value {{ color: #172033; font-weight: 700; white-space: nowrap; }}
+    .metric-network {{ grid-column: 1 / -1; }}
     .strategy-detail-panel {{ grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 10px; padding: 7px 10px; overflow: hidden; }}
     .strategy-detail-panel .label {{ flex: 0 0 auto; margin-bottom: 0; line-height: 1.45; }}
     .strategy-detail-grid {{ display: grid; grid-template-columns: 1fr; gap: 4px; flex: 1 1 auto; min-width: 0; }}
@@ -178,6 +188,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
       <div class="panel"><div class="label">持仓情况</div><div class="value">{_position_title(positions)}</div></div>
       <div class="panel"><div class="label">模拟成交次数</div><div class="value">{len(fills)}</div></div>
       <div class="panel"><div class="label" id="rejected-signals">拒绝信号</div><div class="value">{_escape(payload.get("rejected_signals"))}</div></div>
+      {_render_system_metrics(payload.get("system_metrics", {}))}
       {_render_strategy_details(payload.get("strategy_details", []))}
     </section>
     <section class="panel">
@@ -1742,6 +1753,22 @@ def _render_market_prices(prices: dict[str, Any]) -> str:
     return f'<div class="ticker-strip">{items}</div>'
 
 
+def _render_system_metrics(metrics: Any) -> str:
+    payload = metrics if isinstance(metrics, dict) else {}
+    rows = [
+        ("CPU", payload.get("cpu_percent", "-"), ""),
+        ("内存", payload.get("memory_available", "-"), ""),
+        ("Swap", payload.get("swap_free", "-"), ""),
+        ("硬盘", payload.get("disk_free", "-"), ""),
+        ("网速", payload.get("network_speed", "-"), " metric-network"),
+    ]
+    items = "".join(
+        f'<div class="metric-item{extra_class}"><span class="metric-key">{_escape(label)}</span><span class="metric-value">{_escape(value)}</span></div>'
+        for label, value, extra_class in rows
+    )
+    return f'<div class="panel"><div class="label">系统性能</div><div class="system-metrics">{items}</div></div>'
+
+
 def _render_strategy_details(details: list[dict[str, Any]]) -> str:
     effective_details = details or _default_strategy_details()
     blocks = "".join(
@@ -2502,6 +2529,153 @@ def _format_decimal(value: Any, places: int = 2) -> str:
         return _escape(value if value is not None else "-")
     quant = Decimal("1").scaleb(-places)
     return format(decimal_value.quantize(quant), "f")
+
+
+def _system_metrics_payload(disk_path: Path, now_ms: int) -> dict[str, str]:
+    return {
+        "cpu_percent": _system_cpu_percent(now_ms),
+        "memory_available": _system_memory_value("MemAvailable"),
+        "swap_free": _system_memory_value("SwapFree"),
+        "disk_free": _system_disk_free(disk_path),
+        "network_speed": _system_network_speed(now_ms),
+    }
+
+
+def _system_cpu_percent(now_ms: int) -> str:
+    sample = _read_cpu_sample()
+    if sample is None:
+        return "-"
+    global _SYSTEM_METRICS_LAST_SAMPLE
+    previous = _SYSTEM_METRICS_LAST_SAMPLE or {}
+    _SYSTEM_METRICS_LAST_SAMPLE = {**previous, "cpu": sample, "cpu_time_ms": now_ms}
+    previous_sample = previous.get("cpu")
+    if not isinstance(previous_sample, tuple):
+        return "-"
+    previous_idle, previous_total = previous_sample
+    idle, total = sample
+    total_delta = total - previous_total
+    idle_delta = idle - previous_idle
+    if total_delta <= 0:
+        return "-"
+    usage = max(Decimal("0"), min(Decimal("100"), Decimal(total_delta - idle_delta) * Decimal("100") / Decimal(total_delta)))
+    return f"{_format_decimal(usage, 1)}%"
+
+
+def _read_cpu_sample() -> tuple[int, int] | None:
+    try:
+        first_line = Path("/proc/stat").read_text(encoding="utf-8").splitlines()[0]
+    except (OSError, IndexError):
+        return None
+    parts = first_line.split()
+    if not parts or parts[0] != "cpu":
+        return None
+    try:
+        values = [int(value) for value in parts[1:]]
+    except ValueError:
+        return None
+    if len(values) < 4:
+        return None
+    idle = values[3] + (values[4] if len(values) > 4 else 0)
+    return idle, sum(values)
+
+
+def _system_memory_value(field_name: str) -> str:
+    values = _read_meminfo_kb()
+    value_kb = values.get(field_name)
+    if value_kb is None:
+        return "-"
+    return _format_bytes(value_kb * 1024)
+
+
+def _read_meminfo_kb() -> dict[str, int]:
+    try:
+        lines = Path("/proc/meminfo").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+    values: dict[str, int] = {}
+    for line in lines:
+        if ":" not in line:
+            continue
+        key, raw_value = line.split(":", 1)
+        parts = raw_value.strip().split()
+        if not parts:
+            continue
+        try:
+            values[key] = int(parts[0])
+        except ValueError:
+            continue
+    return values
+
+
+def _system_disk_free(path: Path) -> str:
+    try:
+        stat = os.statvfs(path if path.exists() else Path("."))
+    except OSError:
+        return "-"
+    return _format_bytes(stat.f_bavail * stat.f_frsize)
+
+
+def _system_network_speed(now_ms: int) -> str:
+    sample = _read_network_sample()
+    if sample is None:
+        return "-"
+    global _SYSTEM_METRICS_LAST_SAMPLE
+    previous = _SYSTEM_METRICS_LAST_SAMPLE or {}
+    _SYSTEM_METRICS_LAST_SAMPLE = {**previous, "network": sample, "network_time_ms": now_ms}
+    previous_sample = previous.get("network")
+    previous_time_ms = previous.get("network_time_ms")
+    if not isinstance(previous_sample, tuple) or not isinstance(previous_time_ms, int):
+        return "-"
+    seconds = Decimal(max(1, now_ms - previous_time_ms)) / Decimal("1000")
+    rx_delta = max(0, sample[0] - previous_sample[0])
+    tx_delta = max(0, sample[1] - previous_sample[1])
+    return f"↓ {_format_bytes_per_second(Decimal(rx_delta) / seconds)} ↑ {_format_bytes_per_second(Decimal(tx_delta) / seconds)}"
+
+
+def _read_network_sample() -> tuple[int, int] | None:
+    try:
+        lines = Path("/proc/net/dev").read_text(encoding="utf-8").splitlines()[2:]
+    except OSError:
+        return None
+    rx_total = 0
+    tx_total = 0
+    for line in lines:
+        if ":" not in line:
+            continue
+        interface, raw_values = line.split(":", 1)
+        if interface.strip() == "lo":
+            continue
+        parts = raw_values.split()
+        if len(parts) < 16:
+            continue
+        try:
+            rx_total += int(parts[0])
+            tx_total += int(parts[8])
+        except ValueError:
+            continue
+    return rx_total, tx_total
+
+
+def _format_bytes(value: int) -> str:
+    amount = Decimal(value)
+    units = ("B", "KB", "MB", "GB", "TB")
+    unit_index = 0
+    while amount >= Decimal("1024") and unit_index < len(units) - 1:
+        amount /= Decimal("1024")
+        unit_index += 1
+    places = 0 if unit_index == 0 else 2
+    return f"{_format_decimal(amount, places)} {units[unit_index]}"
+
+
+def _format_bytes_per_second(value: Decimal) -> str:
+    amount = value
+    units = ("B/s", "KB/s", "MB/s", "GB/s")
+    unit_index = 0
+    while amount >= Decimal("1024") and unit_index < len(units) - 1:
+        amount /= Decimal("1024")
+        unit_index += 1
+    places = 0 if unit_index == 0 else 2
+    return f"{_format_decimal(amount, places)} {units[unit_index]}"
 
 
 def _format_win_rate(wins: Any, losses: Any) -> str:

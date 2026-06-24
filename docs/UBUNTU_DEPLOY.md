@@ -14,7 +14,7 @@ bash scripts/deploy_ubuntu.sh
 
 - 安装 `python3`、`python3-venv`。
 - 检查 Docker：如果服务器已安装 Docker 则直接复用；如果存在 Docker CE 软件源则安装 `docker-ce`；否则回退安装 Ubuntu 自带 `docker.io`。
-- 检查 Docker Compose：优先使用 `docker compose` plugin，必要时回退到 `docker-compose`。
+- 检查 Docker Compose：优先使用 `docker compose` plugin，必要时依次回退到 `docker-compose-v2` 和 `docker-compose`。
 - 自动检测端口冲突。
 - 生成 `.env.ports.generated`。
 - 启动 PostgreSQL。
@@ -127,7 +127,23 @@ E: Error, pkgProblemResolver::Resolve generated breaks
 - 已有 `docker` 命令时不重新安装 Docker Engine。
 - 可安装 `docker-ce` 时优先安装 Docker CE 相关包。
 - 没有 Docker CE 候选包时才安装 Ubuntu `docker.io`。
+- 安装 Ubuntu `docker.io` 时不再把 `docker-compose-plugin` 绑在同一个 apt 命令里，避免默认源缺少该包时让 Docker Engine 安装也失败。
+- Docker Compose 会单独探测安装，依次尝试 `docker-compose-plugin`、`docker-compose-v2`、`docker-compose`。
 - 当前用户没有 Docker 权限时，启动脚本会尝试使用 `sudo docker compose`。
+
+如果部署时报：
+
+```text
+E: Unable to locate package docker-compose-plugin
+```
+
+请先拉取最新代码后重新执行：
+
+```bash
+bash scripts/deploy_ubuntu.sh
+```
+
+新版脚本会自动回退到当前 Ubuntu 镜像可用的 Compose 包名。
 
 ## Python Editable 安装失败
 
