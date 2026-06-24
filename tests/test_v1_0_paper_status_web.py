@@ -111,8 +111,12 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "当前保护线" in html
     assert "止盈激活价" in html
     assert "止盈逻辑" in html
+    assert "杠杆" in html
+    assert "名义金额 USDT" in html
     assert "1820.00" in html
     assert "1760.00" in html
+    assert "900.00" in html
+    assert "10X" in html
     assert "移动止盈中" in html
     assert "全部模拟交易记录" in html
     assert "开仓时间 UTC+8" in html
@@ -237,7 +241,10 @@ def test_status_page_formats_numbers_times_and_compact_trade_list(tmp_path):
 
     assert "1059.42" in html
     assert "62908.53" in html
-    assert "0.0311" in html
+    assert "名义金额 USDT" in html
+    assert "1954.79" in html
+    assert "10X" in html
+    assert "0.0311" not in html
     assert "62847.01" in html
     assert "62959.70" in html
     assert "-6.59" in html
@@ -308,8 +315,13 @@ def test_status_page_shows_multiple_strategy_bucket_positions(tmp_path):
     assert "当前保护线" in html
     assert "止盈激活价" in html
     assert "止盈逻辑" in html
+    assert "杠杆" in html
+    assert "名义金额 USDT" in html
     assert "等待激活" in html
     assert "移动止盈中" in html
+    assert "620.00" in html
+    assert "1280.00" in html
+    assert "10X" in html
     assert "暂无模拟交易记录" not in html
 
 

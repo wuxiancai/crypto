@@ -32,6 +32,7 @@ class PaperPosition:
     quantity: Decimal
     entry_fee: Decimal
     bucket: str = "LEGACY"
+    leverage: Decimal = Decimal("10")
     initial_stop_loss: Decimal | None = None
     trailing_active: bool = False
     interval: str = "15m"
@@ -56,6 +57,7 @@ class PaperFill:
     net_pnl: Decimal
     exit_reason: str
     bucket: str = "LEGACY"
+    leverage: Decimal = Decimal("10")
     funding_fee: Decimal = Decimal("0")
     exit_detail: str = ""
 
@@ -247,6 +249,7 @@ class PaperTradingEngine:
             take_profit=take_profit,
             quantity=quantity,
             entry_fee=entry_fee,
+            leverage=self._config.leverage,
             initial_stop_loss=stop_loss,
             interval=kline.interval,
         )
@@ -317,6 +320,7 @@ class PaperTradingEngine:
             entry_price=position.entry_price,
             exit_price=exit_price,
             quantity=position.quantity,
+            leverage=position.leverage,
             gross_pnl=gross_pnl,
             fees=fees,
             funding_fee=funding_fee,

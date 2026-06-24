@@ -1224,7 +1224,8 @@ def _render_position(position: dict[str, Any] | None) -> str:
         ("当前保护线", _format_decimal(position.get("stop_loss"), 2)),
         ("止盈激活价", _format_decimal(position.get("take_profit"), 2)),
         ("止盈逻辑", "移动止盈中" if position.get("trailing_active") else "等待激活"),
-        ("数量", _format_decimal(position.get("quantity"), 4)),
+        ("杠杆", _leverage_label(position.get("leverage"))),
+        ("名义金额 USDT", _format_notional_usdt(position)),
     ]
     headers = "".join(f"<th>{_escape(label)}</th>" for label, _value in rows)
     values = "".join(f"<td>{value}</td>" for _label, value in rows)
@@ -1248,19 +1249,42 @@ def _render_positions(positions: list[dict[str, Any]]) -> str:
             f"<td>{_format_decimal(position.get('stop_loss'), 2)}</td>"
             f"<td>{_format_decimal(position.get('take_profit'), 2)}</td>"
             f"<td>{'移动止盈中' if position.get('trailing_active') else '等待激活'}</td>"
-            f"<td>{_format_decimal(position.get('quantity'), 4)}</td>"
+            f"<td>{_leverage_label(position.get('leverage'))}</td>"
+            f"<td>{_format_notional_usdt(position)}</td>"
             "</tr>"
         )
     return (
         '<div class="table-wrap"><table class="compact-position">'
         "<thead><tr><th>交易对</th><th>方向</th><th>使用策略</th><th>Bucket</th>"
-        "<th>入场</th><th>初始止损</th><th>当前保护线</th><th>止盈激活价</th><th>止盈逻辑</th><th>数量</th></tr></thead>"
+        "<th>入场</th><th>初始止损</th><th>当前保护线</th><th>止盈激活价</th><th>止盈逻辑</th><th>杠杆</th><th>名义金额 USDT</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
 
 
 def _initial_stop_loss_value(position: dict[str, Any]) -> Any:
     return position.get("initial_stop_loss") or position.get("stop_loss")
+
+
+def _format_notional_usdt(item: dict[str, Any]) -> str:
+    price = _decimal_or_none(item.get("entry_price"))
+    quantity = _decimal_or_none(item.get("quantity"))
+    if price is None or quantity is None:
+        return "-"
+    return _format_decimal(price * quantity, 2)
+
+
+def _leverage_label(value: Any) -> str:
+    leverage = _decimal_or_none(value) or Decimal("10")
+    if leverage == leverage.to_integral_value():
+        return f"{format(leverage.quantize(Decimal('1')), 'f')}X"
+    return f"{format(leverage.normalize(), 'f')}X"
+
+
+def _decimal_or_none(value: Any) -> Decimal | None:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
 
 
 def _render_history_period_options(selected: Any) -> str:
@@ -1483,7 +1507,7 @@ def _render_fills(fills: list[dict[str, Any]], positions: list[dict[str, Any]] |
   <thead>
     <tr>
       <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间 UTC+8</th><th>平仓时间 UTC+8</th>
-      <th>开仓价</th><th>平仓价</th><th>数量</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
+      <th>开仓价</th><th>平仓价</th><th>杠杆</th><th>名义金额 USDT</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -1500,7 +1524,7 @@ def _render_backtest_trades(trades: list[dict[str, Any]]) -> str:
   <thead>
     <tr>
       <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间 UTC+8</th><th>平仓时间 UTC+8</th>
-      <th>开仓价</th><th>平仓价</th><th>数量</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
+      <th>开仓价</th><th>平仓价</th><th>杠杆</th><th>名义金额 USDT</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -2488,6 +2512,7 @@ def _open_position_trade_rows(positions: list[dict[str, Any]]) -> list[dict[str,
                 "entry_price": position.get("entry_price"),
                 "exit_price": None,
                 "quantity": position.get("quantity"),
+                "leverage": position.get("leverage"),
                 "fees": position.get("entry_fee"),
                 "funding_fee": None,
                 "net_pnl": None,
@@ -2508,7 +2533,8 @@ def _render_fill_row(fill: dict[str, Any]) -> str:
   <td>{_format_time_ms(fill.get("exit_time"))}</td>
   <td>{_format_decimal(fill.get("entry_price"), 2)}</td>
   <td>{_format_decimal(fill.get("exit_price"), 2)}</td>
-  <td>{_format_decimal(fill.get("quantity"), 4)}</td>
+  <td>{_leverage_label(fill.get("leverage"))}</td>
+  <td>{_format_notional_usdt(fill)}</td>
   <td>{_format_decimal(fill.get("fees"), 2)}</td>
   <td>{_format_decimal(fill.get("funding_fee"), 2)}</td>
   <td class="{pnl_class}">{_format_decimal(fill.get("net_pnl"), 2)}</td>

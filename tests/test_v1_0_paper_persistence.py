@@ -17,6 +17,7 @@ def test_serializes_and_restores_paper_snapshot_with_open_position_and_fills():
             take_profit=Decimal("110"),
             quantity=Decimal("0.5"),
             entry_fee=Decimal("0.02"),
+            leverage=Decimal("10"),
         ),
         fills=[
             PaperFill(
@@ -28,6 +29,7 @@ def test_serializes_and_restores_paper_snapshot_with_open_position_and_fills():
                 entry_price=Decimal("200"),
                 exit_price=Decimal("190"),
                 quantity=Decimal("0.2"),
+                leverage=Decimal("10"),
                 gross_pnl=Decimal("2"),
                 fees=Decimal("0.03"),
                 net_pnl=Decimal("1.97"),
@@ -43,6 +45,8 @@ def test_serializes_and_restores_paper_snapshot_with_open_position_and_fills():
 
     assert payload["equity"] == "10025.50"
     assert payload["open_position"]["entry_price"] == "100"
+    assert payload["open_position"]["leverage"] == "10"
+    assert payload["fills"][0]["leverage"] == "10"
     assert payload["fills"][0]["net_pnl"] == "1.97"
     assert payload["fills"][0]["exit_detail"] == "做空止盈：最低价触达止盈价 190"
     assert restored == snapshot

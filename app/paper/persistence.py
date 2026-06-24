@@ -99,6 +99,7 @@ def _position_to_payload(position: PaperPosition | None) -> dict[str, Any] | Non
         "take_profit": str(position.take_profit),
         "quantity": str(position.quantity),
         "entry_fee": str(position.entry_fee),
+        "leverage": str(position.leverage),
         "initial_stop_loss": str(position.initial_stop_loss or position.stop_loss),
         "trailing_active": position.trailing_active,
     }
@@ -119,6 +120,7 @@ def _position_from_payload(payload: dict[str, Any] | None) -> PaperPosition | No
         take_profit=Decimal(payload["take_profit"]),
         quantity=Decimal(payload["quantity"]),
         entry_fee=Decimal(payload["entry_fee"]),
+        leverage=Decimal(payload.get("leverage", "10")),
         initial_stop_loss=Decimal(payload.get("initial_stop_loss", payload["stop_loss"])),
         trailing_active=bool(payload.get("trailing_active", False)),
     )
@@ -135,6 +137,7 @@ def _fill_to_payload(fill: PaperFill) -> dict[str, Any]:
         "entry_price": str(fill.entry_price),
         "exit_price": str(fill.exit_price),
         "quantity": str(fill.quantity),
+        "leverage": str(fill.leverage),
         "gross_pnl": str(fill.gross_pnl),
         "fees": str(fill.fees),
         "funding_fee": str(fill.funding_fee),
@@ -155,6 +158,7 @@ def _fill_from_payload(payload: dict[str, Any]) -> PaperFill:
         entry_price=Decimal(payload["entry_price"]),
         exit_price=Decimal(payload["exit_price"]),
         quantity=Decimal(payload["quantity"]),
+        leverage=Decimal(payload.get("leverage", "10")),
         gross_pnl=Decimal(payload["gross_pnl"]),
         fees=Decimal(payload["fees"]),
         funding_fee=Decimal(payload.get("funding_fee", "0")),
