@@ -105,23 +105,22 @@ def build_layered_strategy_decision(
     if daily_short:
         candidates.append(SHORT_DAY_CORE)
         diagnostics.extend(
-            _trend_diagnostics(
+            _core_strategy_diagnostics(
                 SHORT_DAY_CORE,
-                "日线空头",
-                strategy_input.daily,
+                strategy_input,
                 "DOWN",
                 effective_config,
-                strategy_input.daily_regime,
             )
         )
-        signal = _short_signal(
-            strategy_type=SHORT_DAY_CORE,
-            bucket=DAY_CORE,
-            entry=strategy_input.entry,
-            risk_pct=effective_config.core_risk_pct,
-            config=effective_config,
-            reason=["daily bearish core", "15m bearish entry"],
-        )
+        if four_hour_short and one_hour_short and _bearish_entry(strategy_input.entry):
+            signal = _short_signal(
+                strategy_type=SHORT_DAY_CORE,
+                bucket=DAY_CORE,
+                entry=strategy_input.entry,
+                risk_pct=effective_config.core_risk_pct,
+                config=effective_config,
+                reason=["daily bearish core", "4h/1h bearish", "15m bearish entry"],
+            )
         if four_hour_short and one_hour_short:
             candidates.append(SHORT_4H_1H_ADDON)
             diagnostics.extend(_trend_diagnostics(SHORT_4H_1H_ADDON, "4h 空头", strategy_input.four_hour, "DOWN", effective_config, strategy_input.four_hour_regime))
@@ -143,15 +142,23 @@ def build_layered_strategy_decision(
                 signal = hedge_signal
     elif daily_long:
         candidates.append(LONG_DAY_CORE)
-        diagnostics.extend(_trend_diagnostics(LONG_DAY_CORE, "日线多头", strategy_input.daily, "UP", effective_config, strategy_input.daily_regime))
-        signal = _long_signal(
-            strategy_type=LONG_DAY_CORE,
-            bucket=DAY_CORE,
-            entry=strategy_input.entry,
-            risk_pct=effective_config.core_risk_pct,
-            config=effective_config,
-            reason=["daily bullish core", "15m bullish entry"],
+        diagnostics.extend(
+            _core_strategy_diagnostics(
+                LONG_DAY_CORE,
+                strategy_input,
+                "UP",
+                effective_config,
+            )
         )
+        if four_hour_long and one_hour_long and _bullish_entry(strategy_input.entry):
+            signal = _long_signal(
+                strategy_type=LONG_DAY_CORE,
+                bucket=DAY_CORE,
+                entry=strategy_input.entry,
+                risk_pct=effective_config.core_risk_pct,
+                config=effective_config,
+                reason=["daily bullish core", "4h/1h bullish", "15m bullish entry"],
+            )
         if four_hour_long and one_hour_long:
             candidates.append(LONG_4H_1H_ADDON)
             diagnostics.extend(_trend_diagnostics(LONG_4H_1H_ADDON, "4h 多头", strategy_input.four_hour, "UP", effective_config, strategy_input.four_hour_regime))
@@ -174,10 +181,10 @@ def build_layered_strategy_decision(
     else:
         if _bearish_basis(strategy_input.daily):
             candidates.append(SHORT_DAY_CORE)
-            diagnostics.extend(_trend_diagnostics(SHORT_DAY_CORE, "日线空头", strategy_input.daily, "DOWN", effective_config, strategy_input.daily_regime))
+            diagnostics.extend(_core_strategy_diagnostics(SHORT_DAY_CORE, strategy_input, "DOWN", effective_config))
         elif _bullish_basis(strategy_input.daily):
             candidates.append(LONG_DAY_CORE)
-            diagnostics.extend(_trend_diagnostics(LONG_DAY_CORE, "日线多头", strategy_input.daily, "UP", effective_config, strategy_input.daily_regime))
+            diagnostics.extend(_core_strategy_diagnostics(LONG_DAY_CORE, strategy_input, "UP", effective_config))
         else:
             diagnostics.extend(
                 [
@@ -310,6 +317,27 @@ def _diagnostic(strategy_type: str, passed: bool, detail: list[str]) -> dict[str
     }
 
 
+def _core_strategy_diagnostics(
+    strategy_type: str,
+    strategy_input: LayeredStrategyInput,
+    direction: str,
+    config: LayeredStrategyConfig,
+) -> list[dict[str, object]]:
+    if direction == "UP":
+        return [
+            *_trend_diagnostics(strategy_type, "日线多头", strategy_input.daily, "UP", config, strategy_input.daily_regime),
+            *_trend_diagnostics(strategy_type, "4h 多头", strategy_input.four_hour, "UP", config, strategy_input.four_hour_regime),
+            *_trend_diagnostics(strategy_type, "1h 多头", strategy_input.one_hour, "UP", config, strategy_input.one_hour_regime),
+            *_entry_diagnostics(strategy_type, "15m 多头", strategy_input.entry, "UP"),
+        ]
+    return [
+        *_trend_diagnostics(strategy_type, "日线空头", strategy_input.daily, "DOWN", config, strategy_input.daily_regime),
+        *_trend_diagnostics(strategy_type, "4h 空头", strategy_input.four_hour, "DOWN", config, strategy_input.four_hour_regime),
+        *_trend_diagnostics(strategy_type, "1h 空头", strategy_input.one_hour, "DOWN", config, strategy_input.one_hour_regime),
+        *_entry_diagnostics(strategy_type, "15m 空头", strategy_input.entry, "DOWN"),
+    ]
+
+
 def _trend_diagnostics(
     strategy_type: str,
     label: str,
@@ -347,6 +375,25 @@ def _trend_diagnostics(
     ]
 
 
+def _entry_diagnostics(
+    strategy_type: str,
+    label: str,
+    entry: LayeredEntryFrame,
+    direction: str,
+) -> list[dict[str, object]]:
+    if direction == "UP":
+        return [
+            _condition(strategy_type, f"{label}回踩到快线区域", _long_entry_zone(entry), _entry_zone_detail(entry, "UP")),
+            _condition(strategy_type, f"{label}已确认", _bullish_entry_confirmation(entry), _entry_confirmation_detail(entry, "UP")),
+            _condition(strategy_type, "止损有效", entry.close > entry.recent_swing_low, f"entry={entry.close} > swing_low={entry.recent_swing_low}"),
+        ]
+    return [
+        _condition(strategy_type, f"{label}反弹到快线区域", _short_entry_zone(entry), _entry_zone_detail(entry, "DOWN")),
+        _condition(strategy_type, f"{label}已确认", _bearish_entry_confirmation(entry), _entry_confirmation_detail(entry, "DOWN")),
+        _condition(strategy_type, "止损有效", entry.close < entry.recent_swing_high, f"entry={entry.close} < swing_high={entry.recent_swing_high}"),
+    ]
+
+
 def _regime_confirmation_condition(
     strategy_type: str,
     label: str,
@@ -379,6 +426,44 @@ def _condition(
         "detail": detail,
         "required": required,
     }
+
+
+def _bullish_entry(entry: LayeredEntryFrame) -> bool:
+    return _long_entry_zone(entry) and _bullish_entry_confirmation(entry) and entry.close > entry.recent_swing_low
+
+
+def _bearish_entry(entry: LayeredEntryFrame) -> bool:
+    return _short_entry_zone(entry) and _bearish_entry_confirmation(entry) and entry.close < entry.recent_swing_high
+
+
+def _long_entry_zone(entry: LayeredEntryFrame) -> bool:
+    zone = entry.atr
+    return entry.low <= entry.fast_ma + zone and entry.close >= entry.fast_ma - zone
+
+
+def _short_entry_zone(entry: LayeredEntryFrame) -> bool:
+    zone = entry.atr
+    return entry.high >= entry.fast_ma - zone and entry.close <= entry.fast_ma + zone
+
+
+def _bullish_entry_confirmation(entry: LayeredEntryFrame) -> bool:
+    return entry.close > entry.open
+
+
+def _bearish_entry_confirmation(entry: LayeredEntryFrame) -> bool:
+    return entry.close < entry.open
+
+
+def _entry_zone_detail(entry: LayeredEntryFrame, direction: str) -> str:
+    if direction == "UP":
+        return f"low={entry.low} <= fast_ma+ATR={entry.fast_ma + entry.atr}, close={entry.close} >= fast_ma-ATR={entry.fast_ma - entry.atr}"
+    return f"high={entry.high} >= fast_ma-ATR={entry.fast_ma - entry.atr}, close={entry.close} <= fast_ma+ATR={entry.fast_ma + entry.atr}"
+
+
+def _entry_confirmation_detail(entry: LayeredEntryFrame, direction: str) -> str:
+    if direction == "UP":
+        return f"close={entry.close} > open={entry.open}"
+    return f"close={entry.close} < open={entry.open}"
 
 
 def _ma_detail(snapshot: TrendSnapshot, direction: str) -> str:

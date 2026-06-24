@@ -1047,6 +1047,64 @@ def test_paper_status_page_treats_confirmed_regime_momentum_as_observation(tmp_p
     assert "日线趋势明确" not in html
 
 
+def test_paper_status_page_shows_layered_day_core_full_trigger_chain(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    condition_statuses = [
+        {"strategy": "SHORT_DAY_CORE", "text": "日线空头基础", "passed": True, "detail": "EMA15 < MA60"},
+        {"strategy": "SHORT_DAY_CORE", "text": "日线空头斜率", "passed": True, "detail": "slope < 0"},
+        {"strategy": "SHORT_DAY_CORE", "text": "日线空头动能", "passed": True, "detail": "DI- > DI+"},
+        {"strategy": "SHORT_DAY_CORE", "text": "4h 空头基础", "passed": True, "detail": "EMA15 < MA60"},
+        {"strategy": "SHORT_DAY_CORE", "text": "4h 空头斜率", "passed": True, "detail": "slope < 0"},
+        {"strategy": "SHORT_DAY_CORE", "text": "4h 空头动能", "passed": True, "detail": "DI- > DI+"},
+        {"strategy": "SHORT_DAY_CORE", "text": "1h 空头基础", "passed": True, "detail": "EMA15 < MA60"},
+        {"strategy": "SHORT_DAY_CORE", "text": "1h 空头斜率", "passed": True, "detail": "slope < 0"},
+        {"strategy": "SHORT_DAY_CORE", "text": "1h 空头动能", "passed": True, "detail": "DI- > DI+"},
+        {"strategy": "SHORT_DAY_CORE", "text": "15m 空头反弹到快线区域", "passed": True, "detail": "high >= fast_ma-ATR"},
+        {"strategy": "SHORT_DAY_CORE", "text": "15m 空头已确认", "passed": True, "detail": "close < open"},
+        {"strategy": "SHORT_DAY_CORE", "text": "止损有效", "passed": True, "detail": "entry < swing_high"},
+    ]
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [
+                    {
+                        "evaluated_at_ms": 1,
+                        "symbol": "BTCUSDT",
+                        "interval": "15m",
+                        "close": "61600",
+                        "action": "SHORT_ENTRY",
+                        "strategy_type": "SHORT_DAY_CORE",
+                        "reason": ["daily bearish core", "4h/1h bearish", "15m bearish entry"],
+                        "nearest_strategy": {
+                            "name": "SHORT_DAY_CORE",
+                            "matched": 12,
+                            "total": 12,
+                            "action": "SHORT_ENTRY",
+                        },
+                        "condition_statuses": condition_statuses,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(build_paper_status_payload(state_path))
+
+    assert "当前趋势：BTCUSDT 日线核心做空 · 已满足 12/12" in html
+    assert "日线空头基础" in html
+    assert "4h 空头基础" in html
+    assert "1h 空头基础" in html
+    assert "15m 空头反弹到快线区域" in html
+    assert "15m 空头已确认" in html
+
+
 def test_paper_status_page_shows_only_nearest_strategy_conditions_in_compact_view(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 

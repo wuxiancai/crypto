@@ -180,6 +180,9 @@ def _build_layered_signal_if_available(
             condition_statuses=diagnostics,
             nearest_strategy=_nearest_layered_strategy(decision.candidates, diagnostics),
         )
+    diagnostics = list(decision.diagnostics)
+    nearest_strategy = _nearest_layered_strategy((decision.signal.strategy_type,), diagnostics)
+    nearest_strategy["action"] = decision.signal.action
     return StrategySignal(
         action=decision.signal.action,
         strategy_type=decision.signal.strategy_type,
@@ -190,13 +193,8 @@ def _build_layered_signal_if_available(
         take_profit=decision.signal.take_profit,
         risk_reward=decision.signal.risk_reward,
         risk_pct=decision.signal.risk_pct,
-        condition_statuses=list(decision.diagnostics),
-        nearest_strategy={
-            "name": decision.signal.strategy_type,
-            "matched": 1,
-            "total": 1,
-            "action": decision.signal.action,
-        },
+        condition_statuses=diagnostics,
+        nearest_strategy=nearest_strategy,
     )
 
 
