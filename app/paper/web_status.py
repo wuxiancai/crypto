@@ -1219,12 +1219,12 @@ def _render_position(position: dict[str, Any] | None) -> str:
         ("交易对", _escape(position.get("symbol"))),
         ("方向", _side_label(position.get("side"))),
         ("使用策略", _escape(position.get("strategy_type"))),
-        ("入场 / 止损 / 止盈", " / ".join([
+        ("入场 / 止损 / 止盈激活价", " / ".join([
             _format_decimal(position.get("entry_price"), 2),
             _format_decimal(position.get("stop_loss"), 2),
             _format_decimal(position.get("take_profit"), 2),
         ])),
-        ("止盈状态", "移动止盈中" if position.get("trailing_active") else "等待触发"),
+        ("止盈逻辑", "移动止盈中" if position.get("trailing_active") else "等待激活"),
         ("数量", _format_decimal(position.get("quantity"), 4)),
     ]
     headers = "".join(f"<th>{_escape(label)}</th>" for label, _value in rows)
@@ -1247,14 +1247,14 @@ def _render_positions(positions: list[dict[str, Any]]) -> str:
             f"<td>{_format_decimal(position.get('entry_price'), 2)}</td>"
             f"<td>{_format_decimal(position.get('stop_loss'), 2)}</td>"
             f"<td>{_format_decimal(position.get('take_profit'), 2)}</td>"
-            f"<td>{'移动止盈中' if position.get('trailing_active') else '等待触发'}</td>"
+            f"<td>{'移动止盈中' if position.get('trailing_active') else '等待激活'}</td>"
             f"<td>{_format_decimal(position.get('quantity'), 4)}</td>"
             "</tr>"
         )
     return (
         '<div class="table-wrap"><table class="compact-position">'
         "<thead><tr><th>交易对</th><th>方向</th><th>使用策略</th><th>Bucket</th>"
-        "<th>入场</th><th>止损</th><th>止盈</th><th>止盈状态</th><th>数量</th></tr></thead>"
+        "<th>入场</th><th>止损</th><th>止盈激活价</th><th>止盈逻辑</th><th>数量</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
 

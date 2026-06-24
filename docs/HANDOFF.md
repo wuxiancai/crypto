@@ -25,6 +25,11 @@
 
 ## 本轮修复
 
+- 2026-06-24 分层策略止盈逻辑修复：
+  - 根因：新分层策略 `SHORT_DAY_CORE` / `LONG_DAY_CORE` 等仓位虽然页面显示 `TRAILING`，但 Paper 撮合里的移动止盈只对旧 `TREND_PULLBACK` 生效；分层策略触达 `take_profit` 后会按固定价格直接平仓。
+  - 修复：`app/paper/trading.py` 已将所有分层策略纳入 `TRAILING` 移动止盈逻辑；触达 2R 一类价格时只激活移动止盈并上移/下移保护线，不再立即固定止盈平仓。真正退出发生在后续价格反抽触达移动保护线，或日线主趋势反向确认。
+  - 页面：持仓表将“止盈”改为“止盈激活价”，“止盈状态”改为“止盈逻辑”，未激活显示“等待激活”，降低误读为硬性平仓价的风险。
+  - 覆盖测试：新增 `SHORT_DAY_CORE` 触达止盈激活价后继续持仓、顺势继续下跌后移动保护线、反抽触发 `TRAILING_TAKE_PROFIT` 的回归测试。
 - 2026-06-24 Ubuntu Docker daemon 权限探测修复：
   - 根因：`scripts/start.sh` / `scripts/stop.sh` 只用 `docker compose version` 判断 compose 是否可用，但该命令不需要访问 Docker daemon；当 `ubuntu` 用户没有 `/var/run/docker.sock` 权限时，脚本误选无 sudo 的 `docker compose`，随后 `compose up` 报 permission denied。
   - 修复：compose helper 现在先用 `docker info` 验证 daemon 访问权限，再选择 `docker compose`；无权限时自动尝试 `sudo docker compose`；旧 `docker-compose` 路径同样增加 daemon 权限检查。

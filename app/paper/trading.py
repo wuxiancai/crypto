@@ -414,10 +414,17 @@ def _bucket_from_signal(signal: SignalLike) -> str:
 
 
 def _uses_trailing_take_profit(position: PaperPosition, config: PaperConfig) -> bool:
-    return (
-        position.strategy_type == "TREND_PULLBACK"
-        and config.trend_pullback_take_profit_mode == "TRAILING"
-    )
+    if config.trend_pullback_take_profit_mode != "TRAILING":
+        return False
+    return position.strategy_type in {
+        "TREND_PULLBACK",
+        "SHORT_DAY_CORE",
+        "SHORT_4H_1H_ADDON",
+        "LONG_4H_HEDGE",
+        "LONG_DAY_CORE",
+        "LONG_4H_1H_ADDON",
+        "SHORT_4H_HEDGE",
+    }
 
 
 def _activate_trailing_take_profit(position: PaperPosition, kline: Kline) -> PaperPosition:
