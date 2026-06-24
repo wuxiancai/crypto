@@ -66,3 +66,9 @@ def test_compose_does_not_pin_postgres_container_name():
     content = Path("docker-compose.yml").read_text(encoding="utf-8")
 
     assert "container_name:" not in content
+
+
+def test_ubuntu_start_subscribes_layered_strategy_intervals():
+    content = Path("scripts/start_ubuntu.sh").read_text(encoding="utf-8")
+
+    assert "--intervals 5m 15m 1h 4h 1d" in content

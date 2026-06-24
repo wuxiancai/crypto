@@ -113,7 +113,7 @@ DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" -m alembic upgrade head
 
 nohup "$VENV_PYTHON" scripts/run_paper_realtime.py \
   --symbols BTCUSDT ETHUSDT \
-  --intervals 5m 15m 1h 4h \
+  --intervals 5m 15m 1h 4h 1d \
   --websocket-base-url "$BINANCE_WEBSOCKET_BASE_URL" \
   --state-path "$PAPER_STATE_PATH" \
   > "$LOG_DIR/paper-realtime.log" 2>&1 &
