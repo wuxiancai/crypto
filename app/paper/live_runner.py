@@ -22,6 +22,9 @@ from app.paper.trading import PaperConfig, PaperSnapshot
 from app.strategy.signal_router import StrategySignal
 
 
+_CHART_DISPLAY_POINTS = 80
+
+
 def default_paper_strategy_config() -> RealtimeStrategyConfig:
     return RealtimeStrategyConfig(
         fast_ma_type="EMA",
@@ -281,7 +284,7 @@ def _missing_klines_since_last_update(state_path: Path, historical_klines: list[
 def _required_history_limit(config: RealtimeStrategyConfig) -> int:
     return max(
         config.ema_fast_period,
-        config.ema_slow_period,
+        config.ema_slow_period + _CHART_DISPLAY_POINTS - 1,
         config.atr_period,
         config.dmi_period,
         config.swing_lookback,

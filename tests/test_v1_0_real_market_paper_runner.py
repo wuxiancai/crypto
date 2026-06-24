@@ -134,6 +134,24 @@ def test_real_market_paper_config_defaults_to_perpetual_costs_and_10x_leverage(t
     assert config.strategy_config.enable_reversal_probe is False
 
 
+def test_required_history_keeps_enough_points_to_draw_slow_ma_line():
+    from app.paper.live_runner import _required_history_limit
+    from app.paper.strategy_adapter import RealtimeStrategyConfig
+
+    config = RealtimeStrategyConfig(
+        fast_ma_type="EMA",
+        slow_ma_type="MA",
+        ema_fast_period=15,
+        ema_slow_period=60,
+        atr_period=14,
+        dmi_period=12,
+        swing_lookback=20,
+        enable_layered_strategy=True,
+    )
+
+    assert _required_history_limit(config) == 139
+
+
 def test_real_market_paper_runner_writes_strategy_details_to_state(tmp_path):
     import json
 
