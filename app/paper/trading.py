@@ -2,6 +2,13 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
 from app.data.quality import Kline
+from app.execution.kill_switch import KillSwitchState
+from app.execution.liquidation_guard import evaluate_liquidation_guard
+from app.execution.stop_order_guard import (
+    PositionSnapshot,
+    StopOrderSnapshot,
+    evaluate_stop_order_guard,
+)
 
 
 @dataclass(frozen=True)
@@ -20,6 +27,10 @@ class PaperConfig:
     max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
     max_total_planned_risk_pct: Decimal | None = Decimal("0.02")
     max_total_notional_leverage: Decimal | None = Decimal("10")
+    liquidation_buffer_pct: Decimal = Decimal("0.01")
+    max_drawdown_pct: Decimal | None = None
+    kill_switch: KillSwitchState | None = None
+    kill_switch_state: KillSwitchState | None = None
 
 
 @dataclass(frozen=True)
@@ -141,6 +152,9 @@ class PaperTradingEngine:
             return self._exit_day_core_on_reversal(kline)
         if signal.action not in {"LONG_ENTRY", "SHORT_ENTRY", "REVERSAL_LONG_ENTRY", "REVERSAL_SHORT_ENTRY"}:
             return None
+        if self._kill_switch_blocks_new_entries():
+            self._rejected_signals += 1
+            return None
         reversal_fill = self._exit_opposite_day_core_if_needed(kline, signal)
         if reversal_fill is not None:
             return reversal_fill
@@ -213,7 +227,7 @@ class PaperTradingEngine:
         for position in list(self._positions):
             if position.symbol != kline.symbol or position.interval != kline.interval:
                 continue
-            fill = self._maybe_close_position(position, kline)
+            fill = self._kill_switch_fill(position, kline) or self._maybe_close_position(position, kline)
             if fill is None:
                 continue
             self._fills.append(fill)
@@ -315,7 +329,7 @@ class PaperTradingEngine:
             return None
         if _bucket_from_signal(signal) != "LEGACY" and self._portfolio_risk_exceeded(planned_risk, planned_notional):
             return None
-        return PaperPosition(
+        position = PaperPosition(
             symbol=kline.symbol,
             side=side,
             strategy_type=signal.strategy_type,
@@ -330,6 +344,68 @@ class PaperTradingEngine:
             initial_stop_loss=stop_loss,
             interval=kline.interval,
         )
+        if not self._liquidation_guard_allows(position):
+            return None
+        if not self._stop_order_guard_allows(position):
+            return None
+        return position
+
+    def _kill_switch_blocks_new_entries(self) -> bool:
+        state = self._kill_switch_state()
+        return bool(state is not None and state.is_active and not state.allow_new_entries) or self._max_drawdown_reached()
+
+    def _kill_switch_state(self) -> KillSwitchState | None:
+        return self._config.kill_switch_state or self._config.kill_switch
+
+    def _max_drawdown_reached(self) -> bool:
+        max_drawdown_pct = self._config.max_drawdown_pct
+        if max_drawdown_pct is None or max_drawdown_pct <= 0:
+            return False
+        floor_equity = self._config.initial_equity * (Decimal("1") - max_drawdown_pct)
+        return self._equity <= floor_equity
+
+    def _kill_switch_fill(self, position: PaperPosition, kline: Kline) -> PaperFill | None:
+        state = self._kill_switch_state()
+        if state is None or not state.is_active or not state.close_positions:
+            return None
+        return self._close_position(
+            position=position,
+            kline=kline,
+            raw_exit_price=kline.close,
+            exit_reason="KILL_SWITCH",
+            exit_detail=f"Kill switch active: {state.reason}",
+        )
+
+    def _liquidation_guard_allows(self, position: PaperPosition) -> bool:
+        result = evaluate_liquidation_guard(
+            side=position.side,
+            entry_price=position.entry_price,
+            stop_loss=position.stop_loss,
+            estimated_liquidation_price=_estimated_liquidation_price(position),
+            liquidation_buffer_pct=self._config.liquidation_buffer_pct,
+        )
+        return result.is_safe
+
+    def _stop_order_guard_allows(self, position: PaperPosition) -> bool:
+        result = evaluate_stop_order_guard(
+            PositionSnapshot(
+                symbol=position.symbol,
+                side=position.side,
+                quantity=position.quantity,
+                entry_price=position.entry_price,
+            ),
+            [
+                StopOrderSnapshot(
+                    symbol=position.symbol,
+                    side="SELL" if position.side == "LONG" else "BUY",
+                    quantity=position.quantity,
+                    stop_price=position.stop_loss,
+                    reduce_only=True,
+                    status="NEW",
+                )
+            ],
+        )
+        return result.is_protected
 
     def _portfolio_risk_exceeded(self, planned_risk: Decimal, planned_notional: Decimal) -> bool:
         max_risk_pct = self._config.max_total_planned_risk_pct
@@ -486,6 +562,15 @@ def _funding_settlement_count(entry_time: int, exit_time: int, interval_ms: int)
     first = entry_time // interval_ms + 1
     last = exit_time // interval_ms
     return max(0, last - first + 1)
+
+
+def _estimated_liquidation_price(position: PaperPosition) -> Decimal:
+    if position.leverage <= 0:
+        return position.entry_price
+    liquidation_distance = position.entry_price / position.leverage
+    if position.side == "LONG":
+        return position.entry_price - liquidation_distance
+    return position.entry_price + liquidation_distance
 
 
 def _open_planned_risk(positions: list[PaperPosition]) -> Decimal:

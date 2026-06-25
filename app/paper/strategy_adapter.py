@@ -108,8 +108,9 @@ def build_realtime_strategy_signal(
 
 
 def _has_required_history(frame: MultiTimeframeFrame, config: RealtimeStrategyConfig) -> bool:
-    min_trend_bars = max(config.ema_slow_period, config.dmi_period, 2)
-    min_entry_bars = max(config.ema_fast_period, config.atr_period, config.swing_lookback, 2)
+    min_dmi_bars = config.dmi_period * 2 - 1
+    min_trend_bars = max(config.ema_slow_period, min_dmi_bars, 2)
+    min_entry_bars = max(config.ema_fast_period, config.atr_period, config.swing_lookback, min_dmi_bars, 2)
     for interval in config.trend_intervals:
         if len(frame.history(interval)) < min_trend_bars:
             return False
@@ -240,16 +241,44 @@ def _trend_regime_from_history(
     klines: tuple[Kline, ...],
     config: RealtimeStrategyConfig,
 ) -> TrendRegime:
+    return _trend_regime_from_snapshots(_trend_snapshots_from_history(klines, config), config)
+
+
+def _trend_snapshots_from_history(
+    klines: tuple[Kline, ...],
+    config: RealtimeStrategyConfig,
+) -> list[tuple[int, TrendSnapshot]]:
+    if len(klines) < 2:
+        return []
+    closes = [kline.close for kline in klines]
+    highs = [kline.high for kline in klines]
+    lows = [kline.low for kline in klines]
+    fast_values = _moving_average(closes, config.ema_fast_period, config.fast_ma_type)
+    slow_values = _moving_average(closes, config.ema_slow_period, config.slow_ma_type)
+    movement_values = directional_movement_index(highs, lows, closes, config.dmi_period)
     snapshots: list[tuple[int, TrendSnapshot]] = []
-    for index in range(len(klines)):
-        partial = klines[: index + 1]
-        if len(partial) < 2:
+    for index in range(1, len(klines)):
+        fast = fast_values[index]
+        previous_fast = fast_values[index - 1]
+        slow = slow_values[index]
+        movement = movement_values[index]
+        if fast is None or previous_fast is None or slow is None or movement is None:
             continue
-        frame = _build_trend_frame(partial, config)
-        if frame is None:
-            continue
-        snapshots.append((partial[-1].close_time, _trend_snapshot_from(frame)))
-    return _trend_regime_from_snapshots(snapshots, config)
+        snapshots.append(
+            (
+                klines[index].close_time,
+                TrendSnapshot(
+                    close=closes[index],
+                    fast_ma=fast,
+                    slow_ma=slow,
+                    fast_ma_slope=fast - previous_fast,
+                    adx=movement.adx,
+                    di_plus=movement.di_plus,
+                    di_minus=movement.di_minus,
+                ),
+            )
+        )
+    return snapshots
 
 
 def _trend_regime_from_snapshots(

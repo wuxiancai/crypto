@@ -673,6 +673,211 @@ def test_paper_trading_rejects_entry_when_estimated_fees_are_too_high_for_planne
     assert snapshot.rejected_signals == 1
 
 
+def test_paper_trading_blocks_entries_when_kill_switch_is_active():
+    from app.data.quality import Kline
+    from app.execution.kill_switch import activate_kill_switch
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.pullback_strategy import TradeSignal
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("1000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            slippage_pct=Decimal("0"),
+            kill_switch_state=activate_kill_switch(
+                operator="risk-admin",
+                reason="manual stop",
+                close_positions=False,
+            ),
+        )
+    )
+
+    opened = engine.on_signal(
+        kline=Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("100"),
+            low=Decimal("100"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        signal=TradeSignal(
+            action="LONG_ENTRY",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("100"),
+            stop_loss=Decimal("95"),
+            take_profit=Decimal("110"),
+            risk_reward=Decimal("2"),
+            reason=["blocked"],
+        ),
+    )
+
+    assert opened is None
+    assert engine.snapshot().rejected_signals == 1
+
+
+def test_paper_trading_closes_open_positions_when_kill_switch_requests_close():
+    from app.data.quality import Kline
+    from app.execution.kill_switch import activate_kill_switch
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.pullback_strategy import TradeSignal
+
+    base_config = PaperConfig(
+        initial_equity=Decimal("1000"),
+        risk_per_trade_pct=Decimal("0.01"),
+        maker_fee_rate=Decimal("0"),
+        taker_fee_rate=Decimal("0"),
+        slippage_pct=Decimal("0"),
+    )
+    engine = PaperTradingEngine(base_config)
+    entry_kline = Kline(
+        symbol="BTCUSDT",
+        interval="15m",
+        open_time=0,
+        close_time=899_999,
+        open=Decimal("100"),
+        high=Decimal("100"),
+        low=Decimal("100"),
+        close=Decimal("100"),
+        volume=Decimal("10"),
+    )
+    assert engine.on_signal(
+        kline=entry_kline,
+        signal=TradeSignal(
+            action="LONG_ENTRY",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("100"),
+            stop_loss=Decimal("95"),
+            take_profit=Decimal("110"),
+            risk_reward=Decimal("2"),
+            reason=["open"],
+        ),
+    ) is not None
+
+    kill_engine = PaperTradingEngine.from_snapshot(
+        PaperConfig(
+            initial_equity=Decimal("1000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            kill_switch_state=activate_kill_switch(
+                operator="risk-admin",
+                reason="emergency close",
+                close_positions=True,
+            ),
+        ),
+        engine.snapshot(),
+    )
+
+    fill = kill_engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("101"),
+            high=Decimal("102"),
+            low=Decimal("100"),
+            close=Decimal("101"),
+            volume=Decimal("10"),
+        )
+    )
+
+    assert fill is not None
+    assert fill.exit_reason == "KILL_SWITCH"
+    assert kill_engine.snapshot().open_position is None
+
+
+def test_paper_trading_rejects_entry_when_liquidation_guard_fails():
+    from app.data.quality import Kline
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.pullback_strategy import TradeSignal
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("1000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            leverage=Decimal("10"),
+            liquidation_buffer_pct=Decimal("0.02"),
+        )
+    )
+
+    opened = engine.on_signal(
+        kline=Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("100"),
+            low=Decimal("100"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        signal=TradeSignal(
+            action="LONG_ENTRY",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("100"),
+            stop_loss=Decimal("91"),
+            take_profit=Decimal("118"),
+            risk_reward=Decimal("2"),
+            reason=["too close to liquidation"],
+        ),
+    )
+
+    assert opened is None
+    assert engine.snapshot().rejected_signals == 1
+
+
+def test_paper_trading_rejects_entry_when_stop_order_guard_fails():
+    from app.data.quality import Kline
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.pullback_strategy import TradeSignal
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("1000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+        )
+    )
+
+    opened = engine.on_signal(
+        kline=Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("100"),
+            low=Decimal("100"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        signal=TradeSignal(
+            action="LONG_ENTRY",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("100"),
+            stop_loss=Decimal("101"),
+            take_profit=Decimal("110"),
+            risk_reward=Decimal("2"),
+            reason=["invalid stop"],
+        ),
+    )
+
+    assert opened is None
+    assert engine.snapshot().rejected_signals == 1
+
+
 def test_paper_trading_applies_funding_every_eight_hours():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine

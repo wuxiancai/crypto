@@ -191,6 +191,85 @@ def test_paper_trading_blocks_new_position_when_portfolio_risk_limit_is_exceeded
     assert snapshot.rejected_signals == 1
 
 
+def test_paper_trading_blocks_entries_when_kill_switch_is_active():
+    from app.execution.kill_switch import activate_kill_switch
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            max_fee_to_risk_ratio=Decimal("0"),
+            kill_switch=activate_kill_switch("test", "max drawdown", close_positions=False),
+        )
+    )
+
+    assert engine.on_signal(
+        _kline(),
+        _signal("SHORT_ENTRY", "SHORT_DAY_CORE", "105", "90", "DAY_CORE"),
+    ) is None
+
+    snapshot = engine.snapshot()
+    assert snapshot.open_positions == []
+    assert snapshot.rejected_signals == 1
+
+
+def test_paper_trading_blocks_entries_when_max_drawdown_is_reached():
+    from app.paper.trading import PaperConfig, PaperTradingEngine, PaperSnapshot
+
+    config = PaperConfig(
+        initial_equity=Decimal("10000"),
+        risk_per_trade_pct=Decimal("0.01"),
+        maker_fee_rate=Decimal("0"),
+        taker_fee_rate=Decimal("0"),
+        slippage_pct=Decimal("0"),
+        max_fee_to_risk_ratio=Decimal("0"),
+        max_drawdown_pct=Decimal("0.05"),
+    )
+    engine = PaperTradingEngine.from_snapshot(
+        config,
+        PaperSnapshot(
+            equity=Decimal("9499"),
+            open_position=None,
+            fills=[],
+            rejected_signals=0,
+        ),
+    )
+
+    assert engine.on_signal(
+        _kline(),
+        _signal("LONG_ENTRY", "LONG_DAY_CORE", "95", "110", "DAY_CORE"),
+    ) is None
+
+    assert engine.snapshot().rejected_signals == 1
+
+
+def test_paper_trading_blocks_entry_when_stop_is_too_close_to_liquidation_price():
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            max_fee_to_risk_ratio=Decimal("0"),
+            liquidation_buffer_pct=Decimal("0.01"),
+        )
+    )
+
+    assert engine.on_signal(
+        _kline(),
+        _signal("LONG_ENTRY", "LONG_DAY_CORE", "90.40", "110", "DAY_CORE"),
+    ) is None
+
+    assert engine.snapshot().rejected_signals == 1
+
+
 def test_paper_trading_exits_opposite_day_core_when_new_daily_core_signal_arrives():
     from app.paper.trading import PaperConfig, PaperTradingEngine
 

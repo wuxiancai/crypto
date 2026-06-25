@@ -6,12 +6,13 @@ from typing import Any
 from app.paper.trading import PaperFill, PaperPosition, PaperSignalEvaluation, PaperSnapshot
 
 
-def paper_snapshot_to_payload(snapshot: PaperSnapshot) -> dict[str, Any]:
+def paper_snapshot_to_payload(snapshot: PaperSnapshot, max_fills: int | None = None) -> dict[str, Any]:
+    fills = snapshot.fills[-max_fills:] if max_fills is not None and max_fills >= 0 else snapshot.fills
     return {
         "equity": str(snapshot.equity),
         "open_position": _position_to_payload(snapshot.open_position),
         "open_positions": [_position_to_payload(position) for position in snapshot.open_positions],
-        "fills": [_fill_to_payload(fill) for fill in snapshot.fills],
+        "fills": [_fill_to_payload(fill) for fill in fills],
         "rejected_signals": snapshot.rejected_signals,
         "runtime_started_at_ms": snapshot.runtime_started_at_ms,
         "last_update_at_ms": snapshot.last_update_at_ms,
@@ -49,9 +50,9 @@ def paper_snapshot_from_payload(payload: dict[str, Any]) -> PaperSnapshot:
     )
 
 
-def save_paper_snapshot(snapshot: PaperSnapshot, path: Path) -> None:
+def save_paper_snapshot(snapshot: PaperSnapshot, path: Path, max_fills: int | None = 1000) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = paper_snapshot_to_payload(snapshot)
+    payload = paper_snapshot_to_payload(snapshot, max_fills=max_fills)
     existing_payload = _read_existing_state_payload(path)
     preserved_fields = _read_preserved_state_fields(existing_payload)
     payload.update(preserved_fields)

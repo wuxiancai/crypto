@@ -33,7 +33,7 @@
   - Funding `WARN` 不再等同 `BLOCK`，会保留原入场方向并按 `position_multiplier=0.5` 降低 `risk_pct`。
   - PostgreSQL compose 仅绑定 `127.0.0.1`，`POSTGRES_PASSWORD` 改为必填/生成强随机，并兼容旧 `.env.ports.generated` 的数据库密码复用。
   - README 手动启动命令已包含 `1d` 周期；分层策略设计文档、Tasks 与页面默认值同步到当前口径。
-  - 指标 Wilder 口径、Paper 完整接入 `app/risk + app/execution`、状态文件历史裁剪、全量性能缓存仍属于策略/架构取舍，未在本次无确认情况下直接重写。
+  - 用户随后确认继续推进：ATR/ADX/DMI 已改为 Wilder 平滑口径；Paper 主链路已实际接入 Kill Switch、最大回撤熔断、Liquidation Guard 和 Stop Order Guard；状态 JSON 默认裁剪最近 1000 条 fills，完整复盘仍在 `paper_runtime_events`；`_trend_regime_from_history` 已从反复全历史重算改为一次性指标数组 + 线性扫描。
 - 2026-06-24 模拟交易看板顶部与 K 线默认周期优化：
   - 顶部 BTCUSDT / ETHUSDT 永续实时价格增加前端涨跌变色：相对上一次刷新上涨显示绿色，下跌显示红色，首次渲染保持默认色。
   - 账户权益右侧新增收益卡，按 UTC+8 自然日从 `runtime_started_at_ms` 起计算第 N 天，展示累计收益金额和累计收益率；状态缺少初始权益时按默认 `1000 USDT` 兜底。

@@ -87,6 +87,20 @@ def test_indicators_compute_expected_values_for_simple_series():
     assert atr(highs, lows, closes_for_atr, period=3)[-1] == Decimal("2")
 
 
+def test_atr_uses_wilder_smoothing_after_initial_seed():
+    from app.indicators.core import atr
+
+    highs = [Decimal("10"), Decimal("12"), Decimal("15"), Decimal("19")]
+    lows = [Decimal("9"), Decimal("10"), Decimal("12"), Decimal("15")]
+    closes = [Decimal("9.5"), Decimal("11"), Decimal("13"), Decimal("16")]
+
+    values = atr(highs, lows, closes, period=3)
+
+    assert values[:2] == [None, None]
+    assert values[2].quantize(Decimal("0.0001")) == Decimal("2.5000")
+    assert values[3].quantize(Decimal("0.0001")) == Decimal("3.6667")
+
+
 def test_directional_movement_identifies_uptrend_and_downtrend_direction():
     from app.indicators.core import directional_movement_index
 
@@ -109,3 +123,18 @@ def test_directional_movement_identifies_uptrend_and_downtrend_direction():
     assert down[-1] is not None
     assert down[-1].di_minus > down[-1].di_plus
     assert down[-1].adx > 0
+
+
+def test_directional_movement_waits_for_wilder_adx_seed_window():
+    from app.indicators.core import directional_movement_index
+
+    up = directional_movement_index(
+        highs=[Decimal(value) for value in ["10", "11", "12", "13", "14"]],
+        lows=[Decimal(value) for value in ["8", "9", "10", "11", "12"]],
+        closes=[Decimal(value) for value in ["9", "10", "11", "12", "13"]],
+        period=3,
+    )
+
+    assert up[:4] == [None, None, None, None]
+    assert up[4] is not None
+    assert up[4].adx == Decimal("100")

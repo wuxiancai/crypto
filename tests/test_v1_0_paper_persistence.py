@@ -52,6 +52,52 @@ def test_serializes_and_restores_paper_snapshot_with_open_position_and_fills():
     assert restored == snapshot
 
 
+def test_saving_paper_snapshot_limits_state_file_fill_history(tmp_path):
+    import json
+
+    from app.paper.persistence import load_paper_snapshot, save_paper_snapshot
+    from app.paper.trading import PaperFill, PaperSnapshot
+
+    state_path = tmp_path / "paper-state.json"
+    fills = [
+        PaperFill(
+            symbol="BTCUSDT",
+            side="LONG",
+            strategy_type="LONG_DAY_CORE",
+            bucket="DAY_CORE",
+            entry_time=index,
+            exit_time=index + 1,
+            entry_price=Decimal("100"),
+            exit_price=Decimal("101"),
+            quantity=Decimal("1"),
+            leverage=Decimal("10"),
+            gross_pnl=Decimal("1"),
+            fees=Decimal("0"),
+            net_pnl=Decimal("1"),
+            exit_reason="TAKE_PROFIT",
+        )
+        for index in range(5)
+    ]
+
+    save_paper_snapshot(
+        PaperSnapshot(
+            equity=Decimal("10005"),
+            open_position=None,
+            fills=fills,
+            rejected_signals=0,
+        ),
+        state_path,
+        max_fills=2,
+    )
+
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    restored = load_paper_snapshot(state_path)
+
+    assert [fill["exit_time"] for fill in payload["fills"]] == [4, 5]
+    assert restored is not None
+    assert [fill.exit_time for fill in restored.fills] == [4, 5]
+
+
 def test_serializes_and_restores_paper_snapshot_without_open_position():
     from app.paper.persistence import paper_snapshot_from_payload, paper_snapshot_to_payload
     from app.paper.trading import PaperSnapshot

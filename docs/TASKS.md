@@ -101,8 +101,8 @@
 
 说明：
 
-- 当前已实现 EMA、ATR、ADX、DI_PLUS、DI_MINUS、Bollinger Bands。
-- 当前已添加 `tests/fixtures/indicator_golden.json` 固定样本校验。
+- 当前已实现 EMA、ATR、ADX、DI_PLUS、DI_MINUS、Bollinger Bands；ATR、ADX、DI 使用 Wilder 平滑口径，避免和 TradingView/主流技术指标解释偏离。
+- 当前已添加 `tests/fixtures/indicator_golden.json` 固定样本校验，并覆盖 Wilder ATR / DMI 初始化窗口。
 - Binance 主网 futures endpoint 当前本机可访问；`scripts/sync_klines.py` 默认同步分层策略所需 `1d / 4h / 1h / 15m`。
 - 2026-06-23 已启动本地 PostgreSQL Docker Compose 并完成 migration；已用 Binance 主网 futures 写入 BTCUSDT、ETHUSDT 各 `1d / 4h / 1h / 15m` 最近已收盘 K 线。
 - 2026-06-23 已修复 Binance REST 最新未收盘 K 线误标为 `is_closed=True` 的问题：`fetch_klines()` 现在只返回 `close_time <= now_ms` 的已收盘 K 线。本地库已清理未来 K 线，复查 `future_klines=0`。
@@ -179,6 +179,8 @@
 - 当前 Paper Trading 默认按永续合约模拟：初始资金 1000 USDT、默认 10X 杠杆、maker 0.02%、taker 0.05%、资金费每 8 小时结算一次；资金费率当前默认 0，可通过启动参数配置。
 - 当前 Paper Trading 的 `TREND_PULLBACK` 默认使用 2R 阶梯移动止盈：价格触达 2R 目标后进入“移动止盈中”，先保护到开仓价；价格继续顺势每推进一个 2R 阶梯，保护线只推进到上一个已完成阶梯；回撤触达当前移动保护线才平仓。可通过 `--trend-pullback-take-profit-mode FIXED` 回退固定止盈。
 - 当前已修复回测/Paper 出场撮合的关键未来函数问题：持仓会记录入场交易对和入场周期，只有同一交易对、同一周期的 K 线才能触发止盈/止损，避免 BTC 持仓被 ETH K 线平仓，或 15m 入场被同一时间的 1h/4h 高低点提前平仓。
+- Paper 主链路已接入模拟风控：Kill Switch 激活时禁止新开仓，可选择按当前已收盘 K 线平仓；`max_drawdown_pct` 触发后拒绝新开仓；入场前执行 Liquidation Guard 和 Stop Order Guard 判定。
+- Paper 状态 JSON 默认只保留最近 1000 条 fills，避免长期运行写放大；完整复盘事件写入 `paper_runtime_events`。
 - Paper 当前支持 `TREND_PULLBACK` 与 `REVERSAL_PROBE`，趋势转换信号同样使用自身 `risk_pct`。
 - 当前已实现稳定的 Paper CLI 状态格式化输出。
 - 当前已实现基础 Paper 报警：权益回撤阈值和 rejected_signals 阈值。
@@ -209,7 +211,7 @@
 - 当前历史实现约束为 ONE_WAY + ISOLATED。第一版 Paper/Backtest 必须支持策略子仓和同一 symbol 多空共存；Live HEDGE 模式属于第二版，永久暂停，除非用户明确发令启动第二版。
 - 当前已实现 Stop Order Guard 判定层：校验真实持仓是否存在 symbol 匹配、退出方向正确、数量覆盖、reduceOnly、状态 NEW、触发价方向正确的有效止损单；缺失时输出补挂止损动作。
 - 当前已实现 Liquidation Guard 判定层：多单要求 liquidation_price < stop_loss < entry_price，空单要求 entry_price < stop_loss < liquidation_price，且止损价与强平价安全距离不低于 liquidation_buffer_pct。
-- 当前已实现 Kill Switch 状态转移：触发后禁止新开仓，可标记是否平仓，并记录操作者、原因、触发时间和解除操作者。
+- 当前已实现 Kill Switch 状态转移：触发后禁止新开仓，可标记是否平仓，并记录操作者、原因、触发时间和解除操作者；Paper 主链路已实际消费该状态。
 - 当前已实现订单、成交、持仓状态机：覆盖订单提交、部分成交、完全成交、止损提交/确认/失败、止盈提交、退出成交；主订单成交但止损失败会进入 CRITICAL 并暂停新开仓。
 
 ## V0.6 AI/Funding 过滤
@@ -247,7 +249,7 @@
 - 当前阶段不做真实或测试网下单；先用真实行情驱动 Paper Trading，验证策略、风控、状态机和连续运行稳定性。API Key 可用也不能自动启动第二版。
 - 当前已实现 Paper Trading 连续运行健康检查：检测 WebSocket 连接、行情延迟、Paper 回撤、拒单数量和运行时错误；该模块用于后续“连续 2 周无重大错误”的自动化验收。
 - 当前已实现 Paper Trading 状态持久化/恢复入口：PaperSnapshot 可无损序列化为 JSON payload，并支持保存到本地状态文件和从状态文件恢复；Decimal 金额以字符串保存，避免浮点误差。
-- 当前已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓、成交和拒单计数。
+- 当前已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓和拒单计数；状态文件默认裁剪 fills，完整成交历史以数据库复盘事件为准。
 - 当前已实现真实行情 Paper runner 与脚本入口：`scripts/run_paper_realtime.py` 会连接 Binance WebSocket 已收盘 K 线流，并使用持久化 Paper stream runner 保存状态。
 - 当前真实行情 Paper runner 已支持多周期订阅，默认订阅 15m / 1h / 4h；已新增 MultiTimeframeKlineCache，用于按 symbol 聚合多周期已收盘 K 线。
 - 当前实时策略适配器默认调用独立分层策略系统，并使用 1d / 4h / 1h / 15m 已收盘 K 线；旧 4h / 1h / 15m `TREND_PULLBACK` / `REVERSAL_PROBE` 路径只在缺少 1d 历史时作为兼容回退。

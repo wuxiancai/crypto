@@ -33,7 +33,7 @@
 
 ### D4. ADX 必须结合 DI 方向
 
-ADX 只表示趋势强度，不表示趋势方向。趋势判断必须使用：
+ADX 只表示趋势强度，不表示趋势方向。ATR、ADX、DI 的计算口径固定为 Wilder 平滑。趋势判断必须使用：
 
 - 多头：`ADX >= min_adx AND DI_PLUS > DI_MINUS`
 - 空头：`ADX >= min_adx AND DI_MINUS > DI_PLUS`
