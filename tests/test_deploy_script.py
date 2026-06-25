@@ -99,6 +99,23 @@ def test_deploy_script_installs_systemd_service():
     assert "systemctl" in content
 
 
+def test_deploy_script_prints_access_url_and_next_steps():
+    content = Path("scripts/deploy_ubuntu.sh").read_text(encoding="utf-8")
+
+    assert "ensure_env_file" in content
+    assert "cp .env.example .env" in content
+    assert "print_deploy_summary" in content
+    assert "detect_server_ip" in content
+    assert "hostname -I" in content
+    assert "Web 页面地址" in content
+    assert "http://${server_ip}:${PAPER_WEB_PORT}" in content
+    assert "云服务器公网IP" in content
+    assert "sudo ufw allow ${PAPER_WEB_PORT}/tcp" in content
+    assert "BINANCE_BASE_URL=https://fapi.binance.com" in content
+    assert "第一版只跑 Paper，不需要配置 Binance API Key" in content
+    assert "实际运行端口和数据库连接以 .env.ports.generated 为准" in content
+
+
 def test_systemd_install_script_uses_start_script_in_foreground_mode():
     content = Path("scripts/install_systemd_service.sh").read_text(encoding="utf-8")
 

@@ -12,6 +12,7 @@ bash scripts/deploy_ubuntu.sh
 
 脚本会执行：
 
+- 如果 `.env` 不存在，自动执行 `cp .env.example .env`。
 - 安装 `python3`、`python3-venv`。
 - 检查 Docker：如果服务器已安装 Docker 则直接复用；如果存在 Docker CE 软件源则安装 `docker-ce`；否则回退安装 Ubuntu 自带 `docker.io`。
 - 检查 Docker Compose：优先使用 `docker compose` plugin，必要时依次回退到 `docker-compose-v2` 和 `docker-compose`。
@@ -22,8 +23,57 @@ bash scripts/deploy_ubuntu.sh
 - 执行 Alembic migration。
 - 安装并启动 `crypto-paper.service` systemd 服务。
 - 由 systemd 托管真实行情 Paper Trading 和中文 Web 状态页。
+- 部署结束时打印 Web 页面地址、Web 端口、PostgreSQL 端口、端口配置文件、`.env` 配置说明和常用运维命令。
 
 部署完成后，即使关闭 SSH 终端，服务也会继续运行；服务器重启后也会自动启动。
+
+## 部署完成后看哪里
+
+`deploy_ubuntu.sh` 结束时会打印类似：
+
+```text
+Web 页面地址:
+  http://服务器IP:8765
+
+端口信息:
+  Web 页面端口: 8765
+  PostgreSQL 端口: 55432
+  端口配置文件: /path/to/crypto/.env.ports.generated
+```
+
+如果脚本自动识别到的是云服务器内网 IP，请用云厂商控制台里的公网 IP 替换：
+
+```text
+http://<云服务器公网IP>:Web页面端口
+```
+
+还需要确认云厂商安全组已放行 Web 页面端口。若服务器启用了 `ufw`，执行：
+
+```bash
+sudo ufw allow 8765/tcp
+```
+
+实际端口如果不是 `8765`，请以部署输出或 `.env.ports.generated` 里的 `PAPER_WEB_PORT` 为准。
+
+## .env 需要配置什么
+
+首次部署时脚本会自动创建 `.env`，等价于：
+
+```bash
+cp .env.example .env
+```
+
+第一版只运行 Paper Trading，不需要配置 Binance API Key，也不要配置真实下单参数。
+
+通常只需要关注：
+
+```bash
+ENVIRONMENT=paper
+EXECUTION_MODE=paper
+BINANCE_BASE_URL=https://fapi.binance.com
+```
+
+如果服务器访问 Binance 主网 REST 受限，可以把 `.env` 中的 `BINANCE_BASE_URL` 改成当前服务器可访问的 Binance USDⓈ-M Futures endpoint。实际运行端口、PostgreSQL 密码和 `DATABASE_URL` 由 `.env.ports.generated` 自动生成，通常不需要手动改 `.env` 里的 `DATABASE_URL`。
 
 ## 端口顺延机制
 

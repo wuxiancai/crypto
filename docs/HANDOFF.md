@@ -25,6 +25,10 @@
 
 ## 本轮修复
 
+- 2026-06-25 Ubuntu 首次部署输出修复：
+  - `scripts/deploy_ubuntu.sh` 首次部署时若 `.env` 不存在，会自动执行等价 `cp .env.example .env`，避免用户部署后不知道是否还要手动复制。
+  - 部署脚本结束时会读取 `.env.ports.generated`，打印 Web 页面地址、Web 端口、PostgreSQL 端口、端口配置文件、云服务器公网 IP 替换提示、安全组/ufw 放行提示、`.env` 配置说明和常用 systemd/log 命令。
+  - 文档 `docs/UBUNTU_DEPLOY.md` 已新增“部署完成后看哪里”和“.env 需要配置什么”，明确第一版只跑 Paper、不需要 Binance API Key，实际运行端口和数据库连接以 `.env.ports.generated` 为准。
 - 2026-06-25 冗余/死代码清理：
   - 删除 `app/paper/trading.py` 中旧内部 `_SignalOverride` dataclass；当前交易层已直接消费策略层 `SignalLike` / `StrategySignal` 字段。
   - 删除 `app/paper/web_status.py` 中旧单仓渲染、旧“最近策略输出”调试表渲染、旧单图表选择函数及其私有辅助函数；当前页面已统一走多子仓、多交易对策略条件和多交易对 K 线图渲染。
