@@ -29,7 +29,19 @@ class MultiTimeframeKlineCache:
     def update(self, kline: Kline) -> MultiTimeframeFrame | None:
         symbol_klines = self._klines.setdefault(kline.symbol, {})
         interval_klines = symbol_klines.setdefault(kline.interval, [])
-        interval_klines.append(kline)
+        existing_index = next(
+            (
+                index
+                for index, existing in enumerate(interval_klines)
+                if existing.open_time == kline.open_time
+            ),
+            None,
+        )
+        if existing_index is None:
+            interval_klines.append(kline)
+        else:
+            interval_klines[existing_index] = kline
+        interval_klines.sort(key=lambda item: item.open_time)
         if len(interval_klines) > self._max_klines_per_interval:
             del interval_klines[: len(interval_klines) - self._max_klines_per_interval]
         if not all(symbol_klines.get(interval) for interval in self._required_intervals):

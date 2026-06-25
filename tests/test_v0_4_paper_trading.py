@@ -694,6 +694,7 @@ def test_paper_trading_defaults_to_perpetual_contract_costs_and_10x_leverage():
     assert config.maker_fee_rate == Decimal("0.0002")
     assert config.taker_fee_rate == Decimal("0.0005")
     assert config.leverage == Decimal("10")
+    assert config.max_single_position_notional_leverage == Decimal("5")
     assert config.funding_interval_ms == 8 * 60 * 60 * 1000
 
     engine = PaperTradingEngine(config=config)
@@ -721,8 +722,8 @@ def test_paper_trading_defaults_to_perpetual_contract_costs_and_10x_leverage():
     )
 
     assert opened is not None
-    assert opened.quantity == Decimal("100")
-    assert opened.entry_fee == Decimal("5.0000")
+    assert opened.quantity == Decimal("50")
+    assert opened.entry_fee == Decimal("2.5000")
 
 
 def test_paper_trading_rejects_entry_when_estimated_fees_are_too_high_for_planned_risk():

@@ -42,6 +42,8 @@ class RealtimeStrategyConfig:
 def build_realtime_strategy_signal(
     frame: MultiTimeframeFrame,
     config: RealtimeStrategyConfig | None = None,
+    open_buckets: tuple[str, ...] = (),
+    open_strategy_types: tuple[str, ...] = (),
 ) -> TradeSignal | StrategySignal:
     strategy_config = config or RealtimeStrategyConfig()
     if not _has_required_history(frame, strategy_config):
@@ -51,7 +53,12 @@ def build_realtime_strategy_signal(
             reason=["not enough closed klines for realtime indicators"],
         )
     layered_signal = (
-        _build_layered_signal_if_available(frame=frame, config=strategy_config)
+        _build_layered_signal_if_available(
+            frame=frame,
+            config=strategy_config,
+            open_buckets=open_buckets,
+            open_strategy_types=open_strategy_types,
+        )
         if strategy_config.enable_layered_strategy
         else None
     )
@@ -130,6 +137,8 @@ def _has_interval(frame: MultiTimeframeFrame, interval: str) -> bool:
 def _build_layered_signal_if_available(
     frame: MultiTimeframeFrame,
     config: RealtimeStrategyConfig,
+    open_buckets: tuple[str, ...] = (),
+    open_strategy_types: tuple[str, ...] = (),
 ) -> StrategySignal | None:
     if not _has_interval(frame, config.main_trend_interval):
         return None
@@ -166,6 +175,8 @@ def _build_layered_signal_if_available(
             daily_regime=daily_regime,
             four_hour_regime=four_hour_regime,
             one_hour_regime=one_hour_regime,
+            open_buckets=open_buckets,
+            open_strategy_types=open_strategy_types,
         ),
         LayeredStrategyConfig(
             min_adx=config.min_adx,

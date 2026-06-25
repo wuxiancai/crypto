@@ -152,7 +152,7 @@
 - 当前已实现永续合约默认成本：maker 挂单手续费 0.02%，taker 吃单手续费 0.05%；入场按 taker，止损按 taker，止盈按 maker。
 - 当前已输出整体指标与按 `strategy_type` 拆分的交易次数、胜负、gross_pnl、fees、net_pnl。
 - 当前已实现 8 小时资金费率模拟，资金费进入 trade 与整体指标；实时 Paper 启动时会从 Binance USDⓈ-M Futures Mark Price / Premium Index 拉取 `lastFundingRate` 和 `nextFundingTime`，用于 Funding 入场过滤。拉取失败时会记录并降级为不启用自动 funding 阻断，避免打断 Paper runner。
-- 当前已实现交易所 `quantity_step`、`min_qty`、`min_notional` 过滤，并已按订单方向细化价格 tick：买入向上取 tick，卖出向下取 tick。
+- 当前已实现交易所 `quantity_step`、`min_qty`、`min_notional` 过滤，并已按订单方向细化价格 tick：买入向上取 tick，卖出向下取 tick。实时多周期 K 线缓存按 `open_time` 去重、排序和裁剪，避免重复 bar 污染指标。
 - 当前已实现止损专用滑点与跳空越过止损时的极端成交价。
 - 当前已实现限价未触达不成交、限价部分成交比例和 partial_fills 统计。
 - 当前已实现价格 tick 方向细化：买入向上取 tick，卖出向下取 tick。
@@ -175,7 +175,7 @@
 
 说明：
 
-- 当前 PaperTradingEngine 已从单仓位升级为 strategy bucket 多子仓撮合，支持同一 symbol 下 core / addon / hedge 子仓共存；旧 `open_position` 字段继续保留兼容。
+- 当前 PaperTradingEngine 已从单仓位升级为 strategy bucket 多子仓撮合，支持同一 symbol 下 core / addon / hedge 子仓共存；ADDON 由分层策略层根据当前 open bucket 显式输出，交易层不再把重复 DAY_CORE 隐式转换为 ADDON；旧 `open_position` 字段继续保留兼容。
 - 当前 Paper Trading 默认按永续合约模拟：初始资金 1000 USDT、默认 10X 杠杆、maker 0.02%、taker 0.05%、资金费每 8 小时结算一次；资金费率当前默认 0，可通过启动参数配置。
 - 当前 Paper Trading 的 `TREND_PULLBACK` 和分层策略默认使用 R + ATR 双层移动止盈：价格触达 2R 激活价后进入“移动止盈中”，先至少锁定 1R；之后按持仓 ATR 的 Wilder 更新值和 `trailing_atr_multiplier` 推进保护线，回撤触达当前移动保护线才平仓。可通过 `--trend-pullback-take-profit-mode FIXED` 回退固定止盈。
 - 当前已修复回测/Paper 出场撮合的关键未来函数问题：持仓会记录入场交易对和入场周期，只有同一交易对、同一周期的 K 线才能触发止盈/止损，避免 BTC 持仓被 ETH K 线平仓，或 15m 入场被同一时间的 1h/4h 高低点提前平仓。
@@ -203,7 +203,7 @@
 
 说明：
 
-- 当前已实现主策略按账户风险预算、止损距离、交易所数量/名义价值过滤计算仓位。
+- 当前已实现主策略按账户风险预算、止损距离、交易所数量/名义价值过滤计算仓位；单仓默认最多 `5x equity`，组合总名义默认最多 `10x equity`。
 - 当前已实现趋势转换仓位计算：最终数量取风险上限和评分仓位上限的较小值；EARLY 使用 0.2% 风险，CONFIRMED 使用 0.3% 风险。
 - 当前已实现止损候选选择：LONG 只接受低于入场价的止损，SHORT 只接受高于入场价的止损，并在最大止损距离内选择距离入场价最近的候选。
 - 当前已实现趋势转换分批止盈计划：TP1 = 1R 平 30%，TP2 = 前高/前低平 30%，TP3 = 4h EMA200 或方向校验后的 3R/结构位平 40%，TP1 后移动止损到保本。

@@ -17,7 +17,7 @@ from app.paper.binance_stream import (
 from app.paper.multitimeframe import MultiTimeframeKlineCache
 from app.paper.persistence import _fill_to_payload, _position_to_payload, load_paper_snapshot
 from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
-from app.paper.stream import PaperStreamEvent, PaperStreamEventSink, SignalFn, run_persistent_paper_kline_stream
+from app.paper.stream import PaperSignalContext, PaperStreamEvent, PaperStreamEventSink, SignalFn, run_persistent_paper_kline_stream
 from app.paper.trading import PaperConfig, PaperSnapshot
 from app.risk.funding_filter import evaluate_funding_filter
 from app.strategy.signal_router import StrategySignal
@@ -279,7 +279,11 @@ def build_default_realtime_signal_fn(
     for kline in warmup_klines:
         cache.update(kline)
 
-    def signal_fn(kline: Kline, has_position: bool):
+    def signal_fn(
+        kline: Kline,
+        has_position: bool,
+        context: PaperSignalContext | None = None,
+    ):
         frame = cache.update(kline)
         if frame is None:
             return StrategySignal(
@@ -293,7 +297,12 @@ def build_default_realtime_signal_fn(
                 strategy_type="SYSTEM",
                 reason=["non-entry interval observed"],
             )
-        signal = build_realtime_strategy_signal(frame, config=config)
+        signal = build_realtime_strategy_signal(
+            frame,
+            config=config,
+            open_buckets=context.open_buckets if context is not None else (),
+            open_strategy_types=context.open_strategy_types if context is not None else (),
+        )
         return _apply_funding_filter(
             signal=signal,
             kline=kline,

@@ -236,6 +236,74 @@ def test_persistent_paper_stream_keeps_strategy_evaluation_after_exit(tmp_path):
     assert persisted == snapshot
 
 
+def test_persistent_paper_stream_passes_open_position_context_to_signal_fn(tmp_path):
+    from app.data.quality import Kline
+    from app.paper.persistence import save_paper_snapshot
+    from app.paper.stream import PaperSignalContext, run_persistent_paper_kline_stream
+    from app.paper.trading import PaperConfig, PaperPosition, PaperSnapshot
+    from app.strategy.signal_router import StrategySignal
+
+    state_path = tmp_path / "paper-state.json"
+    save_paper_snapshot(
+        PaperSnapshot(
+            equity=Decimal("10000"),
+            open_position=PaperPosition(
+                symbol="BTCUSDT",
+                side="SHORT",
+                strategy_type="SHORT_DAY_CORE",
+                bucket="DAY_CORE",
+                entry_time=0,
+                entry_price=Decimal("100"),
+                stop_loss=Decimal("105"),
+                take_profit=Decimal("90"),
+                quantity=Decimal("10"),
+                entry_fee=Decimal("0"),
+            ),
+            fills=[],
+            rejected_signals=0,
+        ),
+        state_path,
+    )
+
+    async def source():
+        yield Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        )
+
+    seen_contexts: list[PaperSignalContext] = []
+
+    def signal_fn(kline: Kline, has_position: bool, context: PaperSignalContext) -> StrategySignal:
+        seen_contexts.append(context)
+        return StrategySignal(action="WAIT", strategy_type="SYSTEM", reason=[])
+
+    asyncio.run(
+        run_persistent_paper_kline_stream(
+            config=PaperConfig(
+                initial_equity=Decimal("10000"),
+                risk_per_trade_pct=Decimal("0.01"),
+                maker_fee_rate=Decimal("0"),
+                taker_fee_rate=Decimal("0"),
+                slippage_pct=Decimal("0"),
+            ),
+            source=source(),
+            signal_fn=signal_fn,
+            state_path=state_path,
+        )
+    )
+
+    assert seen_contexts
+    assert seen_contexts[0].open_buckets == ("DAY_CORE",)
+    assert seen_contexts[0].open_strategy_types == ("SHORT_DAY_CORE",)
+
+
 def test_persistent_paper_stream_records_wait_signal_reason(tmp_path):
     from app.data.quality import Kline
     from app.paper.persistence import load_paper_snapshot

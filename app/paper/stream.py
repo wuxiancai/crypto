@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterable, Callable
 from dataclasses import dataclass, replace
+import inspect
 from pathlib import Path
 import time
 
@@ -17,8 +18,21 @@ from app.paper.trading import (
 from app.strategy.signal_router import StrategySignal
 
 
-SignalFn = Callable[[Kline, bool], SignalLike]
+SignalFn = Callable[..., SignalLike]
 PaperStreamEventSink = Callable[["PaperStreamEvent"], None]
+
+
+@dataclass(frozen=True)
+class PaperSignalContext:
+    open_positions: tuple[PaperPosition, ...]
+
+    @property
+    def open_buckets(self) -> tuple[str, ...]:
+        return tuple(position.bucket for position in self.open_positions)
+
+    @property
+    def open_strategy_types(self) -> tuple[str, ...]:
+        return tuple(position.strategy_type for position in self.open_positions)
 
 
 @dataclass(frozen=True)
@@ -48,7 +62,7 @@ async def run_paper_kline_stream(
         if closed_fills:
             continue
         snapshot = engine.snapshot()
-        signal = signal_fn(kline, snapshot.open_position is not None)
+        signal = _call_signal_fn(signal_fn, kline, snapshot)
         engine.on_signal(kline=kline, signal=signal)
     return engine.snapshot()
 
@@ -80,7 +94,7 @@ async def run_persistent_paper_kline_stream(
         opened_position = None
         rejected_signal = False
         if not closed_fills:
-            signal = signal_fn(kline, snapshot.open_position is not None)
+            signal = _call_signal_fn(signal_fn, kline, snapshot)
             rejected_count_before = snapshot.rejected_signals
             opened_position = engine.on_signal(kline=kline, signal=signal)
             rejected_signal = engine.snapshot().rejected_signals > rejected_count_before
@@ -115,6 +129,19 @@ async def run_persistent_paper_kline_stream(
                 )
             )
     return latest_snapshot
+
+
+def _call_signal_fn(signal_fn: SignalFn, kline: Kline, snapshot: PaperSnapshot) -> SignalLike:
+    has_position = snapshot.open_position is not None
+    context = PaperSignalContext(open_positions=tuple(snapshot.open_positions))
+    signature = inspect.signature(signal_fn)
+    accepts_context = any(
+        parameter.kind == inspect.Parameter.VAR_POSITIONAL
+        for parameter in signature.parameters.values()
+    ) or len(signature.parameters) >= 3
+    if accepts_context:
+        return signal_fn(kline, has_position, context)
+    return signal_fn(kline, has_position)
 
 
 def _now_ms() -> int:

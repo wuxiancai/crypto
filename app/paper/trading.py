@@ -27,6 +27,7 @@ class PaperConfig:
     trailing_atr_multiplier: Decimal = Decimal("2")
     trailing_atr_period: int = 14
     max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
+    max_single_position_notional_leverage: Decimal | None = Decimal("5")
     max_total_planned_risk_pct: Decimal | None = Decimal("0.02")
     max_total_notional_leverage: Decimal | None = Decimal("10")
     liquidation_buffer_pct: Decimal = Decimal("0.01")
@@ -164,16 +165,8 @@ class PaperTradingEngine:
         if reversal_fill is not None:
             return reversal_fill
         if self._has_conflicting_position(kline.symbol, signal):
-            addon_signal = self._addon_signal_from_duplicate_day_core(kline.symbol, signal)
-            if addon_signal is None:
-                self._rejected_signals += 1
-                return None
-            position = self._open_position(kline, addon_signal)
-            if position is None:
-                self._rejected_signals += 1
-                return None
-            self._positions.append(position)
-            return position
+            self._rejected_signals += 1
+            return None
         position = self._open_position(kline, signal)
         if position is None:
             self._rejected_signals += 1
@@ -270,41 +263,6 @@ class PaperTradingEngine:
                 return True
         return False
 
-    def _addon_signal_from_duplicate_day_core(self, symbol: str, signal: SignalLike) -> SignalLike | None:
-        if _bucket_from_signal(signal) != "DAY_CORE":
-            return None
-        side = _side_from_action(signal.action)
-        has_same_side_core = any(
-            position.symbol == symbol
-            and position.bucket == "DAY_CORE"
-            and position.side == side
-            for position in self._positions
-        )
-        has_addon = any(
-            position.symbol == symbol and position.bucket == "FOUR_HOUR_ADDON"
-            for position in self._positions
-        )
-        if not has_same_side_core or has_addon:
-            return None
-        if signal.strategy_type == "SHORT_DAY_CORE":
-            strategy_type = "SHORT_4H_1H_ADDON"
-        elif signal.strategy_type == "LONG_DAY_CORE":
-            strategy_type = "LONG_4H_1H_ADDON"
-        else:
-            return None
-        return _SignalOverride(
-            action=signal.action,
-            strategy_type=strategy_type,
-            bucket="FOUR_HOUR_ADDON",
-            entry_price=getattr(signal, "entry_price", None),
-            stop_loss=getattr(signal, "stop_loss", None),
-            take_profit=getattr(signal, "take_profit", None),
-            risk_reward=getattr(signal, "risk_reward", None),
-            risk_pct=Decimal("0.003"),
-            trailing_atr=getattr(signal, "trailing_atr", None) or getattr(signal, "atr", None),
-            reason=[*list(getattr(signal, "reason", []) or []), "same-direction DAY_CORE already open; open FOUR_HOUR_ADDON"],
-        )
-
     def _open_position(self, kline: Kline, signal: SignalLike) -> PaperPosition | None:
         side = _side_from_action(signal.action)
         raw_entry_price = getattr(signal, "entry_price", None) or kline.close
@@ -321,7 +279,7 @@ class PaperTradingEngine:
             raise ValueError("stop distance must be positive")
         risk_pct = getattr(signal, "risk_pct", None) or self._config.risk_per_trade_pct
         risk_quantity = self._equity * risk_pct / stop_distance
-        max_notional_quantity = self._equity * self._config.leverage / entry_price
+        max_notional_quantity = self._max_single_position_quantity(entry_price)
         quantity = min(risk_quantity, max_notional_quantity)
         entry_fee = entry_price * quantity * self._config.taker_fee_rate
         estimated_stop_fee = stop_loss * quantity * self._config.taker_fee_rate
@@ -414,6 +372,13 @@ class PaperTradingEngine:
             ],
         )
         return result.is_protected
+
+    def _max_single_position_quantity(self, entry_price: Decimal) -> Decimal:
+        max_notional = self._equity * self._config.leverage
+        max_single_leverage = self._config.max_single_position_notional_leverage
+        if max_single_leverage is not None and max_single_leverage > 0:
+            max_notional = min(max_notional, self._equity * max_single_leverage)
+        return max_notional / entry_price
 
     def _portfolio_risk_exceeded(self, planned_risk: Decimal, planned_notional: Decimal) -> bool:
         max_risk_pct = self._config.max_total_planned_risk_pct

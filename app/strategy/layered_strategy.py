@@ -64,6 +64,8 @@ class LayeredStrategyInput:
     daily_regime: TrendRegime | None = None
     four_hour_regime: TrendRegime | None = None
     one_hour_regime: TrendRegime | None = None
+    open_buckets: tuple[str, ...] = ()
+    open_strategy_types: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -113,14 +115,24 @@ def build_layered_strategy_decision(
             )
         )
         if four_hour_short and one_hour_short and _bearish_entry(strategy_input.entry):
-            signal = _short_signal(
-                strategy_type=SHORT_DAY_CORE,
-                bucket=DAY_CORE,
-                entry=strategy_input.entry,
-                risk_pct=effective_config.core_risk_pct,
-                config=effective_config,
-                reason=["daily bearish core", "4h/1h bearish", "15m bearish entry"],
-            )
+            if _has_open_strategy(strategy_input, SHORT_DAY_CORE) and not _has_open_bucket(strategy_input, FOUR_HOUR_ADDON):
+                signal = _short_signal(
+                    strategy_type=SHORT_4H_1H_ADDON,
+                    bucket=FOUR_HOUR_ADDON,
+                    entry=strategy_input.entry,
+                    risk_pct=effective_config.addon_risk_pct,
+                    config=effective_config,
+                    reason=["daily bearish core already open", "4h/1h bearish addon", "15m bearish entry"],
+                )
+            elif not _has_open_strategy(strategy_input, SHORT_DAY_CORE):
+                signal = _short_signal(
+                    strategy_type=SHORT_DAY_CORE,
+                    bucket=DAY_CORE,
+                    entry=strategy_input.entry,
+                    risk_pct=effective_config.core_risk_pct,
+                    config=effective_config,
+                    reason=["daily bearish core", "4h/1h bearish", "15m bearish entry"],
+                )
         if four_hour_short and one_hour_short:
             candidates.append(SHORT_4H_1H_ADDON)
             diagnostics.extend(_trend_diagnostics(SHORT_4H_1H_ADDON, "4h 空头", strategy_input.four_hour, "DOWN", effective_config, strategy_input.four_hour_regime))
@@ -151,14 +163,24 @@ def build_layered_strategy_decision(
             )
         )
         if four_hour_long and one_hour_long and _bullish_entry(strategy_input.entry):
-            signal = _long_signal(
-                strategy_type=LONG_DAY_CORE,
-                bucket=DAY_CORE,
-                entry=strategy_input.entry,
-                risk_pct=effective_config.core_risk_pct,
-                config=effective_config,
-                reason=["daily bullish core", "4h/1h bullish", "15m bullish entry"],
-            )
+            if _has_open_strategy(strategy_input, LONG_DAY_CORE) and not _has_open_bucket(strategy_input, FOUR_HOUR_ADDON):
+                signal = _long_signal(
+                    strategy_type=LONG_4H_1H_ADDON,
+                    bucket=FOUR_HOUR_ADDON,
+                    entry=strategy_input.entry,
+                    risk_pct=effective_config.addon_risk_pct,
+                    config=effective_config,
+                    reason=["daily bullish core already open", "4h/1h bullish addon", "15m bullish entry"],
+                )
+            elif not _has_open_strategy(strategy_input, LONG_DAY_CORE):
+                signal = _long_signal(
+                    strategy_type=LONG_DAY_CORE,
+                    bucket=DAY_CORE,
+                    entry=strategy_input.entry,
+                    risk_pct=effective_config.core_risk_pct,
+                    config=effective_config,
+                    reason=["daily bullish core", "4h/1h bullish", "15m bullish entry"],
+                )
         if four_hour_long and one_hour_long:
             candidates.append(LONG_4H_1H_ADDON)
             diagnostics.extend(_trend_diagnostics(LONG_4H_1H_ADDON, "4h 多头", strategy_input.four_hour, "UP", effective_config, strategy_input.four_hour_regime))
@@ -199,6 +221,14 @@ def build_layered_strategy_decision(
         candidates=tuple(candidates),
         diagnostics=tuple(diagnostics),
     )
+
+
+def _has_open_bucket(strategy_input: LayeredStrategyInput, bucket: str) -> bool:
+    return bucket in strategy_input.open_buckets
+
+
+def _has_open_strategy(strategy_input: LayeredStrategyInput, strategy_type: str) -> bool:
+    return strategy_type in strategy_input.open_strategy_types
 
 
 def _bullish(snapshot: TrendSnapshot, config: LayeredStrategyConfig) -> bool:
