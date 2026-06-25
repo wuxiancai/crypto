@@ -57,7 +57,7 @@ class RealMarketPaperConfig:
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     auto_funding_filter_enabled: bool = True
-    max_fee_to_risk_ratio: Decimal | None = Decimal("0")
+    max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
     trend_pullback_take_profit_mode: str = "TRAILING"
     strategy_config: RealtimeStrategyConfig = field(default_factory=default_paper_strategy_config)
     historical_warmup_enabled: bool = True
@@ -114,6 +114,7 @@ async def run_real_market_paper(
                 funding_interval_ms=config.funding_interval_ms,
                 trend_pullback_take_profit_mode=config.trend_pullback_take_profit_mode,
                 max_fee_to_risk_ratio=config.max_fee_to_risk_ratio,
+                max_total_notional_leverage=config.leverage,
             ),
             source=kline_source,
             signal_fn=signal_fn
@@ -319,6 +320,37 @@ def _apply_funding_filter(
     )
     if result.decision == "ALLOW":
         return signal
+    if result.decision == "WARN":
+        risk_pct = signal.risk_pct * result.position_multiplier if signal.risk_pct is not None else None
+        return StrategySignal(
+            action=signal.action,
+            strategy_type=signal.strategy_type,
+            bucket=signal.bucket,
+            reason=[
+                *signal.reason,
+                *result.reasons,
+                f"funding_rate={snapshot.last_funding_rate}",
+                f"minutes_to_settlement={minutes_to_settlement}",
+                f"position_multiplier={result.position_multiplier}",
+            ],
+            entry_price=signal.entry_price,
+            stop_loss=signal.stop_loss,
+            take_profit=signal.take_profit,
+            risk_reward=signal.risk_reward,
+            signal_level=signal.signal_level,
+            score=signal.score,
+            risk_pct=risk_pct,
+            max_standard_position_pct=signal.max_standard_position_pct,
+            core_rules=signal.core_rules,
+            chart_points=signal.chart_points,
+            chart_timeframes=signal.chart_timeframes,
+            condition_statuses=signal.condition_statuses,
+            nearest_strategy={
+                **signal.nearest_strategy,
+                "funding_decision": result.decision,
+                "position_multiplier": str(result.position_multiplier),
+            },
+        )
     return StrategySignal(
         action="WAIT",
         strategy_type=signal.strategy_type,
@@ -445,15 +477,15 @@ def _paper_runtime_event_payloads(event: PaperStreamEvent) -> list[dict[str, obj
                 payload=_signal_payload(event),
             )
         )
-    if event.closed_fill is not None:
+    for closed_fill in event.closed_fills:
         payloads.append(
             _paper_runtime_event_payload(
                 event_type="fill",
                 event=event,
-                strategy_type=event.closed_fill.strategy_type,
+                strategy_type=closed_fill.strategy_type,
                 action="EXIT",
-                bucket=event.closed_fill.bucket,
-                payload=_fill_to_payload(event.closed_fill),
+                bucket=closed_fill.bucket,
+                payload=_fill_to_payload(closed_fill),
             )
         )
     return payloads

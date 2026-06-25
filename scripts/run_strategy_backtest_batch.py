@@ -138,7 +138,7 @@ class StrategyBacktestBatchConfig:
     atr_periods: tuple[int, ...] = (12, 14)
     dmi_periods: tuple[int, ...] = (12, 14)
     swing_lookbacks: tuple[int, ...] = (20, 30)
-    max_fee_to_risk_ratios: tuple[str, ...] = ("0",)
+    max_fee_to_risk_ratios: tuple[str, ...] = ("0.25", "0")
     take_profit_modes: tuple[str, ...] = ("TRAILING", "FIXED")
     pullback_zone_atr_multipliers: tuple[str, ...] = ("1",)
     require_pullback_close_beyond_fast_ma_options: tuple[bool, ...] = (False,)

@@ -76,7 +76,7 @@ max_hedge_positions_per_symbol: 1
 allow_core_and_hedge_coexist: true
 allow_long_and_short_same_symbol: true
 trend_pullback_take_profit_mode: TRAILING
-max_fee_to_risk_ratio: 0
+max_fee_to_risk_ratio: 0.25
 ```
 
 以上数值必须作为配置进入策略系统，回测页面、批量回测、Paper runner 只能传参，不能复制规则。

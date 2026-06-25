@@ -211,8 +211,11 @@ cp .env.example .env
 ```env
 ENVIRONMENT=paper
 EXECUTION_MODE=paper
-DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55432/crypto_quant
 POSTGRES_PORT=55432
+POSTGRES_USER=crypto
+POSTGRES_PASSWORD=请换成强随机密码
+POSTGRES_DB=crypto_quant
+DATABASE_URL=postgresql+psycopg://crypto:请换成强随机密码@localhost:55432/crypto_quant
 BINANCE_BASE_URL=https://fapi.binance.com
 ```
 
@@ -407,7 +410,7 @@ set +a
 
 .venv/bin/python scripts/run_paper_realtime.py \
   --symbols BTCUSDT ETHUSDT \
-  --intervals 5m 15m 1h 4h \
+  --intervals 5m 15m 1h 4h 1d \
   --websocket-base-url "$BINANCE_WEBSOCKET_BASE_URL" \
   --state-path "$PAPER_STATE_PATH"
 ```

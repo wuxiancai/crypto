@@ -39,7 +39,7 @@ class StrategyBacktestConfig:
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     trend_pullback_take_profit_mode: str = "TRAILING"
-    max_fee_to_risk_ratio: Decimal | None = Decimal("0")
+    max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
     pullback_zone_atr_multiplier: Decimal = Decimal("1")
     require_pullback_close_beyond_fast_ma: bool = False
     enable_reversal_probe: bool = False
@@ -130,8 +130,8 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
     signal_fn = build_default_realtime_signal_fn(strategy_config, warmup_klines=())
 
     for kline in historical_klines:
-        closed_fill = engine.on_kline(kline)
-        if closed_fill is not None:
+        closed_fills = engine.on_kline_all(kline)
+        if closed_fills:
             continue
         snapshot = engine.snapshot()
         signal = signal_fn(kline, snapshot.open_position is not None)

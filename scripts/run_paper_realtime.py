@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--atr-period", type=int, default=14)
     parser.add_argument("--dmi-period", type=int, default=12)
     parser.add_argument("--swing-lookback", type=int, default=20)
-    parser.add_argument("--max-fee-to-risk-ratio", default="0")
+    parser.add_argument("--max-fee-to-risk-ratio", default="0.25")
     parser.add_argument("--pullback-zone-atr-multiplier", default="1")
     parser.add_argument(
         "--require-pullback-close-beyond-fast-ma",

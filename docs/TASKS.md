@@ -29,7 +29,7 @@
 
 - 2026-06-23 已新增 `app.strategy.layered_strategy`，实时 Paper 默认开启分层策略；旧 4h/1h/15m 测试路径在没有 1d 数据时保持兼容。
 - 2026-06-23 Paper snapshot 新增 `open_positions`，同时保留旧 `open_position` 兼容字段；状态页可展示多个 strategy bucket 子仓。
-- 2026-06-23 回测页当前已通过 PaperTradingEngine 获得多子仓撮合能力，并默认拉取 1d/4h/1h/15m；`StrategyBacktestResult` 已提供 `strategy_metrics` 和 `bucket_metrics` 聚合结果，批量回测默认参数已同步为 `EMA15 / MA60, ATR14, Swing20, fee/risk=0, TRAILING, enable_reversal_probe=false`。
+- 2026-06-23 回测页当前已通过 PaperTradingEngine 获得多子仓撮合能力，并默认拉取 1d/4h/1h/15m；`StrategyBacktestResult` 已提供 `strategy_metrics` 和 `bucket_metrics` 聚合结果。2026-06-24 上线体检后，默认参数统一为 `EMA15 / MA60, ATR14, DMI12, Swing20, fee/risk=0.25, TRAILING, enable_reversal_probe=false`，批量回测默认同时保留 `0` 作为关闭成本过滤的对照组。
 - 2026-06-23 策略回测结果已新增最大回撤指标，按已平仓权益曲线计算 `max_drawdown` 和 `max_drawdown_pct`，并在回测页面顶部展示。
 - 2026-06-23 策略回测结果已新增盈亏比 `profit_loss_ratio`，按平均盈利单净利润 / 平均亏损单绝对净亏损计算，并在回测页面顶部展示。
 - 2026-06-23 策略回测结果已新增 `symbol_metrics`，按交易对聚合交易次数、胜负和净盈亏，并在回测页面“策略 / Bucket / 交易对统计”区展示。
@@ -158,7 +158,7 @@
 - 当前已实现价格 tick 方向细化：买入向上取 tick，卖出向下取 tick。
 - 当前已实现强平风险模拟，触发强平时优先于止损退出并计入 liquidations。
 - 当前已实现 `backtest_runs`、`config_snapshots`、`backtest_trades` 归档，并提供 repository 写入入口。
-- 当前 Web 状态页已新增“策略回测”按钮，点击后以新标签页打开 `/backtest`。回测页复用当前实时策略适配器和 PaperTradingEngine，用 Binance REST 历史 K 线回放 1d / 4h / 1h / 15m 分层策略；默认参数已统一为 EMA15 / MA60、ATR14、DMI12、Swing20、fee/risk=0、TRAILING。
+- 当前 Web 状态页已新增“策略回测”按钮，点击后以新标签页打开 `/backtest`。回测页复用当前实时策略适配器和 PaperTradingEngine，用 Binance REST 历史 K 线回放 1d / 4h / 1h / 15m 分层策略；默认参数已统一为 EMA15 / MA60、ATR14、DMI12、Swing20、fee/risk=0.25、TRAILING。
 - 当前策略回测已支持分页历史回测：用户可选择最近 3个月 / 6个月 / 1年 / 2年，后端按 Binance 单次 1500 根限制自动分页拉取 4h / 1h / 15m 历史 K 线。
 - 当前 Web 策略回测已接入数据库归档：每次成功回测会写入 `backtest_runs`、`backtest_trades` 和 `config_snapshots`。2026-06-19 已确认 Ubuntu 服务器此前表存在但行数为 0，根因是 `/backtest` 页面只渲染结果、没有调用归档 repository；现已修复。
 - 当前 Web 策略回测已增加页面级错误展示：Binance REST 超时、DNS/网络失败或其他回测执行异常会显示为“回测执行失败：...”，不再返回空白页或 empty reply。

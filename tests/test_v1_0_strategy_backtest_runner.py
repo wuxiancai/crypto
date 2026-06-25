@@ -273,7 +273,7 @@ def test_strategy_backtest_defaults_to_perpetual_contract_costs():
     assert config.funding_rate == Decimal("0")
     assert config.funding_interval_ms == 8 * 60 * 60 * 1000
     assert config.trend_pullback_take_profit_mode == "TRAILING"
-    assert config.max_fee_to_risk_ratio == Decimal("0")
+    assert config.max_fee_to_risk_ratio == Decimal("0.25")
     assert config.enable_reversal_probe is False
     assert config.pullback_zone_atr_multiplier == Decimal("1")
     assert config.require_pullback_close_beyond_fast_ma is False
@@ -537,7 +537,7 @@ def test_archives_strategy_backtest_result_to_database():
     assert saved_config.content is not None
     config_payload = json.loads(saved_config.content)
     assert config_payload["ema_fast_period"] == "30"
-    assert config_payload["max_fee_to_risk_ratio"] == "0"
+    assert config_payload["max_fee_to_risk_ratio"] == "0.25"
     assert config_payload["enable_reversal_probe"] == "False"
     assert config_payload["pullback_zone_atr_multiplier"] == "1"
     assert config_payload["require_pullback_close_beyond_fast_ma"] == "False"
@@ -631,7 +631,7 @@ def test_strategy_backtest_batch_query_defaults_match_page_defaults():
     assert config.atr_periods == (12, 14)
     assert config.dmi_periods == (12, 14)
     assert config.swing_lookbacks == (20, 30)
-    assert config.max_fee_to_risk_ratios == ("0",)
+    assert config.max_fee_to_risk_ratios == ("0.25", "0")
     assert config.pullback_zone_atr_multipliers == ("1",)
     assert config.require_pullback_close_beyond_fast_ma_options == (False,)
     assert config.enable_reversal_probe_options == (False,)

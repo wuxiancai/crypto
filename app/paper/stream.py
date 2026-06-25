@@ -27,8 +27,15 @@ class PaperStreamEvent:
     signal: SignalLike
     snapshot: PaperSnapshot
     closed_fill: PaperFill | None = None
+    closed_fills: tuple[PaperFill, ...] = ()
     opened_position: PaperPosition | None = None
     rejected_signal: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.closed_fills and self.closed_fill is not None:
+            object.__setattr__(self, "closed_fills", (self.closed_fill,))
+        elif self.closed_fills and self.closed_fill is None:
+            object.__setattr__(self, "closed_fill", self.closed_fills[0])
 
 
 async def run_paper_kline_stream(
@@ -37,8 +44,8 @@ async def run_paper_kline_stream(
     signal_fn: SignalFn,
 ) -> PaperSnapshot:
     async for kline in source:
-        closed_fill = engine.on_kline(kline)
-        if closed_fill is not None:
+        closed_fills = engine.on_kline_all(kline)
+        if closed_fills:
             continue
         snapshot = engine.snapshot()
         signal = signal_fn(kline, snapshot.open_position is not None)
@@ -67,11 +74,12 @@ async def run_persistent_paper_kline_stream(
     signal_evaluations = list(restored_snapshot.signal_evaluations or []) if restored_snapshot is not None else []
     latest_snapshot = engine.snapshot()
     async for kline in source:
-        closed_fill = engine.on_kline(kline)
+        closed_fills = engine.on_kline_all(kline)
+        closed_fill = closed_fills[0] if closed_fills else None
         snapshot = engine.snapshot()
         opened_position = None
         rejected_signal = False
-        if closed_fill is None:
+        if not closed_fills:
             signal = signal_fn(kline, snapshot.open_position is not None)
             rejected_count_before = snapshot.rejected_signals
             opened_position = engine.on_signal(kline=kline, signal=signal)
@@ -82,7 +90,7 @@ async def run_persistent_paper_kline_stream(
                 strategy_type="SYSTEM",
                 reason=["position closed on current kline"],
             )
-        if closed_fill is None:
+        if not closed_fills:
             signal_evaluations = _append_signal_evaluation(
                 signal_evaluations,
                 _signal_evaluation_from(kline=kline, signal=signal, evaluated_at_ms=_now_ms()),
@@ -101,6 +109,7 @@ async def run_persistent_paper_kline_stream(
                     signal=signal,
                     snapshot=latest_snapshot,
                     closed_fill=closed_fill,
+                    closed_fills=tuple(closed_fills),
                     opened_position=opened_position,
                     rejected_signal=rejected_signal,
                 )

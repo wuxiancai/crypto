@@ -12,10 +12,14 @@ def test_allocate_ports_skips_used_ports():
     assert allocated == {"POSTGRES_PORT": 55434, "PAPER_WEB_PORT": 8766}
 
 
-def test_write_env_file_contains_database_url_and_selected_ports(tmp_path):
+def test_write_env_file_contains_database_url_and_selected_ports(tmp_path, monkeypatch):
     from app.deploy.ports import write_ports_env
 
     path = tmp_path / ".env.ports.generated"
+
+    monkeypatch.setenv("POSTGRES_USER", "crypto")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "s3cret-pass")
+    monkeypatch.setenv("POSTGRES_DB", "crypto_quant")
 
     write_ports_env(
         path,
@@ -29,9 +33,81 @@ def test_write_env_file_contains_database_url_and_selected_ports(tmp_path):
 
     assert "POSTGRES_PORT=55434" in content
     assert "PAPER_WEB_PORT=8766" in content
-    assert "DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55434/crypto_quant" in content
+    assert "POSTGRES_PASSWORD=s3cret-pass" in content
+    assert (
+        "DATABASE_URL=postgresql+psycopg://crypto:s3cret-pass@localhost:55434/crypto_quant"
+        in content
+    )
     assert "BINANCE_WEBSOCKET_BASE_URL=wss://fstream.binance.com/market" in content
     assert "PAPER_STATE_PATH=runtime/paper-state.json" in content
+
+
+def test_write_env_file_generates_password_when_unset(tmp_path, monkeypatch):
+    from app.deploy.ports import write_ports_env
+
+    path = tmp_path / ".env.ports.generated"
+
+    monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
+
+    write_ports_env(path, {"POSTGRES_PORT": 55432, "PAPER_WEB_PORT": 8765})
+
+    content = path.read_text(encoding="utf-8")
+    password_line = next(
+        line for line in content.splitlines() if line.startswith("POSTGRES_PASSWORD=")
+    )
+    generated = password_line.split("=", 1)[1]
+
+    assert generated not in {"", "crypto"}
+    assert len(generated) >= 16
+
+
+def test_write_env_file_reuses_existing_password(tmp_path, monkeypatch):
+    from app.deploy.ports import write_ports_env
+
+    path = tmp_path / ".env.ports.generated"
+    path.write_text("POSTGRES_PASSWORD=kept-stable\n", encoding="utf-8")
+
+    monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
+
+    write_ports_env(path, {"POSTGRES_PORT": 55432, "PAPER_WEB_PORT": 8765})
+
+    assert "POSTGRES_PASSWORD=kept-stable" in path.read_text(encoding="utf-8")
+
+
+def test_backfill_reuses_password_from_legacy_database_url(tmp_path, monkeypatch):
+    from app.deploy.ports import backfill_credentials_env
+
+    path = tmp_path / ".env.ports.generated"
+    path.write_text(
+        "POSTGRES_PORT=55433\n"
+        "PAPER_WEB_PORT=8765\n"
+        "DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55433/crypto_quant\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
+
+    backfill_credentials_env(path)
+
+    content = path.read_text(encoding="utf-8")
+    assert "POSTGRES_PASSWORD=crypto" in content
+    assert "DATABASE_URL=postgresql+psycopg://crypto:crypto@localhost:55433/crypto_quant" in content
+
+
+def test_write_env_file_url_encodes_custom_password(tmp_path, monkeypatch):
+    from app.deploy.ports import write_ports_env
+
+    path = tmp_path / ".env.ports.generated"
+
+    monkeypatch.setenv("POSTGRES_USER", "crypto")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "p@ss:word/with#chars")
+    monkeypatch.setenv("POSTGRES_DB", "crypto_quant")
+
+    write_ports_env(path, {"POSTGRES_PORT": 55432, "PAPER_WEB_PORT": 8765})
+
+    content = path.read_text(encoding="utf-8")
+    assert "POSTGRES_PASSWORD=p@ss:word/with#chars" in content
+    assert "DATABASE_URL=postgresql+psycopg://crypto:p%40ss%3Aword%2Fwith%23chars@localhost:55432/crypto_quant" in content
 
 
 def test_generate_ports_env_writes_shifted_ports(tmp_path):

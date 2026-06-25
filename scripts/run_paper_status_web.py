@@ -259,7 +259,7 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
         max_fee_to_risk_ratio=_query_decimal(
             query,
             "max_fee_to_risk_ratio",
-            Decimal("0"),
+            Decimal("0.25"),
             minimum=Decimal("0"),
             maximum=Decimal("2"),
         ),
@@ -282,7 +282,7 @@ def _batch_config_from_query(query: dict[str, list[str]]):
         max_fee_to_risk_ratios=_query_decimal_list(
             query,
             "max_fee_to_risk_ratios",
-            ("0",),
+            ("0.25", "0"),
             minimum=Decimal("0"),
             maximum=Decimal("2"),
         ),

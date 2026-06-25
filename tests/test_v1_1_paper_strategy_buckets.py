@@ -65,7 +65,7 @@ def test_paper_trading_allows_core_short_and_4h_long_hedge_to_coexist():
     ]
 
 
-def test_paper_trading_blocks_duplicate_bucket_position():
+def test_paper_trading_opens_addon_when_same_day_core_signal_repeats():
     from app.paper.trading import PaperConfig, PaperTradingEngine
 
     engine = PaperTradingEngine(
@@ -75,6 +75,7 @@ def test_paper_trading_blocks_duplicate_bucket_position():
             maker_fee_rate=Decimal("0"),
             taker_fee_rate=Decimal("0"),
             slippage_pct=Decimal("0"),
+            max_fee_to_risk_ratio=Decimal("0"),
         )
     )
 
@@ -82,13 +83,42 @@ def test_paper_trading_blocks_duplicate_bucket_position():
         _kline(),
         _signal("SHORT_ENTRY", "SHORT_DAY_CORE", "105", "90", "DAY_CORE"),
     ) is not None
-    assert engine.on_signal(
+    addon = engine.on_signal(
         _kline(open_time=900_000),
         _signal("SHORT_ENTRY", "SHORT_DAY_CORE", "106", "88", "DAY_CORE"),
+    )
+
+    snapshot = engine.snapshot()
+    assert addon is not None
+    assert len(snapshot.open_positions) == 2
+    assert snapshot.open_positions[1].strategy_type == "SHORT_4H_1H_ADDON"
+    assert snapshot.open_positions[1].bucket == "FOUR_HOUR_ADDON"
+    assert snapshot.rejected_signals == 0
+
+
+def test_paper_trading_blocks_duplicate_addon_bucket_position():
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            max_fee_to_risk_ratio=Decimal("0"),
+        )
+    )
+
+    engine.on_signal(_kline(), _signal("SHORT_ENTRY", "SHORT_DAY_CORE", "105", "90", "DAY_CORE"))
+    engine.on_signal(_kline(open_time=900_000), _signal("SHORT_ENTRY", "SHORT_DAY_CORE", "106", "88", "DAY_CORE"))
+    assert engine.on_signal(
+        _kline(open_time=1_800_000),
+        _signal("SHORT_ENTRY", "SHORT_DAY_CORE", "107", "86", "DAY_CORE"),
     ) is None
 
     snapshot = engine.snapshot()
-    assert len(snapshot.open_positions) == 1
+    assert len(snapshot.open_positions) == 2
     assert snapshot.rejected_signals == 1
 
 
@@ -133,6 +163,32 @@ def test_paper_trading_exits_day_core_on_daily_regime_reversal_without_closing_h
     snapshot = engine.snapshot()
     assert len(snapshot.open_positions) == 1
     assert snapshot.open_positions[0].strategy_type == "LONG_4H_HEDGE"
+
+
+def test_paper_trading_blocks_new_position_when_portfolio_risk_limit_is_exceeded():
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            max_fee_to_risk_ratio=Decimal("0"),
+            max_total_planned_risk_pct=Decimal("0.011"),
+        )
+    )
+
+    assert engine.on_signal(_kline(), _signal("SHORT_ENTRY", "SHORT_DAY_CORE", "105", "90", "DAY_CORE")) is not None
+    assert engine.on_signal(
+        _kline(open_time=900_000),
+        _signal("LONG_ENTRY", "LONG_4H_HEDGE", "95", "110", "FOUR_HOUR_HEDGE"),
+    ) is None
+
+    snapshot = engine.snapshot()
+    assert len(snapshot.open_positions) == 1
+    assert snapshot.rejected_signals == 1
 
 
 def test_paper_trading_exits_opposite_day_core_when_new_daily_core_signal_arrives():

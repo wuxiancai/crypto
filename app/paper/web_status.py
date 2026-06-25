@@ -831,7 +831,7 @@ def render_strategy_backtest_batch_html(
               {_render_batch_field_label("enable_reversal_probe_options", "启用趋势转换试仓")}
               <select id="enable_reversal_probe_options" name="enable_reversal_probe_options">{_render_bool_series_options(getattr(config, "enable_reversal_probe_options", (False,)))}</select>
             </div>
-            <div class="form-field">{_render_batch_field_label("max_fee_to_risk_ratios", "手续费占风险过滤")}<input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0",))))}"></div>
+            <div class="form-field">{_render_batch_field_label("max_fee_to_risk_ratios", "手续费占风险过滤")}<input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0.25", "0"))))}"></div>
             <div class="form-field">
               {_render_batch_field_label("take_profit_modes", "止盈模式")}
               <select id="take_profit_modes" name="take_profit_modes">{_render_take_profit_mode_options(getattr(config, "take_profit_modes", ("TRAILING", "FIXED")))}</select>
@@ -1405,7 +1405,7 @@ _BATCH_PARAMETER_HELP = {
     "pullback_zone_atr_multipliers": "允许价格距离快线的 ATR 倍数。\n影响：数值小要求贴近快线，入场更严格；数值大允许追得更远，机会更多但风险变大。\n建议：0.5-1.0，当前默认 1。",
     "require_pullback_close_beyond_fast_ma_options": "是否要求收盘重新回到快线方向侧。\n影响：开启更确认、信号更少；关闭更早进场但噪音更多。\n建议：先用否，稳定后再对比“否 + 是”。",
     "enable_reversal_probe_options": "是否启用趋势转换试仓。\n影响：开启可能抓到 V 型反转，但也会增加逆势试错；关闭更稳。\n建议：默认关闭，专门研究反转行情时再打开。",
-    "max_fee_to_risk_ratios": "这是手续费占单笔风险比例的过滤阈值，不是手续费开关。固定手续费始终按 maker 0.02%、taker 0.05% 计入回测。\n影响：数值越低越严格，会过滤掉止损过近、手续费占风险过高的交易；0 只表示不启用这道过滤。\n建议：默认 0；如果想过滤成本占比过高的交易，可试 0.20-0.30。",
+    "max_fee_to_risk_ratios": "这是手续费占单笔风险比例的过滤阈值，不是手续费开关。固定手续费始终按 maker 0.02%、taker 0.05% 计入回测。\n影响：数值越低越严格，会过滤掉止损过近、手续费占风险过高的交易；0 只表示不启用这道过滤。\n建议：默认 0.25，并保留 0 作为关闭过滤的对照组。",
     "take_profit_modes": "止盈方式。TRAILING 是移动止盈，FIXED 是固定目标止盈。\n影响：TRAILING 更适合趋势延伸，FIXED 更容易落袋但可能放弃大行情。\n建议：批量对比 TRAILING + FIXED，最终按净盈亏、回撤和盈亏比选择。",
 }
 
@@ -1962,7 +1962,7 @@ def _default_strategy_details() -> list[dict[str, Any]]:
             "atr_period": "14",
             "dmi_period": "12",
             "swing_lookback": "20",
-            "max_fee_to_risk_ratio": "0",
+            "max_fee_to_risk_ratio": "0.25",
             "trend_pullback_take_profit_mode": "TRAILING",
             "pullback_zone_atr_multiplier": "1",
             "require_pullback_close_beyond_fast_ma": False,

@@ -18,6 +18,8 @@ class PaperConfig:
     default_take_profit_risk_reward: Decimal = Decimal("2")
     trend_pullback_take_profit_mode: str = "TRAILING"
     max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
+    max_total_planned_risk_pct: Decimal | None = Decimal("0.02")
+    max_total_notional_leverage: Decimal | None = Decimal("10")
 
 
 @dataclass(frozen=True)
@@ -102,6 +104,19 @@ class SignalLike:
     take_profit: Decimal | None
 
 
+@dataclass(frozen=True)
+class _SignalOverride:
+    action: str
+    strategy_type: str
+    reason: list[str]
+    bucket: str | None = None
+    entry_price: Decimal | None = None
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
+    risk_reward: Decimal | None = None
+    risk_pct: Decimal | None = None
+
+
 class PaperTradingEngine:
     def __init__(self, config: PaperConfig) -> None:
         self._config = config
@@ -130,8 +145,16 @@ class PaperTradingEngine:
         if reversal_fill is not None:
             return reversal_fill
         if self._has_conflicting_position(kline.symbol, signal):
-            self._rejected_signals += 1
-            return None
+            addon_signal = self._addon_signal_from_duplicate_day_core(kline.symbol, signal)
+            if addon_signal is None:
+                self._rejected_signals += 1
+                return None
+            position = self._open_position(kline, addon_signal)
+            if position is None:
+                self._rejected_signals += 1
+                return None
+            self._positions.append(position)
+            return position
         position = self._open_position(kline, signal)
         if position is None:
             self._rejected_signals += 1
@@ -178,7 +201,15 @@ class PaperTradingEngine:
             return fill
         return None
 
-    def on_kline(self, kline: Kline) -> PaperFill | None:
+    def on_kline_all(self, kline: Kline) -> list[PaperFill]:
+        """Evaluate every coexisting sub-position against this kline.
+
+        A single kline can close more than one position (e.g. a DAY_CORE and a
+        4H hedge that share a symbol/interval). Positions that are not closed are
+        still updated in place by ``_maybe_close_position`` (trailing stop), so
+        all open sub-positions are processed on every kline.
+        """
+        fills: list[PaperFill] = []
         for position in list(self._positions):
             if position.symbol != kline.symbol or position.interval != kline.interval:
                 continue
@@ -188,8 +219,17 @@ class PaperTradingEngine:
             self._fills.append(fill)
             self._equity += fill.net_pnl
             self._positions.remove(position)
-            return fill
-        return None
+            fills.append(fill)
+        return fills
+
+    def on_kline(self, kline: Kline) -> PaperFill | None:
+        """Backward-compatible wrapper returning the first close (if any).
+
+        Prefer :meth:`on_kline_all` in the runtime so coexisting sub-positions
+        are not skipped.
+        """
+        fills = self.on_kline_all(kline)
+        return fills[0] if fills else None
 
     def snapshot(self) -> PaperSnapshot:
         return PaperSnapshot(
@@ -210,6 +250,40 @@ class PaperTradingEngine:
             if bucket == "LEGACY" or position.bucket == "LEGACY":
                 return True
         return False
+
+    def _addon_signal_from_duplicate_day_core(self, symbol: str, signal: SignalLike) -> SignalLike | None:
+        if _bucket_from_signal(signal) != "DAY_CORE":
+            return None
+        side = _side_from_action(signal.action)
+        has_same_side_core = any(
+            position.symbol == symbol
+            and position.bucket == "DAY_CORE"
+            and position.side == side
+            for position in self._positions
+        )
+        has_addon = any(
+            position.symbol == symbol and position.bucket == "FOUR_HOUR_ADDON"
+            for position in self._positions
+        )
+        if not has_same_side_core or has_addon:
+            return None
+        if signal.strategy_type == "SHORT_DAY_CORE":
+            strategy_type = "SHORT_4H_1H_ADDON"
+        elif signal.strategy_type == "LONG_DAY_CORE":
+            strategy_type = "LONG_4H_1H_ADDON"
+        else:
+            return None
+        return _SignalOverride(
+            action=signal.action,
+            strategy_type=strategy_type,
+            bucket="FOUR_HOUR_ADDON",
+            entry_price=getattr(signal, "entry_price", None),
+            stop_loss=getattr(signal, "stop_loss", None),
+            take_profit=getattr(signal, "take_profit", None),
+            risk_reward=getattr(signal, "risk_reward", None),
+            risk_pct=Decimal("0.003"),
+            reason=[*list(getattr(signal, "reason", []) or []), "same-direction DAY_CORE already open; open FOUR_HOUR_ADDON"],
+        )
 
     def _open_position(self, kline: Kline, signal: SignalLike) -> PaperPosition | None:
         side = _side_from_action(signal.action)
@@ -232,11 +306,14 @@ class PaperTradingEngine:
         entry_fee = entry_price * quantity * self._config.taker_fee_rate
         estimated_stop_fee = stop_loss * quantity * self._config.taker_fee_rate
         planned_risk = stop_distance * quantity
+        planned_notional = entry_price * quantity
         if _fees_too_high_for_planned_risk(
             fees=entry_fee + estimated_stop_fee,
             planned_risk=planned_risk,
             max_ratio=self._config.max_fee_to_risk_ratio,
         ):
+            return None
+        if _bucket_from_signal(signal) != "LEGACY" and self._portfolio_risk_exceeded(planned_risk, planned_notional):
             return None
         return PaperPosition(
             symbol=kline.symbol,
@@ -254,13 +331,30 @@ class PaperTradingEngine:
             interval=kline.interval,
         )
 
+    def _portfolio_risk_exceeded(self, planned_risk: Decimal, planned_notional: Decimal) -> bool:
+        max_risk_pct = self._config.max_total_planned_risk_pct
+        if max_risk_pct is not None and max_risk_pct > 0:
+            max_risk = self._equity * max_risk_pct
+            if _open_planned_risk(self._positions) + planned_risk > max_risk:
+                return True
+        max_notional_leverage = self._config.max_total_notional_leverage
+        if max_notional_leverage is not None and max_notional_leverage > 0:
+            max_notional = self._equity * max_notional_leverage
+            if _open_notional(self._positions) + planned_notional > max_notional:
+                return True
+        return False
+
     def _maybe_close_position(self, position: PaperPosition, kline: Kline) -> PaperFill | None:
         if position.side == "LONG":
             if kline.low <= position.stop_loss:
+                # Gap-aware fill: if the bar opens below the stop, fill at the
+                # (worse) open price rather than optimistically at the stop.
+                # Mirrors app/backtest/engine.py so paper and backtest agree.
+                raw_exit_price = min(kline.open, position.stop_loss)
                 return self._close_position(
                     position,
                     kline,
-                    position.stop_loss,
+                    raw_exit_price,
                     _stop_exit_reason(position),
                     _stop_exit_detail(position, "最低价"),
                 )
@@ -269,10 +363,11 @@ class PaperTradingEngine:
             self._replace_position(position, _trail_position(position, kline))
             return None
         if kline.high >= position.stop_loss:
+            raw_exit_price = max(kline.open, position.stop_loss)
             return self._close_position(
                 position,
                 kline,
-                position.stop_loss,
+                raw_exit_price,
                 _stop_exit_reason(position),
                 _stop_exit_detail(position, "最高价"),
             )
@@ -391,6 +486,19 @@ def _funding_settlement_count(entry_time: int, exit_time: int, interval_ms: int)
     first = entry_time // interval_ms + 1
     last = exit_time // interval_ms
     return max(0, last - first + 1)
+
+
+def _open_planned_risk(positions: list[PaperPosition]) -> Decimal:
+    return sum((_position_planned_risk(position) for position in positions), Decimal("0"))
+
+
+def _position_planned_risk(position: PaperPosition) -> Decimal:
+    initial_stop = position.initial_stop_loss or position.stop_loss
+    return abs(position.entry_price - initial_stop) * position.quantity
+
+
+def _open_notional(positions: list[PaperPosition]) -> Decimal:
+    return sum((position.entry_price * position.quantity for position in positions), Decimal("0"))
 
 
 def _fees_too_high_for_planned_risk(

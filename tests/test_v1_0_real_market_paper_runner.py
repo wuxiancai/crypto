@@ -163,7 +163,7 @@ def test_real_market_paper_config_defaults_to_perpetual_costs_and_10x_leverage(t
     assert config.taker_fee_rate == Decimal("0.0005")
     assert config.leverage == Decimal("10")
     assert config.funding_interval_ms == 8 * 60 * 60 * 1000
-    assert config.max_fee_to_risk_ratio == Decimal("0")
+    assert config.max_fee_to_risk_ratio == Decimal("0.25")
     assert config.trend_pullback_take_profit_mode == "TRAILING"
     assert config.strategy_config.fast_ma_type == "EMA"
     assert config.strategy_config.slow_ma_type == "MA"
@@ -240,6 +240,50 @@ def test_default_realtime_signal_blocks_entries_near_funding_settlement():
     assert "funding_settlement_window" in signal.reason
 
 
+def test_funding_warn_keeps_signal_with_reduced_risk_pct():
+    from app.data.binance import FundingSnapshot
+    from app.data.quality import Kline
+    from app.paper.live_runner import _apply_funding_filter
+    from app.strategy.signal_router import StrategySignal
+
+    kline = Kline(
+        symbol="BTCUSDT",
+        interval="15m",
+        open_time=0,
+        close_time=899_999,
+        open=Decimal("100"),
+        high=Decimal("101"),
+        low=Decimal("99"),
+        close=Decimal("100"),
+        volume=Decimal("10"),
+    )
+    signal = StrategySignal(
+        action="SHORT_ENTRY",
+        strategy_type="SHORT_DAY_CORE",
+        bucket="DAY_CORE",
+        risk_pct=Decimal("0.005"),
+        reason=["entry"],
+    )
+
+    filtered = _apply_funding_filter(
+        signal,
+        kline,
+        {
+            "BTCUSDT": FundingSnapshot(
+                symbol="BTCUSDT",
+                last_funding_rate=Decimal("0.0006"),
+                next_funding_time=kline.close_time + 60 * 60 * 1000,
+                event_time=kline.close_time,
+            )
+        },
+    )
+
+    assert filtered.action == "SHORT_ENTRY"
+    assert filtered.risk_pct == Decimal("0.0025")
+    assert "funding_rate_warn" in filtered.reason
+    assert filtered.nearest_strategy["position_multiplier"] == "0.5"
+
+
 def test_real_market_paper_runner_writes_strategy_details_to_state(tmp_path):
     import json
 
@@ -284,7 +328,7 @@ def test_real_market_paper_runner_writes_strategy_details_to_state(tmp_path):
     assert details[0]["atr_period"] == "14"
     assert details[0]["dmi_period"] == "12"
     assert details[0]["swing_lookback"] == "20"
-    assert details[0]["max_fee_to_risk_ratio"] == "0"
+    assert details[0]["max_fee_to_risk_ratio"] == "0.25"
     assert details[0]["trend_pullback_take_profit_mode"] == "TRAILING"
     assert details[0]["pullback_zone_atr_multiplier"] == "1"
     assert details[0]["require_pullback_close_beyond_fast_ma"] is False

@@ -28,6 +28,8 @@ if [[ "$REGENERATE_PORTS" == "1" || ! -f "$PORT_ENV" ]]; then
   "$VENV_PYTHON" -m app.deploy.ports
 else
   echo "Using existing port config: ${PORT_ENV}"
+  # Backfill Postgres credentials for env files generated before they were required.
+  "$VENV_PYTHON" -c "from pathlib import Path; from app.deploy.ports import backfill_credentials_env; backfill_credentials_env(Path('${PORT_ENV}'))"
 fi
 
 set -a
