@@ -16,6 +16,7 @@ bash scripts/deploy_ubuntu.sh
 - 安装 `python3`、`python3-venv`。
 - 检查 Docker：如果服务器已安装 Docker 则直接复用；如果存在 Docker CE 软件源则安装 `docker-ce`；否则回退安装 Ubuntu 自带 `docker.io`。
 - 检查 Docker Compose：优先使用 `docker compose` plugin，必要时依次回退到 `docker-compose-v2` 和 `docker-compose`。
+- 检测是否已有旧部署；如发现旧端口配置、Paper 状态或 PostgreSQL Docker volume，会询问保留数据库继续部署，还是删除数据库重新部署。
 - 自动检测端口冲突。
 - 生成 `.env.ports.generated`。
 - 启动 PostgreSQL。
@@ -55,6 +56,25 @@ sudo ufw allow 8765/tcp
 
 实际端口如果不是 `8765`，请以部署输出或 `.env.ports.generated` 里的 `PAPER_WEB_PORT` 为准。
 
+如果浏览器打不开页面，先不要改 `.env`，按下面顺序确认：
+
+```bash
+cat .env.ports.generated
+sudo systemctl status crypto-paper.service --no-pager
+sudo journalctl -u crypto-paper.service -n 100 --no-pager
+sudo ss -lntp | grep <PAPER_WEB_PORT>
+curl -I http://127.0.0.1:<PAPER_WEB_PORT>/
+sudo ufw status
+```
+
+判断方式：
+
+- `cat .env.ports.generated`：确认真实 Web 端口，云服务器访问地址应使用 `PAPER_WEB_PORT`。
+- `systemctl status` / `journalctl`：确认服务是否已启动、是否因为依赖或配置报错退出。
+- `ss`：确认状态页进程是否真的监听了该端口。
+- `curl 127.0.0.1`：如果本机能访问但公网不能访问，通常是云厂商安全组或 `ufw` 未放行。
+- 云厂商控制台安全组必须放行 TCP `PAPER_WEB_PORT`，只在服务器里执行 `ufw allow` 不一定够。
+
 ## .env 需要配置什么
 
 首次部署时脚本会自动创建 `.env`，等价于：
@@ -74,6 +94,35 @@ BINANCE_BASE_URL=https://fapi.binance.com
 ```
 
 如果服务器访问 Binance 主网 REST 受限，可以把 `.env` 中的 `BINANCE_BASE_URL` 改成当前服务器可访问的 Binance USDⓈ-M Futures endpoint。实际运行端口、PostgreSQL 密码和 `DATABASE_URL` 由 `.env.ports.generated` 自动生成，通常不需要手动改 `.env` 里的 `DATABASE_URL`。
+
+截图里 `.env` 的 `POSTGRES_PASSWORD=change-me-to-a-strong-password` 是模板值；正常一键部署时，启动脚本会生成 `.env.ports.generated` 并在运行时覆盖数据库连接配置。因此页面打不开时，优先排查服务、监听端口和安全组，不要先改 `.env`。
+
+## 重新部署时保留或删除数据库
+
+再次执行：
+
+```bash
+bash scripts/deploy_ubuntu.sh
+```
+
+如果脚本检测到当前服务器可能已经部署过本项目，例如存在 `.env.ports.generated`、`runtime/paper-state.json` 或本项目 PostgreSQL Docker volume，会提示：
+
+```text
+请选择数据库处理方式：
+  1) 保留数据库并继续部署（推荐）
+  2) 删除数据库和本地 Paper 状态后重新部署
+```
+
+默认选择 `1`，会保留已有数据库和 Paper 状态，只更新代码、依赖、migration 和 systemd 服务。
+
+选择 `2` 会停止旧服务，执行 Compose `down -v`，删除本项目 PostgreSQL volume，并删除 `runtime/paper-state.json`。这会清空本机数据库里的 Paper 复盘、回测归档和相关运行数据；只有确认要全新初始化时才选择。
+
+非交互部署可以显式指定：
+
+```bash
+DEPLOY_DATABASE_MODE=keep bash scripts/deploy_ubuntu.sh
+DEPLOY_DATABASE_MODE=reset bash scripts/deploy_ubuntu.sh
+```
 
 ## 端口顺延机制
 

@@ -114,6 +114,25 @@ def test_deploy_script_prints_access_url_and_next_steps():
     assert "BINANCE_BASE_URL=https://fapi.binance.com" in content
     assert "第一版只跑 Paper，不需要配置 Binance API Key" in content
     assert "实际运行端口和数据库连接以 .env.ports.generated 为准" in content
+    assert "sudo ss -lntp | grep ${PAPER_WEB_PORT}" in content
+    assert "curl -I http://127.0.0.1:${PAPER_WEB_PORT}/" in content
+
+
+def test_deploy_script_prompts_before_resetting_existing_database():
+    content = Path("scripts/deploy_ubuntu.sh").read_text(encoding="utf-8")
+
+    assert "confirm_database_mode" in content
+    assert "previous_deploy_markers" in content
+    assert "DEPLOY_DATABASE_MODE" in content
+    assert "reset_previous_database" in content
+    assert "docker volume ls --format '{{.Name}}'" in content
+    assert "crypto_quant_postgres_data" in content
+    assert "保留数据库并继续部署" in content
+    assert "删除数据库和本地 Paper 状态后重新部署" in content
+    assert "compose --env-file \"$ROOT_DIR/.env.ports.generated\" down -v --remove-orphans" in content
+    assert "runtime/paper-state.json" in content
+    assert content.index("ensure_env_file") < content.index("confirm_database_mode")
+    assert content.index("confirm_database_mode") < content.index("install_systemd_service")
 
 
 def test_systemd_install_script_uses_start_script_in_foreground_mode():
