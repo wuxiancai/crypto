@@ -1004,6 +1004,7 @@ def _render_paper_runtime_event_shortcuts() -> str:
     links = [
         ("/paper/events", "全部"),
         ("/paper/events?event_type=fill", "只看成交"),
+        ("/paper/events?event_type=blocked_signal", "只看风控阻断"),
         ("/paper/events?event_type=rejected_signal", "只看被拒绝信号"),
         ("/paper/events?event_type=signal", "只看策略信号"),
         ("/paper/events?event_type=snapshot", "只看账户快照"),
@@ -1019,6 +1020,7 @@ def _event_type_options(selected: str) -> str:
     options = [
         ("", "全部"),
         ("signal", "策略信号"),
+        ("blocked_signal", "被风控阻断信号"),
         ("rejected_signal", "被拒绝信号"),
         ("fill", "成交"),
         ("snapshot", "账户快照"),
@@ -1046,7 +1048,7 @@ def _render_paper_runtime_event_table(events: list[Any]) -> str:
 
 
 def _render_paper_runtime_event_counts(events: list[Any]) -> str:
-    counts = {event_type: 0 for event_type in ("signal", "rejected_signal", "fill", "snapshot")}
+    counts = {event_type: 0 for event_type in ("signal", "blocked_signal", "rejected_signal", "fill", "snapshot")}
     for event in events:
         event_type = str(getattr(event, "event_type", ""))
         if event_type in counts:
@@ -1159,6 +1161,10 @@ def _paper_runtime_event_summary(event_type: str, payload: str) -> str:
             f"退出原因={_exit_reason_label(decoded.get('exit_reason'))}, "
             f"数量={_format_decimal(decoded.get('quantity'), 4)}"
         )
+    if event_type == "blocked_signal":
+        nearest = decoded.get("nearest_strategy") or {}
+        original_action = nearest.get("original_action", "-") if isinstance(nearest, dict) else "-"
+        return f"风控阻断，原始动作={original_action}，原因={_format_reason_list(decoded.get('reason'))}"
     if event_type == "rejected_signal":
         return f"拒绝原因={_format_reason_list(decoded.get('reason'))}"
     if event_type == "snapshot":
@@ -1177,6 +1183,7 @@ def _paper_runtime_event_summary(event_type: str, payload: str) -> str:
 def _event_type_label(event_type: Any) -> str:
     labels = {
         "signal": "策略信号",
+        "blocked_signal": "被风控阻断信号",
         "rejected_signal": "被拒绝信号",
         "fill": "成交",
         "snapshot": "账户快照",

@@ -361,7 +361,7 @@ def _load_paper_runtime_events_for_web(query: dict[str, list[str]], session_fact
                 event_type=_optional_query_choice(
                     query,
                     "event_type",
-                    {"signal", "rejected_signal", "fill", "snapshot"},
+                    {"signal", "blocked_signal", "rejected_signal", "fill", "snapshot"},
                 ),
                 symbol=_optional_query_text(query, "symbol"),
                 strategy_type=_optional_query_text(query, "strategy_type"),
@@ -379,7 +379,7 @@ def _paper_runtime_event_filters_from_query(query: dict[str, list[str]]) -> dict
         "event_type": _optional_query_choice(
             query,
             "event_type",
-            {"signal", "rejected_signal", "fill", "snapshot"},
+            {"signal", "blocked_signal", "rejected_signal", "fill", "snapshot"},
         )
         or "",
         "symbol": _optional_query_text(query, "symbol") or "",

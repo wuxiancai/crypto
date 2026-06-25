@@ -240,6 +240,50 @@ def test_default_realtime_signal_blocks_entries_near_funding_settlement():
     assert "funding_settlement_window" in signal.reason
 
 
+def test_stale_funding_snapshot_does_not_block_entry_signal():
+    from app.data.binance import FundingSnapshot
+    from app.data.quality import Kline
+    from app.paper.live_runner import _apply_funding_filter
+    from app.strategy.signal_router import StrategySignal
+
+    kline = Kline(
+        symbol="BTCUSDT",
+        interval="15m",
+        open_time=0,
+        close_time=1_800_000,
+        open=Decimal("100"),
+        high=Decimal("101"),
+        low=Decimal("99"),
+        close=Decimal("100"),
+        volume=Decimal("10"),
+    )
+    signal = StrategySignal(
+        action="SHORT_ENTRY",
+        strategy_type="SHORT_DAY_CORE",
+        bucket="DAY_CORE",
+        risk_pct=Decimal("0.005"),
+        reason=["entry"],
+    )
+
+    filtered = _apply_funding_filter(
+        signal,
+        kline,
+        {
+            "BTCUSDT": FundingSnapshot(
+                symbol="BTCUSDT",
+                last_funding_rate=Decimal("0.0001"),
+                next_funding_time=kline.close_time - 1,
+                event_time=kline.close_time - 60_000,
+            )
+        },
+    )
+
+    assert filtered.action == "SHORT_ENTRY"
+    assert "funding_snapshot_stale_allow" in filtered.reason
+    assert filtered.nearest_strategy["funding_decision"] == "STALE_ALLOW"
+
+
+
 def test_funding_warn_keeps_signal_with_reduced_risk_pct():
     from app.data.binance import FundingSnapshot
     from app.data.quality import Kline

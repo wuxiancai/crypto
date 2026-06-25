@@ -18,7 +18,7 @@ from app.paper.multitimeframe import MultiTimeframeKlineCache
 from app.paper.persistence import _fill_to_payload, _position_to_payload, load_paper_snapshot
 from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
 from app.paper.stream import PaperSignalContext, PaperStreamEvent, PaperStreamEventSink, SignalFn, run_persistent_paper_kline_stream
-from app.paper.trading import PaperConfig, PaperSnapshot
+from app.paper.trading import PaperConfig, PaperSnapshot, SignalLike
 from app.risk.funding_filter import evaluate_funding_filter
 from app.strategy.signal_router import StrategySignal
 
@@ -57,6 +57,7 @@ class RealMarketPaperConfig:
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     auto_funding_filter_enabled: bool = True
+    funding_snapshot_refresh_seconds: int = 60
     max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
     trend_pullback_take_profit_mode: str = "TRAILING"
     strategy_config: RealtimeStrategyConfig = field(default_factory=default_paper_strategy_config)
@@ -86,6 +87,11 @@ async def run_real_market_paper(
         await fetch_realtime_funding_snapshots(config)
         if source is None and config.auto_funding_filter_enabled
         else {}
+    )
+    funding_refresh_task = (
+        asyncio.create_task(refresh_realtime_funding_snapshots(config, funding_snapshots))
+        if source is None and config.auto_funding_filter_enabled
+        else None
     )
     catchup_klines = (
         _missing_klines_since_last_update(config.state_path, historical_klines or [])
@@ -127,6 +133,12 @@ async def run_real_market_paper(
             event_sink=_paper_runtime_event_sink(config.event_session_factory),
         )
     finally:
+        if funding_refresh_task is not None:
+            funding_refresh_task.cancel()
+            try:
+                await funding_refresh_task
+            except asyncio.CancelledError:
+                pass
         if price_task is not None:
             price_task.cancel()
             try:
@@ -234,6 +246,20 @@ async def fetch_realtime_funding_snapshots(config: RealMarketPaperConfig) -> dic
         return {}
 
 
+
+async def refresh_realtime_funding_snapshots(
+    config: RealMarketPaperConfig,
+    funding_snapshots: dict[str, FundingSnapshot],
+) -> None:
+    refresh_seconds = max(30, int(config.funding_snapshot_refresh_seconds))
+    while True:
+        await asyncio.sleep(refresh_seconds)
+        latest = await fetch_realtime_funding_snapshots(config)
+        if latest:
+            funding_snapshots.clear()
+            funding_snapshots.update(latest)
+
+
 def save_paper_strategy_details(config: RealMarketPaperConfig) -> None:
     payload = _read_state_payload_for_market_price(config.state_path, config.initial_equity)
     payload["strategy_details"] = [
@@ -322,7 +348,10 @@ def _apply_funding_filter(
     snapshot = funding_snapshots.get(kline.symbol)
     if snapshot is None:
         return signal
-    minutes_to_settlement = max(0, (snapshot.next_funding_time - kline.close_time) // 60_000)
+    funding_delta_ms = snapshot.next_funding_time - kline.close_time
+    if funding_delta_ms < 0:
+        return _funding_stale_allow_signal(signal, kline, snapshot)
+    minutes_to_settlement = funding_delta_ms // 60_000
     result = evaluate_funding_filter(
         funding_rate=snapshot.last_funding_rate,
         minutes_to_settlement=int(minutes_to_settlement),
@@ -387,7 +416,45 @@ def _apply_funding_filter(
         nearest_strategy={
             **signal.nearest_strategy,
             "action": "WAIT",
+            "original_action": signal.action,
             "funding_decision": result.decision,
+        },
+    )
+
+
+def _funding_stale_allow_signal(
+    signal: StrategySignal,
+    kline: Kline,
+    snapshot: FundingSnapshot,
+) -> StrategySignal:
+    return StrategySignal(
+        action=signal.action,
+        strategy_type=signal.strategy_type,
+        bucket=signal.bucket,
+        reason=[
+            *signal.reason,
+            "funding_snapshot_stale_allow",
+            f"funding_rate={snapshot.last_funding_rate}",
+            f"next_funding_time={snapshot.next_funding_time}",
+            f"kline_close_time={kline.close_time}",
+        ],
+        entry_price=signal.entry_price,
+        stop_loss=signal.stop_loss,
+        take_profit=signal.take_profit,
+        risk_reward=signal.risk_reward,
+        signal_level=signal.signal_level,
+        score=signal.score,
+        risk_pct=signal.risk_pct,
+        trailing_atr=signal.trailing_atr,
+        max_standard_position_pct=signal.max_standard_position_pct,
+        core_rules=signal.core_rules,
+        chart_points=signal.chart_points,
+        chart_timeframes=signal.chart_timeframes,
+        condition_statuses=signal.condition_statuses,
+        nearest_strategy={
+            **signal.nearest_strategy,
+            "funding_decision": "STALE_ALLOW",
+            "funding_snapshot_stale": True,
         },
     )
 
@@ -488,6 +555,17 @@ def _paper_runtime_event_payloads(event: PaperStreamEvent) -> list[dict[str, obj
                 payload=_signal_payload(event),
             )
         )
+    if _is_pre_trade_blocked_signal(event.signal):
+        payloads.append(
+            _paper_runtime_event_payload(
+                event_type="blocked_signal",
+                event=event,
+                strategy_type=str(event.signal.strategy_type),
+                action=str(event.signal.action),
+                bucket=getattr(event.signal, "bucket", None),
+                payload=_signal_payload(event),
+            )
+        )
     for closed_fill in event.closed_fills:
         payloads.append(
             _paper_runtime_event_payload(
@@ -500,6 +578,16 @@ def _paper_runtime_event_payloads(event: PaperStreamEvent) -> list[dict[str, obj
             )
         )
     return payloads
+
+
+def _is_pre_trade_blocked_signal(signal: SignalLike) -> bool:
+    if getattr(signal, "action", None) != "WAIT":
+        return False
+    reasons = set(getattr(signal, "reason", []) or [])
+    return bool(
+        {"funding_settlement_window", "funding_rate_block"} & reasons
+        and getattr(signal, "entry_price", None) is not None
+    )
 
 
 def _paper_runtime_event_payload(
@@ -537,6 +625,7 @@ def _signal_payload(event: PaperStreamEvent) -> dict[str, object]:
         "reason": list(getattr(signal, "reason", []) or []),
         "core_rules": list(getattr(signal, "core_rules", []) or []),
         "condition_statuses": list(getattr(signal, "condition_statuses", []) or []),
+        "nearest_strategy": getattr(signal, "nearest_strategy", {}) or {},
         "opened_position": _position_to_payload(event.opened_position),
         "rejected_signal": event.rejected_signal,
     }

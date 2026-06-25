@@ -86,6 +86,10 @@ def _event_summary(event: PaperRuntimeEvent) -> str:
             f"exit={payload.get('exit_reason', '-')}, "
             f"qty={payload.get('quantity', '-')}"
         )
+    if event.event_type == "blocked_signal":
+        nearest = payload.get("nearest_strategy") or {}
+        original_action = nearest.get("original_action", "-") if isinstance(nearest, dict) else "-"
+        return f"blocked_original={original_action}, reason={','.join(payload.get('reason', []) or []) or '-'}"
     if event.event_type == "rejected_signal":
         return f"reason={','.join(payload.get('reason', []) or []) or '-'}"
     if event.event_type == "snapshot":
@@ -116,7 +120,7 @@ def _format_event_time(event_time: int) -> str:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Show recent Paper Trading runtime replay events.")
     parser.add_argument("--limit", type=int, default=50)
-    parser.add_argument("--event-type", choices=["signal", "rejected_signal", "fill", "snapshot"])
+    parser.add_argument("--event-type", choices=["signal", "blocked_signal", "rejected_signal", "fill", "snapshot"])
     parser.add_argument("--symbol")
     parser.add_argument("--strategy-type")
     parser.add_argument("--bucket")
