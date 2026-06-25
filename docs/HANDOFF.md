@@ -25,6 +25,11 @@
 
 ## 本轮修复
 
+- 2026-06-25 剩余体检项收口：
+  - 旧 `TREND_PULLBACK` 的 RR 判断已清理：不再用固定 `take_profit = entry ± risk * target_rr` 后反推 RR 的恒等式做过滤，改为直接校验 `target_risk_reward >= min_risk_reward`，并移除未使用的 `_near_ema50` 死代码。
+  - 文档已明确实时 Paper 默认走独立分层策略系统；旧 `TREND_PULLBACK` / `REVERSAL_PROBE` 与 `signal_router` 只在缺少 1d 历史时作为兼容回退。
+  - 文档已明确 V0.5 中 Paper 主链路实际消费的是仓位预算、止损/止盈语义、Kill Switch、Liquidation Guard 和模拟 Stop Order Guard；OrderPlan 和订单状态机暂作为第一版复盘/第二版边界模型，不接入真实下单编排。
+  - 文档已补充 Paper/Backtest 仿真限制：强平价、资金费、滑点、部分成交、止损跳空成交和指标初始化均为第一版近似模型，不等同交易所逐笔撮合或真实 HEDGE 模式。
 - 2026-06-25 K 线缓存、单仓名义上限、ADDON 显式信号修复：
   - `MultiTimeframeKlineCache.update()` 已按 `symbol + interval + open_time` 去重，重复 K 线会替换旧 bar，并按 `open_time` 排序后再裁剪窗口，避免 WebSocket catchup、REST warmup 或重复推送污染 EMA/ATR/DMI。
   - `PaperConfig` 新增 `max_single_position_notional_leverage`，默认单仓最多 `5x equity`；组合总名义上限仍默认 `10x equity`，避免一个 core 仓吃满总杠杆后 ADDON/HEDGE 无法开仓。
@@ -512,7 +517,7 @@
 1. 继续真实行情 Paper Trading：在真实运行环境观察 `/paper/events` 是否能稳定呈现连续事件；若事件量增长过快，再增加保留策略或分页。
 2. 使用 `/backtest` 或 `/backtest/batch` 比较 EMA15/MA60、EMA30/MA120 等参数组合；批量页可直接设置 EMA/MA、步进、回测周期、手续费/风险上限和精修参数组，默认会跳过数据库中已有同配置 hash 的回测结果，并可在页面查看终端风格日志或请求停止。
 3. 下一步可继续增强 `/backtest`：增加按 bucket / strategy 的排序筛选，以及更长历史窗口的统一口径对比。
-4. 后续只把 V0.5 的 OrderPlan / Guard / 状态机接入 Paper 执行适配器和复盘链路。Live 执行适配器、补挂真实止损、市价平仓和真实 CRITICAL 告警属于第二版，永久暂停，除非用户明确发令启动第二版。
+4. 后续如继续处理 V0.5，只能接入 Paper/Backtest 可模拟的 OrderPlan 复盘字段或状态记录；Live 执行适配器、补挂真实止损、市价平仓和真实 CRITICAL 告警属于第二版，永久暂停，除非用户明确发令启动第二版。
 
 ## 最近提交
 

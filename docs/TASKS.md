@@ -163,6 +163,12 @@
 - 当前 Web 策略回测已接入数据库归档：每次成功回测会写入 `backtest_runs`、`backtest_trades` 和 `config_snapshots`。2026-06-19 已确认 Ubuntu 服务器此前表存在但行数为 0，根因是 `/backtest` 页面只渲染结果、没有调用归档 repository；现已修复。
 - 当前 Web 策略回测已增加页面级错误展示：Binance REST 超时、DNS/网络失败或其他回测执行异常会显示为“回测执行失败：...”，不再返回空白页或 empty reply。
 
+仿真限制：
+
+- 强平价、资金费、滑点、限价部分成交和止损跳空成交均为第一版近似模型，用于策略压力测试和风险筛查，不等同 Binance 撮合引擎、标记价格、资金费结算和真实订单簿的逐笔复刻。
+- Bollinger Bands、ATR、ADX/DMI 等指标采用项目固定口径计算；当前 ATR、ADX、DI 已固定为 Wilder 平滑，跨平台对比时仍可能因数据源、时区、未收盘 K 线过滤和初始化窗口不同产生轻微差异。
+- Paper/Backtest 的多空同 symbol 共存是 strategy bucket 级模拟，不代表第一版已经支持真实 Binance HEDGE position mode；真实 HEDGE 和真实下单属于第二版暂停范围。
+
 ## V0.4 Paper Trading
 
 - [x] 实现实时行情订阅。
@@ -203,16 +209,16 @@
 
 说明：
 
-- 当前已实现主策略按账户风险预算、止损距离、交易所数量/名义价值过滤计算仓位；单仓默认最多 `5x equity`，组合总名义默认最多 `10x equity`。
+- 当前 Paper/Backtest 主链路已按账户风险预算、止损距离、手续费/风险过滤、单仓名义上限和组合总名义/总计划风险上限计算仓位；单仓默认最多 `5x equity`，组合总名义默认最多 `10x equity`。
 - 当前已实现趋势转换仓位计算：最终数量取风险上限和评分仓位上限的较小值；EARLY 使用 0.2% 风险，CONFIRMED 使用 0.3% 风险。
 - 当前已实现止损候选选择：LONG 只接受低于入场价的止损，SHORT 只接受高于入场价的止损，并在最大止损距离内选择距离入场价最近的候选。
 - 当前已实现趋势转换分批止盈计划：TP1 = 1R 平 30%，TP2 = 前高/前低平 30%，TP3 = 4h EMA200 或方向校验后的 3R/结构位平 40%，TP1 后移动止损到保本。
-- 当前已实现 OrderPlan 合约：包含 symbol、side、strategy_type、order_type、entry_price、quantity、stop_loss、take_profit_levels、leverage、margin_type、position_mode、estimated_liquidation_price、liquidation_buffer_pct、reduce_only、client_order_id、strategy_version、config_snapshot_id。
+- 当前已实现 OrderPlan 合约：包含 symbol、side、strategy_type、order_type、entry_price、quantity、stop_loss、take_profit_levels、leverage、margin_type、position_mode、estimated_liquidation_price、liquidation_buffer_pct、reduce_only、client_order_id、strategy_version、config_snapshot_id。第一版 Paper/Backtest 目前只消费其中可模拟的仓位、止损、止盈、强平保护和止损保护语义，不引入真实订单状态编排。
 - 当前历史实现约束为 ONE_WAY + ISOLATED。第一版 Paper/Backtest 必须支持策略子仓和同一 symbol 多空共存；Live HEDGE 模式属于第二版，永久暂停，除非用户明确发令启动第二版。
-- 当前已实现 Stop Order Guard 判定层：校验真实持仓是否存在 symbol 匹配、退出方向正确、数量覆盖、reduceOnly、状态 NEW、触发价方向正确的有效止损单；缺失时输出补挂止损动作。
-- 当前已实现 Liquidation Guard 判定层：多单要求 liquidation_price < stop_loss < entry_price，空单要求 entry_price < stop_loss < liquidation_price，且止损价与强平价安全距离不低于 liquidation_buffer_pct。
+- 当前已实现 Stop Order Guard 判定层：校验真实持仓是否存在 symbol 匹配、退出方向正确、数量覆盖、reduceOnly、状态 NEW、触发价方向正确的有效止损单；Paper 主链路会用模拟止损单快照执行入场前保护校验，真实补挂止损动作保留到第二版。
+- 当前已实现 Liquidation Guard 判定层：多单要求 liquidation_price < stop_loss < entry_price，空单要求 entry_price < stop_loss < liquidation_price，且止损价与强平价安全距离不低于 liquidation_buffer_pct；Paper 主链路已在入场前消费该判定。
 - 当前已实现 Kill Switch 状态转移：触发后禁止新开仓，可标记是否平仓，并记录操作者、原因、触发时间和解除操作者；Paper 主链路已实际消费该状态。
-- 当前已实现订单、成交、持仓状态机：覆盖订单提交、部分成交、完全成交、止损提交/确认/失败、止盈提交、退出成交；主订单成交但止损失败会进入 CRITICAL 并暂停新开仓。
+- 当前已实现订单、成交、持仓状态机：覆盖订单提交、部分成交、完全成交、止损提交/确认/失败、止盈提交、退出成交；第一版作为 Paper/Backtest 复盘与第二版 Live 的边界模型保留，暂不接入真实下单编排。
 
 ## V0.6 AI/Funding 过滤
 
@@ -252,8 +258,8 @@
 - 当前已实现持久化 Paper stream runner：启动时从状态文件恢复 PaperTradingEngine，每处理一根已收盘 K 线后写回 PaperSnapshot，避免真实行情模拟交易重启后丢失权益、持仓和拒单计数；状态文件默认裁剪 fills，完整成交历史以数据库复盘事件为准。
 - 当前已实现真实行情 Paper runner 与脚本入口：`scripts/run_paper_realtime.py` 会连接 Binance WebSocket 已收盘 K 线流，并使用持久化 Paper stream runner 保存状态。
 - 当前真实行情 Paper runner 已支持多周期订阅，默认订阅 15m / 1h / 4h；已新增 MultiTimeframeKlineCache，用于按 symbol 聚合多周期已收盘 K 线。
-- 当前实时策略适配器默认调用独立分层策略系统，并使用 1d / 4h / 1h / 15m 已收盘 K 线；旧 4h / 1h / 15m `TREND_PULLBACK` / `REVERSAL_PROBE` 路径只在缺少 1d 历史时作为兼容回退。
-- 当前 `scripts/run_paper_realtime.py` 默认路径已不再永久 WAIT；不注入自定义策略函数时，会通过多周期缓存生成实时主趋势或趋势转换 Paper 信号。有持仓时默认不加仓，避免重复入场噪音。
+- 当前实时策略适配器默认调用独立分层策略系统，并使用 1d / 4h / 1h / 15m 已收盘 K 线；旧 4h / 1h / 15m `TREND_PULLBACK` / `REVERSAL_PROBE` 与 `signal_router` 路径只在缺少 1d 历史时作为兼容回退。
+- 当前 `scripts/run_paper_realtime.py` 默认路径已不再永久 WAIT；不注入自定义策略函数时，会通过多周期缓存生成实时分层 Paper 信号。ADDON 已由策略层根据 open bucket 显式输出，不再靠交易层重复 `DAY_CORE` 隐式转换。
 - 当前已修复 signal router 字段丢失问题：主趋势与趋势转换信号经路由后会保留 entry_price、stop_loss、take_profit、risk_reward、risk_pct、score、signal_level 等执行/统计字段。
 - 当前趋势转换信号已补充可执行 entry_price、ATR 止损与 2R take_profit，Paper 不再依赖默认止损止盈模拟趋势转换策略。
 - 当前已新增极简中文 Web 状态页：`scripts/run_paper_status_web.py` 读取 `runtime/paper-state.json`，展示账户权益、持仓情况、全部模拟交易记录、买入价、卖出价、使用策略和 rejected signals，并每 5 秒自动刷新。

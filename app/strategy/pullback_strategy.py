@@ -69,10 +69,10 @@ def _build_long_signal(
     risk_per_unit = entry_price - stop_loss
     if risk_per_unit <= 0:
         return _wait(reason + ["invalid stop loss"])
-    take_profit = entry_price + risk_per_unit * target_risk_reward
-    risk_reward = (take_profit - entry_price) / risk_per_unit
-    if risk_reward < min_risk_reward:
-        return _wait(reason + ["risk reward too low"])
+    if target_risk_reward < min_risk_reward:
+        return _wait(reason + ["configured risk reward too low"])
+    risk_reward = target_risk_reward
+    take_profit = entry_price + risk_per_unit * risk_reward
 
     return TradeSignal(
         action="LONG_ENTRY",
@@ -105,10 +105,10 @@ def _build_short_signal(
     risk_per_unit = stop_loss - entry_price
     if risk_per_unit <= 0:
         return _wait(reason + ["invalid stop loss"])
-    take_profit = entry_price - risk_per_unit * target_risk_reward
-    risk_reward = (entry_price - take_profit) / risk_per_unit
-    if risk_reward < min_risk_reward:
-        return _wait(reason + ["risk reward too low"])
+    if target_risk_reward < min_risk_reward:
+        return _wait(reason + ["configured risk reward too low"])
+    risk_reward = target_risk_reward
+    take_profit = entry_price - risk_per_unit * risk_reward
 
     return TradeSignal(
         action="SHORT_ENTRY",
@@ -156,10 +156,6 @@ def _bearish_confirmation(frame: EntryFrame) -> bool:
     if frame.open is not None:
         return frame.close < frame.open
     return frame.close < frame.previous_close
-
-
-def _near_ema50(frame: EntryFrame) -> bool:
-    return abs(frame.close - frame.ema50) <= frame.atr
 
 
 def _wait(reason: list[str]) -> TradeSignal:

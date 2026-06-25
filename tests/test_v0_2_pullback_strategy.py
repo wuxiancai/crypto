@@ -221,4 +221,4 @@ def test_blocks_pullback_signal_when_risk_reward_is_too_low():
     )
 
     assert signal.action == "WAIT"
-    assert "risk reward too low" in signal.reason
+    assert "configured risk reward too low" in signal.reason
