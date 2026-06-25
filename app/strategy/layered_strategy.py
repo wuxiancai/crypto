@@ -330,25 +330,6 @@ def _short_signal(
     )
 
 
-def _diagnostic(strategy_type: str, passed: bool, detail: list[str]) -> dict[str, object]:
-    text_by_strategy = {
-        "DAY_CORE": "日线趋势明确",
-        SHORT_DAY_CORE: "日线空头主趋势",
-        LONG_DAY_CORE: "日线多头主趋势",
-        SHORT_4H_1H_ADDON: "4h/1h 空头顺势加仓",
-        LONG_4H_1H_ADDON: "4h/1h 多头顺势加仓",
-        SHORT_4H_HEDGE: "4h 空头对冲",
-        LONG_4H_HEDGE: "4h 多头对冲",
-    }
-    return {
-        "strategy": strategy_type,
-        "strategy_type": strategy_type,
-        "text": text_by_strategy.get(strategy_type, strategy_type),
-        "passed": passed,
-        "detail": "; ".join(detail),
-    }
-
-
 def _core_strategy_diagnostics(
     strategy_type: str,
     strategy_input: LayeredStrategyInput,

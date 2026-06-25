@@ -1275,26 +1275,6 @@ def _format_event_time_ms(value: Any) -> str:
     return datetime.fromtimestamp(timestamp, tz=timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _render_position(position: dict[str, Any] | None) -> str:
-    if position is None:
-        return '<div class="empty">当前无持仓</div>'
-    rows = [
-        ("交易对", _escape(position.get("symbol"))),
-        ("方向", _side_label(position.get("side"))),
-        ("使用策略", _escape(position.get("strategy_type"))),
-        ("入场", _format_decimal(position.get("entry_price"), 2)),
-        ("初始止损", _format_decimal(_initial_stop_loss_value(position), 2)),
-        ("当前保护线", _format_decimal(position.get("stop_loss"), 2)),
-        ("止盈激活价", _format_decimal(position.get("take_profit"), 2)),
-        ("止盈逻辑", "移动止盈中" if position.get("trailing_active") else "等待激活"),
-        ("杠杆", _leverage_label(position.get("leverage"))),
-        ("USDT", _format_notional_usdt(position)),
-    ]
-    headers = "".join(f"<th>{_escape(label)}</th>" for label, _value in rows)
-    values = "".join(f"<td>{value}</td>" for _label, value in rows)
-    return f'<div class="table-wrap"><table class="compact-position"><thead><tr>{headers}</tr></thead><tbody><tr>{values}</tr></tbody></table></div>'
-
-
 def _render_positions(positions: list[dict[str, Any]]) -> str:
     valid_positions = [position for position in positions if isinstance(position, dict)]
     if not valid_positions:
@@ -1986,34 +1966,6 @@ def _stored_market_prices(raw_prices: Any) -> dict[str, Any]:
     return prices
 
 
-def _render_signal_evaluations(evaluations: list[dict[str, Any]]) -> str:
-    latest = _latest_evaluations_by_symbol_interval(evaluations)
-    if not latest:
-        return '<div class="empty">暂无策略输出</div>'
-    rows = "\n".join(_render_signal_evaluation_row(evaluation) for evaluation in reversed(latest))
-    return f"""<div class="table-wrap">
-<table>
-  <thead>
-    <tr>
-      <th>交易对</th><th>周期</th><th>收盘价</th><th>动作</th><th>使用策略</th><th>原因</th>
-    </tr>
-  </thead>
-  <tbody>{rows}</tbody>
-</table>
-</div>"""
-
-
-def _latest_evaluations_by_symbol_interval(evaluations: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    latest: dict[tuple[str, str], dict[str, Any]] = {}
-    for evaluation in evaluations:
-        key = (str(evaluation.get("symbol")), str(evaluation.get("interval")))
-        latest[key] = evaluation
-    return sorted(
-        latest.values(),
-        key=lambda item: int(item.get("evaluated_at_ms") or 0),
-    )
-
-
 def _latest_market_prices(
     evaluations: Any,
     open_position: Any,
@@ -2078,17 +2030,6 @@ def _evaluation_latest_price(evaluation: dict[str, Any]) -> Any:
         if isinstance(last_point, dict):
             return last_point.get("close")
     return None
-
-
-def _render_signal_evaluation_row(evaluation: dict[str, Any]) -> str:
-    return f"""<tr>
-  <td>{_escape(evaluation.get("symbol"))}</td>
-  <td>{_escape(evaluation.get("interval"))}</td>
-  <td>{_escape(evaluation.get("close"))}</td>
-  <td>{_action_label(evaluation.get("action"))}</td>
-  <td>{_escape(evaluation.get("strategy_type"))}</td>
-  <td>{_escape(_format_reasons(evaluation.get("reason")))}</td>
-</tr>"""
 
 
 def _render_strategy_conditions(evaluations: list[dict[str, Any]]) -> str:
@@ -2470,17 +2411,6 @@ def _symbol_panel_id(symbol: str) -> str:
 
 def _safe_chart_key(value: str) -> str:
     return "".join(char for char in value if char.isalnum())
-
-
-def _latest_chart_evaluation(evaluations: list[dict[str, Any]]) -> dict[str, Any] | None:
-    chartable = [
-        evaluation
-        for evaluation in evaluations
-        if evaluation.get("chart_timeframes") or evaluation.get("chart_points")
-    ]
-    if not chartable:
-        return None
-    return max(chartable, key=lambda item: int(item.get("evaluated_at_ms") or 0))
 
 
 def _latest_chart_evaluations_by_symbol(evaluations: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2958,14 +2888,6 @@ def _action_label(action: Any) -> str:
     if label is None:
         return _escape(key or "-")
     return f"{label} ({key})"
-
-
-def _format_reasons(reasons: Any) -> str:
-    if not reasons:
-        return "-"
-    if isinstance(reasons, list):
-        return "；".join(str(reason) for reason in reasons)
-    return str(reasons)
 
 
 def _status_label(status: Any) -> str:

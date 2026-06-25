@@ -120,20 +120,6 @@ class SignalLike:
     take_profit: Decimal | None
 
 
-@dataclass(frozen=True)
-class _SignalOverride:
-    action: str
-    strategy_type: str
-    reason: list[str]
-    bucket: str | None = None
-    entry_price: Decimal | None = None
-    stop_loss: Decimal | None = None
-    take_profit: Decimal | None = None
-    risk_reward: Decimal | None = None
-    risk_pct: Decimal | None = None
-    trailing_atr: Decimal | None = None
-
-
 class PaperTradingEngine:
     def __init__(self, config: PaperConfig) -> None:
         self._config = config

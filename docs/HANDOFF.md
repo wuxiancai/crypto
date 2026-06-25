@@ -25,6 +25,11 @@
 
 ## 本轮修复
 
+- 2026-06-25 冗余/死代码清理：
+  - 删除 `app/paper/trading.py` 中旧内部 `_SignalOverride` dataclass；当前交易层已直接消费策略层 `SignalLike` / `StrategySignal` 字段。
+  - 删除 `app/paper/web_status.py` 中旧单仓渲染、旧“最近策略输出”调试表渲染、旧单图表选择函数及其私有辅助函数；当前页面已统一走多子仓、多交易对策略条件和多交易对 K 线图渲染。
+  - 删除 `app/strategy/layered_strategy.py` 中旧 `_diagnostic` 构造函数；当前分层策略诊断统一由 `_condition` 输出 `strategy/text/detail/required` 结构。
+  - 保留 `TREND_PULLBACK` / `REVERSAL_PROBE`、Live preflight、OrderPlan、AI filter 等测试覆盖的公共模块：它们属于文档声明的历史兼容或第二版预留能力，不按私有死代码处理。
 - 2026-06-25 剩余体检项收口：
   - 旧 `TREND_PULLBACK` 的 RR 判断已清理：不再用固定 `take_profit = entry ± risk * target_rr` 后反推 RR 的恒等式做过滤，改为直接校验 `target_risk_reward >= min_risk_reward`，并移除未使用的 `_near_ema50` 死代码。
   - 文档已明确实时 Paper 默认走独立分层策略系统；旧 `TREND_PULLBACK` / `REVERSAL_PROBE` 与 `signal_router` 只在缺少 1d 历史时作为兼容回退。
