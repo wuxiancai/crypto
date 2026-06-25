@@ -269,6 +269,7 @@ def _long_signal(
         take_profit=take_profit,
         risk_reward=config.target_risk_reward,
         risk_pct=risk_pct,
+        trailing_atr=entry.atr,
         reason=reason,
     )
 
@@ -294,6 +295,7 @@ def _short_signal(
         take_profit=take_profit,
         risk_reward=config.target_risk_reward,
         risk_pct=risk_pct,
+        trailing_atr=entry.atr,
         reason=reason,
     )
 

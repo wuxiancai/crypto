@@ -24,6 +24,8 @@ class PaperConfig:
     default_stop_distance_pct: Decimal = Decimal("0.02")
     default_take_profit_risk_reward: Decimal = Decimal("2")
     trend_pullback_take_profit_mode: str = "TRAILING"
+    trailing_atr_multiplier: Decimal = Decimal("2")
+    trailing_atr_period: int = 14
     max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
     max_total_planned_risk_pct: Decimal | None = Decimal("0.02")
     max_total_notional_leverage: Decimal | None = Decimal("10")
@@ -48,6 +50,8 @@ class PaperPosition:
     leverage: Decimal = Decimal("10")
     initial_stop_loss: Decimal | None = None
     trailing_active: bool = False
+    trailing_atr: Decimal | None = None
+    trailing_last_close: Decimal | None = None
     interval: str = "15m"
 
     def __post_init__(self) -> None:
@@ -126,6 +130,7 @@ class _SignalOverride:
     take_profit: Decimal | None = None
     risk_reward: Decimal | None = None
     risk_pct: Decimal | None = None
+    trailing_atr: Decimal | None = None
 
 
 class PaperTradingEngine:
@@ -296,6 +301,7 @@ class PaperTradingEngine:
             take_profit=getattr(signal, "take_profit", None),
             risk_reward=getattr(signal, "risk_reward", None),
             risk_pct=Decimal("0.003"),
+            trailing_atr=getattr(signal, "trailing_atr", None) or getattr(signal, "atr", None),
             reason=[*list(getattr(signal, "reason", []) or []), "same-direction DAY_CORE already open; open FOUR_HOUR_ADDON"],
         )
 
@@ -343,6 +349,8 @@ class PaperTradingEngine:
             leverage=self._config.leverage,
             initial_stop_loss=stop_loss,
             interval=kline.interval,
+            trailing_atr=getattr(signal, "trailing_atr", None) or getattr(signal, "atr", None),
+            trailing_last_close=entry_price,
         )
         if not self._liquidation_guard_allows(position):
             return None
@@ -436,7 +444,7 @@ class PaperTradingEngine:
                 )
             if kline.high >= position.take_profit:
                 return self._handle_take_profit(position, kline)
-            self._replace_position(position, _trail_position(position, kline))
+            self._replace_position(position, _trail_position(position, kline, self._config))
             return None
         if kline.high >= position.stop_loss:
             raw_exit_price = max(kline.open, position.stop_loss)
@@ -449,12 +457,12 @@ class PaperTradingEngine:
             )
         if kline.low <= position.take_profit:
             return self._handle_take_profit(position, kline)
-        self._replace_position(position, _trail_position(position, kline))
+        self._replace_position(position, _trail_position(position, kline, self._config))
         return None
 
     def _handle_take_profit(self, position: PaperPosition, kline: Kline) -> PaperFill | None:
         if _uses_trailing_take_profit(position, self._config):
-            self._replace_position(position, _activate_trailing_take_profit(position, kline))
+            self._replace_position(position, _activate_trailing_take_profit(position, kline, self._config))
             return None
         return self._close_position(
             position,
@@ -624,21 +632,22 @@ def _uses_trailing_take_profit(position: PaperPosition, config: PaperConfig) -> 
     }
 
 
-def _activate_trailing_take_profit(position: PaperPosition, kline: Kline) -> PaperPosition:
+def _activate_trailing_take_profit(position: PaperPosition, kline: Kline, config: PaperConfig) -> PaperPosition:
     activated = replace(position, trailing_active=True)
-    return _trail_position(activated, kline)
+    return _trail_position(activated, kline, config)
 
 
-def _trail_position(position: PaperPosition, kline: Kline) -> PaperPosition:
-    if not position.trailing_active:
-        return position
-    if position.side == "LONG":
-        step_stop = _long_step_take_profit(position, kline.high)
-        new_stop = max(position.stop_loss, step_stop)
+def _trail_position(position: PaperPosition, kline: Kline, config: PaperConfig) -> PaperPosition:
+    refreshed = _refresh_trailing_atr(position, kline, config)
+    if not refreshed.trailing_active:
+        return refreshed
+    if refreshed.side == "LONG":
+        candidate_stop = _long_atr_take_profit(refreshed, kline.high, config)
+        new_stop = max(refreshed.stop_loss, candidate_stop)
     else:
-        step_stop = _short_step_take_profit(position, kline.low)
-        new_stop = min(position.stop_loss, step_stop)
-    return replace(position, stop_loss=new_stop)
+        candidate_stop = _short_atr_take_profit(refreshed, kline.low, config)
+        new_stop = min(refreshed.stop_loss, candidate_stop)
+    return replace(refreshed, stop_loss=new_stop)
 
 
 def _initial_risk_per_unit(position: PaperPosition) -> Decimal:
@@ -646,13 +655,51 @@ def _initial_risk_per_unit(position: PaperPosition) -> Decimal:
     return abs(position.entry_price - initial_stop)
 
 
+def _refresh_trailing_atr(position: PaperPosition, kline: Kline, config: PaperConfig) -> PaperPosition:
+    if position.trailing_atr is None or position.trailing_atr <= 0:
+        return position
+    period = max(1, config.trailing_atr_period)
+    previous_close = position.trailing_last_close or position.entry_price
+    true_range = _true_range(kline, previous_close)
+    updated_atr = ((position.trailing_atr * Decimal(period - 1)) + true_range) / Decimal(period)
+    return replace(position, trailing_atr=updated_atr, trailing_last_close=kline.close)
+
+
+def _true_range(kline: Kline, previous_close: Decimal) -> Decimal:
+    return max(
+        kline.high - kline.low,
+        abs(kline.high - previous_close),
+        abs(kline.low - previous_close),
+    )
+
+
+def _long_atr_take_profit(position: PaperPosition, high: Decimal, config: PaperConfig) -> Decimal:
+    if position.trailing_atr is None or position.trailing_atr <= 0 or config.trailing_atr_multiplier <= 0:
+        return _long_step_take_profit(position, high)
+    atr_stop = high - position.trailing_atr * config.trailing_atr_multiplier
+    min_protect = position.entry_price + _initial_risk_per_unit(position)
+    return max(min_protect, atr_stop)
+
+
+def _short_atr_take_profit(position: PaperPosition, low: Decimal, config: PaperConfig) -> Decimal:
+    if position.trailing_atr is None or position.trailing_atr <= 0 or config.trailing_atr_multiplier <= 0:
+        return _short_step_take_profit(position, low)
+    atr_stop = low + position.trailing_atr * config.trailing_atr_multiplier
+    min_protect = position.entry_price - _initial_risk_per_unit(position)
+    return min(min_protect, atr_stop)
+
+
 def _long_step_take_profit(position: PaperPosition, high: Decimal) -> Decimal:
     step_size = _initial_risk_per_unit(position) * Decimal("2")
     completed_steps = int((high - position.entry_price) // step_size)
     if completed_steps <= 0:
         return position.stop_loss
-    protected_steps = completed_steps - 1
-    return position.entry_price + step_size * Decimal(protected_steps)
+
+    candidate = position.entry_price + step_size * Decimal(max(0, completed_steps - 1))
+    min_protect = position.entry_price + _initial_risk_per_unit(position)
+
+    new_stop = candidate if candidate > min_protect else min_protect
+    return new_stop
 
 
 def _short_step_take_profit(position: PaperPosition, low: Decimal) -> Decimal:
@@ -660,8 +707,12 @@ def _short_step_take_profit(position: PaperPosition, low: Decimal) -> Decimal:
     completed_steps = int((position.entry_price - low) // step_size)
     if completed_steps <= 0:
         return position.stop_loss
-    protected_steps = completed_steps - 1
-    return position.entry_price - step_size * Decimal(protected_steps)
+
+    candidate = position.entry_price - step_size * Decimal(max(0, completed_steps - 1))
+    min_protect = position.entry_price - _initial_risk_per_unit(position)
+
+    new_stop = candidate if candidate < min_protect else min_protect
+    return new_stop
 
 
 def _stop_exit_reason(position: PaperPosition) -> str:

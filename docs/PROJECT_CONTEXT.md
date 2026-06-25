@@ -37,7 +37,7 @@ MVP 必须实现：
 - `SHORT_4H_1H_ADDON` / `LONG_4H_1H_ADDON` 顺势加仓信号。
 - `LONG_4H_HEDGE` / `SHORT_4H_HEDGE` 4h hedge 信号。
 - 单笔风险仓位计算。
-- ATR 止损、固定 RR 止盈、保本止损。
+- ATR 止损、2R 止盈激活价、1R 锁盈和 ATR 动态移动止盈。
 - 事件驱动回测。
 - Paper Trading。
 - Kill Switch。

@@ -66,7 +66,7 @@ def test_paper_trading_opens_and_closes_long_position():
     assert engine.snapshot().open_position is None
 
 
-def test_trend_pullback_moves_take_profit_by_two_r_steps_and_exits_on_rebound():
+def test_trend_pullback_locks_one_r_then_uses_two_r_step_fallback_without_atr():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
     from app.strategy.pullback_strategy import TradeSignal
@@ -122,7 +122,7 @@ def test_trend_pullback_moves_take_profit_by_two_r_steps_and_exits_on_rebound():
     active_position = engine.snapshot().open_position
     assert active_position is not None
     assert active_position.trailing_active is True
-    assert active_position.stop_loss == Decimal("100")
+    assert active_position.stop_loss == Decimal("95")
 
     noise_fill = engine.on_kline(
         Kline(
@@ -181,7 +181,7 @@ def test_trend_pullback_moves_take_profit_by_two_r_steps_and_exits_on_rebound():
     assert engine.snapshot().open_position is None
 
 
-def test_layered_day_core_uses_trailing_take_profit_instead_of_fixed_exit():
+def test_layered_day_core_locks_one_r_then_uses_two_r_step_fallback_without_atr():
     from types import SimpleNamespace
 
     from app.data.quality import Kline
@@ -239,7 +239,7 @@ def test_layered_day_core_uses_trailing_take_profit_instead_of_fixed_exit():
     assert active_position is not None
     assert active_position.strategy_type == "SHORT_DAY_CORE"
     assert active_position.trailing_active is True
-    assert active_position.stop_loss == Decimal("100")
+    assert active_position.stop_loss == Decimal("95")
 
     noise_fill = engine.on_kline(
         Kline(
@@ -298,7 +298,7 @@ def test_layered_day_core_uses_trailing_take_profit_instead_of_fixed_exit():
     assert engine.snapshot().open_position is None
 
 
-def test_long_trend_pullback_moves_take_profit_by_two_r_steps_and_exits_on_pullback():
+def test_long_trend_pullback_locks_one_r_then_uses_two_r_step_fallback_without_atr():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
     from app.strategy.pullback_strategy import TradeSignal
@@ -351,7 +351,7 @@ def test_long_trend_pullback_moves_take_profit_by_two_r_steps_and_exits_on_pullb
     ) is None
     active_position = engine.snapshot().open_position
     assert active_position is not None
-    assert active_position.stop_loss == Decimal("100")
+    assert active_position.stop_loss == Decimal("105")
 
     noise_fill = engine.on_kline(
         Kline(
@@ -405,6 +405,104 @@ def test_long_trend_pullback_moves_take_profit_by_two_r_steps_and_exits_on_pullb
     assert exit_fill.exit_reason == "TRAILING_TAKE_PROFIT"
     assert exit_fill.exit_price == Decimal("110")
     assert exit_fill.net_pnl == Decimal("200")
+    assert engine.snapshot().open_position is None
+
+
+def test_trailing_take_profit_uses_r_floor_and_dynamic_atr_stop():
+    from app.data.quality import Kline
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.pullback_strategy import TradeSignal
+
+    engine = PaperTradingEngine(
+        config=PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            trailing_atr_multiplier=Decimal("2"),
+            trailing_atr_period=14,
+        )
+    )
+    opened = engine.on_signal(
+        kline=Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        signal=TradeSignal(
+            action="LONG_ENTRY",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("100"),
+            stop_loss=Decimal("95"),
+            take_profit=Decimal("110"),
+            risk_reward=Decimal("2"),
+            reason=["paper long"],
+            trailing_atr=Decimal("2"),
+        ),
+    )
+
+    assert opened is not None
+    assert engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("100"),
+            high=Decimal("110"),
+            low=Decimal("100"),
+            close=Decimal("109"),
+            volume=Decimal("10"),
+        )
+    ) is None
+    active_position = engine.snapshot().open_position
+    assert active_position is not None
+    assert active_position.trailing_active is True
+    assert active_position.stop_loss == Decimal("105")
+
+    assert engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=1_800_000,
+            close_time=2_699_999,
+            open=Decimal("109"),
+            high=Decimal("120"),
+            low=Decimal("109"),
+            close=Decimal("118"),
+            volume=Decimal("10"),
+        )
+    ) is None
+    trailed_position = engine.snapshot().open_position
+    assert trailed_position is not None
+    assert trailed_position.stop_loss > Decimal("113")
+    assert trailed_position.stop_loss < Decimal("114")
+
+    exit_fill = engine.on_kline(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=2_700_000,
+            close_time=3_599_999,
+            open=Decimal("115"),
+            high=Decimal("116"),
+            low=Decimal("113"),
+            close=Decimal("114"),
+            volume=Decimal("10"),
+        )
+    )
+
+    assert exit_fill is not None
+    assert exit_fill.exit_reason == "TRAILING_TAKE_PROFIT"
+    assert exit_fill.exit_price > Decimal("113")
+    assert exit_fill.net_pnl > Decimal("260")
     assert engine.snapshot().open_position is None
 
 

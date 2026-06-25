@@ -22,6 +22,7 @@ class StrategySignal:
     signal_level: str | None = None
     score: Decimal | None = None
     risk_pct: Decimal | None = None
+    trailing_atr: Decimal | None = None
     max_standard_position_pct: Decimal | None = None
     core_rules: list[str] = field(default_factory=list)
     chart_points: list[dict[str, str]] = field(default_factory=list)
@@ -69,6 +70,7 @@ def _from_candidate(signal: EntryCandidate) -> StrategySignal:
         signal_level=getattr(signal, "signal_level", None),
         score=getattr(signal, "score", None),
         risk_pct=getattr(signal, "risk_pct", None),
+        trailing_atr=getattr(signal, "trailing_atr", None) or getattr(signal, "atr", None),
         max_standard_position_pct=getattr(signal, "max_standard_position_pct", None),
         reason=signal.reason,
     )

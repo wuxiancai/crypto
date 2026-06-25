@@ -194,6 +194,7 @@ def _build_layered_signal_if_available(
         take_profit=decision.signal.take_profit,
         risk_reward=decision.signal.risk_reward,
         risk_pct=decision.signal.risk_pct,
+        trailing_atr=decision.signal.trailing_atr,
         condition_statuses=diagnostics,
         nearest_strategy=nearest_strategy,
     )
@@ -480,6 +481,7 @@ def _attach_realtime_diagnostics(
         signal_level=signal.signal_level,
         score=signal.score,
         risk_pct=signal.risk_pct,
+        trailing_atr=signal.trailing_atr,
         max_standard_position_pct=signal.max_standard_position_pct,
         core_rules=_core_rules(frame=frame, config=config),
         chart_points=_chart_points(frame.history(config.entry_interval), config=config),

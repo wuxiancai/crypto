@@ -25,6 +25,12 @@
 
 ## 本轮修复
 
+- 2026-06-25 R + ATR 双层移动止盈修复：
+  - TRAILING 最终口径更新为：价格触达 2R 激活价后不固定平仓，至少锁定 1R 已实现利润，剩余仓位进入 ATR 动态 trailing，保护线禁止回撤到保本。
+  - `app/paper/trading.py` 新增 `trailing_atr_multiplier` 和 `trailing_atr_period`，持仓保存 `trailing_atr` 与 `trailing_last_close`；每根同周期已收盘 K 线用 Wilder 方式更新 ATR，再按 `高点 - k*ATR` / `低点 + k*ATR` 推进保护线。
+  - `StrategySignal` / `TradeSignal` 已携带策略层计算出的 ATR；pullback、layered strategy、实时适配器、funding WARN 包装信号和 Paper 状态持久化均已同步，重启后不会丢失 trailing ATR 状态。
+  - 历史兼容信号若没有 ATR，仍使用旧 2R 阶梯兜底，但触达 2R 后同样至少锁定 1R，不允许回到 0R/保本出场。
+  - 本机验证：`.venv/bin/python -m pytest tests/test_v0_4_paper_trading.py tests/test_v0_2_pullback_strategy.py tests/test_v1_1_layered_strategy.py tests/test_v1_0_real_market_paper_runner.py -q`，48 passed；`py_compile` 和 `git diff --check` 通过。
 - 2026-06-24 上线体检修复：
   - Paper 多子仓同根 K 线平仓改为 `on_kline_all()` 批量处理；状态事件保留 `closed_fills`，一根 K 线同时触发多个子仓止损/止盈时会逐一记录成交，不再只平第一个仓。
   - Paper 止损成交价改为跳空感知：多单止损按 `min(open, stop_loss)`，空单止损按 `max(open, stop_loss)`，与策略回测关键止损撮合口径对齐。

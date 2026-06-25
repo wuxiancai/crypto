@@ -112,6 +112,8 @@ def _position_to_payload(position: PaperPosition | None) -> dict[str, Any] | Non
         "leverage": str(position.leverage),
         "initial_stop_loss": str(position.initial_stop_loss or position.stop_loss),
         "trailing_active": position.trailing_active,
+        "trailing_atr": str(position.trailing_atr) if position.trailing_atr is not None else None,
+        "trailing_last_close": str(position.trailing_last_close) if position.trailing_last_close is not None else None,
     }
 
 
@@ -133,6 +135,8 @@ def _position_from_payload(payload: dict[str, Any] | None) -> PaperPosition | No
         leverage=Decimal(payload.get("leverage", "10")),
         initial_stop_loss=Decimal(payload.get("initial_stop_loss", payload["stop_loss"])),
         trailing_active=bool(payload.get("trailing_active", False)),
+        trailing_atr=Decimal(payload["trailing_atr"]) if payload.get("trailing_atr") is not None else None,
+        trailing_last_close=Decimal(payload["trailing_last_close"]) if payload.get("trailing_last_close") is not None else None,
     )
 
 

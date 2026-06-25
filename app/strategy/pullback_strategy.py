@@ -32,6 +32,7 @@ class TradeSignal:
     take_profit: Decimal | None
     risk_reward: Decimal | None
     reason: list[str]
+    trailing_atr: Decimal | None = None
 
 
 def build_pullback_signal(
@@ -81,6 +82,7 @@ def _build_long_signal(
         take_profit=take_profit,
         risk_reward=risk_reward,
         reason=reason + ["risk reward accepted"],
+        trailing_atr=frame.atr,
     )
 
 
@@ -116,6 +118,7 @@ def _build_short_signal(
         take_profit=take_profit,
         risk_reward=risk_reward,
         reason=reason + ["risk reward accepted"],
+        trailing_atr=frame.atr,
     )
 
 
