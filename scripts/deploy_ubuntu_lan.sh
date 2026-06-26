@@ -206,6 +206,21 @@ detect_lan_ip() {
   echo "局域网UbuntuIP"
 }
 
+ensure_port_env() {
+  local port_env="$ROOT_DIR/.env.ports.generated"
+  if [[ -f "$port_env" ]]; then
+    return
+  fi
+
+  echo "生成端口配置文件: ${port_env}"
+  python3 -m app.deploy.ports
+
+  if [[ ! -f "$port_env" ]]; then
+    echo "端口配置文件生成失败：${port_env}" >&2
+    exit 1
+  fi
+}
+
 install_lan_systemd_service() {
   if ! command -v systemctl >/dev/null 2>&1; then
     echo "未检测到 systemd，回退为普通后台启动。"
@@ -319,5 +334,6 @@ install_python_packages
 ensure_docker
 ensure_env_file
 confirm_database_mode
+ensure_port_env
 install_lan_systemd_service
 print_lan_deploy_summary
