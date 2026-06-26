@@ -25,6 +25,11 @@
 
 ## 本轮修复
 
+- 2026-06-27 Ubuntu 局域网测试部署脚本：
+  - 新增 `scripts/start_lan.sh`，作为 `scripts/start.sh` 的局域网测试副本，Web 状态页默认显式绑定 `PAPER_WEB_HOST=0.0.0.0`，可用 `PAPER_WEB_HOST` 环境变量覆盖。PostgreSQL 健康检查仍访问本机 `127.0.0.1`，不改变数据库安全边界。
+  - 新增 `scripts/deploy_ubuntu_lan.sh`，作为 `scripts/deploy_ubuntu.sh` 的局域网测试副本，systemd 服务名默认 `crypto-paper-lan.service`，`ExecStart` 调用 `scripts/start_lan.sh`，并设置 `PAPER_WEB_HOST=0.0.0.0`。原 `deploy_ubuntu.sh` / `start.sh` 不改。
+  - 使用方式：在局域网 Ubuntu 测试机执行 `bash scripts/deploy_ubuntu_lan.sh`，部署完成后通过 `http://<Ubuntu局域网IP>:<PAPER_WEB_PORT>` 访问；若无法访问，先检查 `sudo ufw allow <PAPER_WEB_PORT>/tcp` 和 `sudo ss -lntp | grep <PAPER_WEB_PORT>`。
+
 - 2026-06-27 分层策略新开仓 / 加仓防追单修复：
   - 根据云服务器 Paper Runtime 交易记录分析，BTC 已平仓 `SHORT_DAY_CORE` 为移动止盈盈利，但后续 `SHORT_DAY_CORE` 存在急跌后追空，`SHORT_4H_1H_ADDON` 存在 1h 当前斜率转正仍加空的问题。
   - `LayeredStrategyConfig` 新增 `max_entry_extension_atr=1.5`，DAY_CORE / FOUR_HOUR_ADDON 新开仓时禁止 15m 跌离/涨离快线超过 `1.5 * ATR` 后追空/追多。选择 1.5 而非 1.0 是为了降低完全错过趋势的概率，同时能挡住本次 BTC 约 `1.52 * ATR` 的追空。
