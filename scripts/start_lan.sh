@@ -119,7 +119,29 @@ PY
   sleep 2
 done
 
-DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" -m alembic upgrade head
+if ! DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" -m alembic upgrade head; then
+  cat >&2 <<EOF
+
+数据库连接或迁移失败。
+
+如果错误是 "password authentication failed for user crypto"，通常表示：
+  - 当前 .env.ports.generated 里的 POSTGRES_PASSWORD
+  - 与已有 Docker Postgres 数据卷初始化时的密码不一致。
+
+局域网测试环境若不需要保留旧数据库，可执行：
+  docker compose --env-file .env.ports.generated down -v
+  rm -f .env.ports.generated runtime/paper-state.json
+  bash scripts/start_lan.sh
+
+或者使用局域网部署脚本一键重置：
+  DEPLOY_DATABASE_MODE=reset bash scripts/deploy_ubuntu_lan.sh
+
+如果需要保留旧数据库，必须找回旧的 .env.ports.generated / POSTGRES_PASSWORD，
+让 DATABASE_URL 使用旧数据库真实密码。
+
+EOF
+  exit 1
+fi
 
 sync_required_klines() {
   echo "检查并补齐策略所需 K 线数据..."

@@ -80,6 +80,122 @@ ensure_env_file() {
   fi
 }
 
+sudo_docker() {
+  if docker info >/dev/null 2>&1; then
+    docker "$@"
+    return
+  fi
+  sudo docker "$@"
+}
+
+compose() {
+  if docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+    return
+  fi
+  if sudo docker info >/dev/null 2>&1 && sudo docker compose version >/dev/null 2>&1; then
+    sudo docker compose "$@"
+    return
+  fi
+  if command -v docker-compose >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    docker-compose "$@"
+    return
+  fi
+  if command -v docker-compose >/dev/null 2>&1 && sudo docker info >/dev/null 2>&1 && sudo docker-compose version >/dev/null 2>&1; then
+    sudo docker-compose "$@"
+    return
+  fi
+
+  echo "无法访问 Docker Compose。请确认 Docker 已启动，并且当前用户在 docker 组，或当前用户可以执行 sudo docker。" >&2
+  exit 1
+}
+
+existing_database_volumes() {
+  sudo_docker volume ls --format '{{.Name}}' 2>/dev/null | grep -E '(^|_)crypto_quant_postgres_data$' || true
+}
+
+previous_deploy_markers() {
+  local markers=()
+  if [[ -f "$ROOT_DIR/.env.ports.generated" ]]; then
+    markers+=(".env.ports.generated")
+  fi
+  if [[ -f "$ROOT_DIR/runtime/paper-state.json" ]]; then
+    markers+=("runtime/paper-state.json")
+  fi
+  while IFS= read -r volume_name; do
+    [[ -n "$volume_name" ]] && markers+=("docker volume: ${volume_name}")
+  done < <(existing_database_volumes)
+
+  if [[ "${#markers[@]}" -eq 0 ]]; then
+    return
+  fi
+
+  printf '%s\n' "${markers[@]}"
+}
+
+reset_previous_database() {
+  echo "准备删除旧数据库和本地 Paper 状态..."
+  if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files crypto-paper-lan.service >/dev/null 2>&1; then
+    sudo systemctl stop crypto-paper-lan.service >/dev/null 2>&1 || true
+  fi
+
+  if [[ -f "$ROOT_DIR/.env.ports.generated" ]]; then
+    compose --env-file "$ROOT_DIR/.env.ports.generated" down -v --remove-orphans >/dev/null 2>&1 || true
+  else
+    compose down -v --remove-orphans >/dev/null 2>&1 || true
+  fi
+
+  while IFS= read -r volume_name; do
+    [[ -n "$volume_name" ]] && sudo_docker volume rm "$volume_name" >/dev/null 2>&1 || true
+  done < <(existing_database_volumes)
+
+  rm -f "$ROOT_DIR/.env.ports.generated" "$ROOT_DIR/runtime/paper-state.json"
+  echo "旧数据库、端口配置和本地 Paper 状态已删除，将重新部署。"
+}
+
+confirm_database_mode() {
+  local markers
+  markers="$(previous_deploy_markers)"
+  if [[ -z "$markers" ]]; then
+    return
+  fi
+
+  local mode="${DEPLOY_DATABASE_MODE:-}"
+  if [[ -z "$mode" && -t 0 ]]; then
+    cat <<EOF
+
+检测到当前局域网测试机可能已经部署过本项目：
+${markers}
+
+请选择数据库处理方式：
+  1) 保留数据库并继续部署（如果密码不匹配会启动失败）
+  2) 删除数据库、端口配置和本地 Paper 状态后重新部署（局域网测试推荐）
+EOF
+    read -r -p "请输入 1 或 2 [默认 1]: " mode
+    case "$mode" in
+      2|reset|RESET) mode="reset" ;;
+      *) mode="keep" ;;
+    esac
+  fi
+
+  if [[ -z "$mode" ]]; then
+    mode="keep"
+  fi
+
+  case "$mode" in
+    keep|KEEP|1)
+      echo "保留已有数据库和 Paper 状态继续部署。"
+      ;;
+    reset|RESET|2)
+      reset_previous_database
+      ;;
+    *)
+      echo "DEPLOY_DATABASE_MODE 只能是 keep 或 reset，当前值: $mode" >&2
+      exit 1
+      ;;
+  esac
+}
+
 detect_lan_ip() {
   local detected_ip
   detected_ip="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
@@ -202,5 +318,6 @@ EOF
 install_python_packages
 ensure_docker
 ensure_env_file
+confirm_database_mode
 install_lan_systemd_service
 print_lan_deploy_summary
