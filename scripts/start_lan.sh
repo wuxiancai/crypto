@@ -100,9 +100,10 @@ stop_existing_project
 
 POSTGRES_PORT="$POSTGRES_PORT" compose --env-file "$PORT_ENV" up -d --remove-orphans postgres
 
-echo "Waiting for Postgres on port ${POSTGRES_PORT}..."
-for _ in $(seq 1 40); do
-  if "$VENV_PYTHON" - <<PY
+wait_for_postgres_tcp() {
+  echo "Waiting for Postgres TCP on port ${POSTGRES_PORT}..."
+  for _ in $(seq 1 40); do
+    if "$VENV_PYTHON" - <<PY
 import socket
 sock = socket.socket()
 sock.settimeout(1)
@@ -113,11 +114,43 @@ except OSError:
 finally:
     sock.close()
 PY
-  then
-    break
-  fi
-  sleep 2
-done
+    then
+      return
+    fi
+    sleep 2
+  done
+
+  echo "Postgres TCP 端口 ${POSTGRES_PORT} 在超时时间内未就绪。" >&2
+  exit 1
+}
+
+wait_for_postgres_sql() {
+  echo "Waiting for Postgres SQL readiness..."
+  for _ in $(seq 1 60); do
+    if DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" - <<'PY'
+import os
+from sqlalchemy import create_engine, text
+
+engine = create_engine(os.environ["DATABASE_URL"], pool_pre_ping=True)
+try:
+    with engine.connect() as connection:
+        connection.execute(text("select 1"))
+except Exception:
+    raise SystemExit(1)
+PY
+    then
+      return
+    fi
+    sleep 2
+  done
+
+  echo "Postgres SQL 在超时时间内未就绪。最近容器状态如下：" >&2
+  POSTGRES_PORT="$POSTGRES_PORT" compose --env-file "$PORT_ENV" ps postgres >&2 || true
+  exit 1
+}
+
+wait_for_postgres_tcp
+wait_for_postgres_sql
 
 if ! DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" -m alembic upgrade head; then
   cat >&2 <<EOF

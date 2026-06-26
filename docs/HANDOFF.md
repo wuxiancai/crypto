@@ -33,6 +33,7 @@
   - 2026-06-27 再追加：`deploy_ubuntu_lan.sh` 在安装/启动 systemd 前主动生成 `.env.ports.generated`，避免 reset 后依赖后台 systemd 服务异步生成端口文件，导致部署摘要提示“未找到端口配置文件”。
   - 2026-06-27 再追加：`start_lan.sh` 后台启动后会检查 Paper 实时进程、Paper Web 进程和 Web 端口监听；若 Web 进程立即退出或端口未监听，直接输出最近 `runtime/logs/paper-status-web.log` 并失败，避免端口短暂出现后脚本仍误报“启动完成”。
   - 2026-06-27 再追加：`start_lan.sh` 将启动前 K 线同步输出到 `runtime/logs/kline-sync.log`，同步失败时打印最近 120 行；支持 `KLINE_SYNC_ON_START=0` 跳过启动前补齐。`deploy_ubuntu_lan.sh` 启动 systemd 后等待 20 秒检查服务是否仍 active，失败时直接输出 journal，避免服务实际失败但部署摘要显示完成。
+  - 2026-06-27 再追加：`start_lan.sh` 等待 Postgres 改为两阶段：先等 TCP 端口，再用 `DATABASE_URL` 执行 `select 1`，SQL ready 后才运行 Alembic，避免新建数据库卷时 TCP 已开放但 Postgres 初始化未完成导致连接被关闭。
 
 - 2026-06-27 分层策略新开仓 / 加仓防追单修复：
   - 根据云服务器 Paper Runtime 交易记录分析，BTC 已平仓 `SHORT_DAY_CORE` 为移动止盈盈利，但后续 `SHORT_DAY_CORE` 存在急跌后追空，`SHORT_4H_1H_ADDON` 存在 1h 当前斜率转正仍加空的问题。
