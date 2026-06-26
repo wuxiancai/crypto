@@ -208,8 +208,47 @@ cleanup_foreground() {
   POSTGRES_PORT="$POSTGRES_PORT" compose --env-file "$PORT_ENV" stop postgres >/dev/null 2>&1 || true
 }
 
+ensure_process_alive() {
+  local label="$1"
+  local pid="$2"
+  local log_path="$3"
+
+  if ! kill -0 "$pid" >/dev/null 2>&1; then
+    echo "${label} 启动后立即退出。最近日志如下：" >&2
+    tail -n 80 "$log_path" >&2 || true
+    exit 1
+  fi
+}
+
+ensure_web_listening() {
+  for _ in $(seq 1 10); do
+    ensure_process_alive "Paper Web 状态页进程" "$PAPER_WEB_PID" "$LOG_DIR/paper-status-web.log"
+    if "$VENV_PYTHON" - <<PY
+import socket
+sock = socket.socket()
+sock.settimeout(1)
+try:
+    sock.connect(("127.0.0.1", int("${PAPER_WEB_PORT}")))
+except OSError:
+    raise SystemExit(1)
+finally:
+    sock.close()
+PY
+    then
+      return
+    fi
+    sleep 1
+  done
+
+  echo "Paper Web 状态页未在端口 ${PAPER_WEB_PORT} 建立监听。最近日志如下：" >&2
+  tail -n 80 "$LOG_DIR/paper-status-web.log" >&2 || true
+  exit 1
+}
+
 start_paper_realtime
 start_paper_status_web
+ensure_process_alive "Paper 实时交易进程" "$PAPER_REALTIME_PID" "$LOG_DIR/paper-realtime.log"
+ensure_web_listening
 
 cat <<EOF
 启动完成（局域网测试模式）

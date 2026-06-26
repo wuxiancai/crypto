@@ -31,6 +31,7 @@
   - 使用方式：在局域网 Ubuntu 测试机执行 `bash scripts/deploy_ubuntu_lan.sh`，部署完成后通过 `http://<Ubuntu局域网IP>:<PAPER_WEB_PORT>` 访问；若无法访问，先检查 `sudo ufw allow <PAPER_WEB_PORT>/tcp` 和 `sudo ss -lntp | grep <PAPER_WEB_PORT>`。
   - 2026-06-27 追加：局域网测试机如遇 Postgres 密码不一致，表示旧 Docker Postgres 数据卷密码与当前 `.env.ports.generated` 不一致。`scripts/start_lan.sh` 已补充明确错误提示；`scripts/deploy_ubuntu_lan.sh` 已支持 `DEPLOY_DATABASE_MODE=reset` 删除旧数据库、端口配置和 Paper 状态后重新部署。
   - 2026-06-27 再追加：`deploy_ubuntu_lan.sh` 在安装/启动 systemd 前主动生成 `.env.ports.generated`，避免 reset 后依赖后台 systemd 服务异步生成端口文件，导致部署摘要提示“未找到端口配置文件”。
+  - 2026-06-27 再追加：`start_lan.sh` 后台启动后会检查 Paper 实时进程、Paper Web 进程和 Web 端口监听；若 Web 进程立即退出或端口未监听，直接输出最近 `runtime/logs/paper-status-web.log` 并失败，避免端口短暂出现后脚本仍误报“启动完成”。
 
 - 2026-06-27 分层策略新开仓 / 加仓防追单修复：
   - 根据云服务器 Paper Runtime 交易记录分析，BTC 已平仓 `SHORT_DAY_CORE` 为移动止盈盈利，但后续 `SHORT_DAY_CORE` 存在急跌后追空，`SHORT_4H_1H_ADDON` 存在 1h 当前斜率转正仍加空的问题。
