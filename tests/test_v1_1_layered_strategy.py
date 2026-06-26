@@ -635,7 +635,7 @@ def test_layered_strategy_keeps_confirmed_daily_short_regime_when_current_moment
     assert "当前日线空头动能" not in statuses
 
 
-def test_layered_strategy_allows_deep_short_continuation_without_fast_ma_rebound():
+def test_layered_strategy_blocks_deep_short_chase_after_fast_ma_extension():
     from app.strategy.layered_strategy import (
         LayeredEntryFrame,
         LayeredStrategyConfig,
@@ -688,15 +688,16 @@ def test_layered_strategy_allows_deep_short_continuation_without_fast_ma_rebound
         LayeredStrategyConfig(),
     )
 
-    assert decision.signal is not None
-    assert decision.signal.strategy_type == "SHORT_DAY_CORE"
+    assert decision.signal is None
+    assert "SHORT_DAY_CORE" in decision.candidates
     statuses = {
         str(item["text"]): item
         for item in decision.diagnostics
         if item.get("strategy") == "SHORT_DAY_CORE"
     }
     assert statuses["15m 空头入场条件"]["passed"] is True
-    assert "顺势延续" in str(statuses["15m 空头入场条件"]["detail"])
+    assert statuses["15m 空头禁止追空"]["passed"] is False
+    assert "fast_ma-1.5*ATR" in str(statuses["15m 空头禁止追空"]["detail"])
 
 
 def test_layered_strategy_flips_daily_short_to_long_only_after_daily_long_regime_confirms():

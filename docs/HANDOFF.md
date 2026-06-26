@@ -25,6 +25,13 @@
 
 ## 本轮修复
 
+- 2026-06-27 分层策略新开仓 / 加仓防追单修复：
+  - 根据云服务器 Paper Runtime 交易记录分析，BTC 已平仓 `SHORT_DAY_CORE` 为移动止盈盈利，但后续 `SHORT_DAY_CORE` 存在急跌后追空，`SHORT_4H_1H_ADDON` 存在 1h 当前斜率转正仍加空的问题。
+  - `LayeredStrategyConfig` 新增 `max_entry_extension_atr=1.5`，DAY_CORE / FOUR_HOUR_ADDON 新开仓时禁止 15m 跌离/涨离快线超过 `1.5 * ATR` 后追空/追多。选择 1.5 而非 1.0 是为了降低完全错过趋势的概率，同时能挡住本次 BTC 约 `1.52 * ATR` 的追空。
+  - DAY_CORE / FOUR_HOUR_ADDON 新开仓必须满足当前 4h / 1h 顺势过滤：空头要求 4h 当前斜率向下、4h 收盘未站上快线、1h 当前斜率向下；多头对称要求 4h 当前斜率向上、4h 收盘未跌破快线、1h 当前斜率向上。
+  - regime 仍用于保持大趋势，但不再单独允许新开仓或加仓；价格站上 4h 快线期间暂停空头新开仓/加仓，重新跌回 4h 快线下方且斜率仍向下后恢复资格；多头完全对称。
+  - 新增测试 `tests/test_v1_1_layered_entry_filters.py` 覆盖 4h 快线阻断、4h/1h 当前斜率阻断、重新收回快线后恢复开仓、ADDON 同样使用过滤、多头对称阻断；同步调整深度顺势延续测试为防追空阻断。
+
 - 2026-06-25 Ubuntu 部署与再次部署提示修复：
   - `scripts/deploy_ubuntu.sh` 首次部署时若 `.env` 不存在，会自动执行等价 `cp .env.example .env`，避免用户部署后不知道是否还要手动复制。
   - 部署脚本结束时会读取 `.env.ports.generated`，打印 Web 页面地址、Web 端口、PostgreSQL 端口、端口配置文件、云服务器公网 IP 替换提示、安全组/ufw 放行提示、`.env` 配置说明、监听/本机连通检查命令和常用 systemd/log 命令。

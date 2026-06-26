@@ -23,6 +23,7 @@ class LayeredStrategyConfig:
     core_risk_pct: Decimal = Decimal("0.005")
     addon_risk_pct: Decimal = Decimal("0.003")
     hedge_risk_pct: Decimal = Decimal("0.002")
+    max_entry_extension_atr: Decimal = Decimal("1.5")
 
 
 @dataclass(frozen=True)
@@ -114,7 +115,8 @@ def build_layered_strategy_decision(
                 effective_config,
             )
         )
-        if four_hour_short and one_hour_short and _bearish_entry(strategy_input.entry):
+        short_continuation_ready = _short_continuation_ready(strategy_input, effective_config)
+        if short_continuation_ready and four_hour_short and one_hour_short and _bearish_entry(strategy_input.entry, effective_config):
             if _has_open_strategy(strategy_input, SHORT_DAY_CORE) and not _has_open_bucket(strategy_input, FOUR_HOUR_ADDON):
                 signal = _short_signal(
                     strategy_type=SHORT_4H_1H_ADDON,
@@ -137,6 +139,7 @@ def build_layered_strategy_decision(
             candidates.append(SHORT_4H_1H_ADDON)
             diagnostics.extend(_trend_diagnostics(SHORT_4H_1H_ADDON, "4h 空头", strategy_input.four_hour, "DOWN", effective_config, strategy_input.four_hour_regime))
             diagnostics.extend(_trend_diagnostics(SHORT_4H_1H_ADDON, "1h 空头", strategy_input.one_hour, "DOWN", effective_config, strategy_input.one_hour_regime))
+            diagnostics.extend(_continuation_diagnostics(SHORT_4H_1H_ADDON, strategy_input, "DOWN", effective_config))
         if four_hour_long and one_hour_long:
             candidates.append(LONG_4H_HEDGE)
             diagnostics.extend(_trend_diagnostics(LONG_4H_HEDGE, "日线空头", strategy_input.daily, "DOWN", effective_config, strategy_input.daily_regime))
@@ -162,7 +165,8 @@ def build_layered_strategy_decision(
                 effective_config,
             )
         )
-        if four_hour_long and one_hour_long and _bullish_entry(strategy_input.entry):
+        long_continuation_ready = _long_continuation_ready(strategy_input, effective_config)
+        if long_continuation_ready and four_hour_long and one_hour_long and _bullish_entry(strategy_input.entry, effective_config):
             if _has_open_strategy(strategy_input, LONG_DAY_CORE) and not _has_open_bucket(strategy_input, FOUR_HOUR_ADDON):
                 signal = _long_signal(
                     strategy_type=LONG_4H_1H_ADDON,
@@ -185,6 +189,7 @@ def build_layered_strategy_decision(
             candidates.append(LONG_4H_1H_ADDON)
             diagnostics.extend(_trend_diagnostics(LONG_4H_1H_ADDON, "4h 多头", strategy_input.four_hour, "UP", effective_config, strategy_input.four_hour_regime))
             diagnostics.extend(_trend_diagnostics(LONG_4H_1H_ADDON, "1h 多头", strategy_input.one_hour, "UP", effective_config, strategy_input.one_hour_regime))
+            diagnostics.extend(_continuation_diagnostics(LONG_4H_1H_ADDON, strategy_input, "UP", effective_config))
         if four_hour_short and one_hour_short:
             candidates.append(SHORT_4H_HEDGE)
             diagnostics.extend(_trend_diagnostics(SHORT_4H_HEDGE, "日线多头", strategy_input.daily, "UP", effective_config, strategy_input.daily_regime))
@@ -341,13 +346,15 @@ def _core_strategy_diagnostics(
             *_trend_diagnostics(strategy_type, "日线多头", strategy_input.daily, "UP", config, strategy_input.daily_regime),
             *_trend_diagnostics(strategy_type, "4h 多头", strategy_input.four_hour, "UP", config, strategy_input.four_hour_regime),
             *_trend_diagnostics(strategy_type, "1h 多头", strategy_input.one_hour, "UP", config, strategy_input.one_hour_regime),
-            *_entry_diagnostics(strategy_type, "15m 多头", strategy_input.entry, "UP"),
+            *_continuation_diagnostics(strategy_type, strategy_input, "UP", config),
+            *_entry_diagnostics(strategy_type, "15m 多头", strategy_input.entry, "UP", config),
         ]
     return [
         *_trend_diagnostics(strategy_type, "日线空头", strategy_input.daily, "DOWN", config, strategy_input.daily_regime),
         *_trend_diagnostics(strategy_type, "4h 空头", strategy_input.four_hour, "DOWN", config, strategy_input.four_hour_regime),
         *_trend_diagnostics(strategy_type, "1h 空头", strategy_input.one_hour, "DOWN", config, strategy_input.one_hour_regime),
-        *_entry_diagnostics(strategy_type, "15m 空头", strategy_input.entry, "DOWN"),
+        *_continuation_diagnostics(strategy_type, strategy_input, "DOWN", config),
+        *_entry_diagnostics(strategy_type, "15m 空头", strategy_input.entry, "DOWN", config),
     ]
 
 
@@ -397,18 +404,76 @@ def _entry_diagnostics(
     label: str,
     entry: LayeredEntryFrame,
     direction: str,
+    config: LayeredStrategyConfig,
 ) -> list[dict[str, object]]:
     if direction == "UP":
         return [
             _condition(strategy_type, f"{label}入场条件", _long_entry_setup(entry), _entry_setup_detail(entry, "UP")),
             _condition(strategy_type, f"{label}已确认", _bullish_entry_confirmation(entry), _entry_confirmation_detail(entry, "UP")),
+            _condition(strategy_type, f"{label}禁止追多", not _long_overextended(entry, config), _entry_extension_detail(entry, "UP", config)),
             _condition(strategy_type, "止损有效", entry.close > entry.recent_swing_low, f"entry={entry.close} > swing_low={entry.recent_swing_low}"),
         ]
     return [
         _condition(strategy_type, f"{label}入场条件", _short_entry_setup(entry), _entry_setup_detail(entry, "DOWN")),
         _condition(strategy_type, f"{label}已确认", _bearish_entry_confirmation(entry), _entry_confirmation_detail(entry, "DOWN")),
+        _condition(strategy_type, f"{label}禁止追空", not _short_overextended(entry, config), _entry_extension_detail(entry, "DOWN", config)),
         _condition(strategy_type, "止损有效", entry.close < entry.recent_swing_high, f"entry={entry.close} < swing_high={entry.recent_swing_high}"),
     ]
+
+
+def _continuation_diagnostics(
+    strategy_type: str,
+    strategy_input: LayeredStrategyInput,
+    direction: str,
+    config: LayeredStrategyConfig,
+) -> list[dict[str, object]]:
+    if direction == "UP":
+        return [
+            _condition(
+                strategy_type,
+                "4h 多头当前价格未跌破快线",
+                strategy_input.four_hour.close >= strategy_input.four_hour.fast_ma,
+                _timeframe_price_detail(strategy_input.four_hour, "UP"),
+            ),
+            _condition(
+                strategy_type,
+                "1h 多头当前斜率",
+                _bullish_slope(strategy_input.one_hour),
+                _slope_detail(strategy_input.one_hour, "UP"),
+            ),
+        ]
+    return [
+        _condition(
+            strategy_type,
+            "4h 空头当前价格未站上快线",
+            strategy_input.four_hour.close <= strategy_input.four_hour.fast_ma,
+            _timeframe_price_detail(strategy_input.four_hour, "DOWN"),
+        ),
+        _condition(
+            strategy_type,
+            "1h 空头当前斜率",
+            _bearish_slope(strategy_input.one_hour),
+            _slope_detail(strategy_input.one_hour, "DOWN"),
+        ),
+    ]
+
+
+def _short_continuation_ready(strategy_input: LayeredStrategyInput, config: LayeredStrategyConfig) -> bool:
+    del config
+    return (
+        _bearish_slope(strategy_input.four_hour)
+        and strategy_input.four_hour.close <= strategy_input.four_hour.fast_ma
+        and _bearish_slope(strategy_input.one_hour)
+    )
+
+
+def _long_continuation_ready(strategy_input: LayeredStrategyInput, config: LayeredStrategyConfig) -> bool:
+    del config
+    return (
+        _bullish_slope(strategy_input.four_hour)
+        and strategy_input.four_hour.close >= strategy_input.four_hour.fast_ma
+        and _bullish_slope(strategy_input.one_hour)
+    )
 
 
 def _regime_confirmation_condition(
@@ -445,12 +510,22 @@ def _condition(
     }
 
 
-def _bullish_entry(entry: LayeredEntryFrame) -> bool:
-    return _long_entry_setup(entry) and _bullish_entry_confirmation(entry) and entry.close > entry.recent_swing_low
+def _bullish_entry(entry: LayeredEntryFrame, config: LayeredStrategyConfig) -> bool:
+    return (
+        _long_entry_setup(entry)
+        and _bullish_entry_confirmation(entry)
+        and not _long_overextended(entry, config)
+        and entry.close > entry.recent_swing_low
+    )
 
 
-def _bearish_entry(entry: LayeredEntryFrame) -> bool:
-    return _short_entry_setup(entry) and _bearish_entry_confirmation(entry) and entry.close < entry.recent_swing_high
+def _bearish_entry(entry: LayeredEntryFrame, config: LayeredStrategyConfig) -> bool:
+    return (
+        _short_entry_setup(entry)
+        and _bearish_entry_confirmation(entry)
+        and not _short_overextended(entry, config)
+        and entry.close < entry.recent_swing_high
+    )
 
 
 def _long_entry_setup(entry: LayeredEntryFrame) -> bool:
@@ -469,6 +544,14 @@ def _long_entry_zone(entry: LayeredEntryFrame) -> bool:
 def _short_entry_zone(entry: LayeredEntryFrame) -> bool:
     zone = entry.atr
     return entry.high >= entry.fast_ma - zone and entry.close <= entry.fast_ma + zone
+
+
+def _long_overextended(entry: LayeredEntryFrame, config: LayeredStrategyConfig) -> bool:
+    return entry.close > entry.fast_ma + entry.atr * config.max_entry_extension_atr
+
+
+def _short_overextended(entry: LayeredEntryFrame, config: LayeredStrategyConfig) -> bool:
+    return entry.close < entry.fast_ma - entry.atr * config.max_entry_extension_atr
 
 
 def _bullish_entry_confirmation(entry: LayeredEntryFrame) -> bool:
@@ -497,6 +580,24 @@ def _entry_confirmation_detail(entry: LayeredEntryFrame, direction: str) -> str:
     if direction == "UP":
         return f"close={entry.close} > open={entry.open}"
     return f"close={entry.close} < open={entry.open}"
+
+
+def _entry_extension_detail(entry: LayeredEntryFrame, direction: str, config: LayeredStrategyConfig) -> str:
+    if direction == "UP":
+        return (
+            f"close={entry.close} <= fast_ma+{config.max_entry_extension_atr}*ATR="
+            f"{entry.fast_ma + entry.atr * config.max_entry_extension_atr}"
+        )
+    return (
+        f"close={entry.close} >= fast_ma-{config.max_entry_extension_atr}*ATR="
+        f"{entry.fast_ma - entry.atr * config.max_entry_extension_atr}"
+    )
+
+
+def _timeframe_price_detail(snapshot: TrendSnapshot, direction: str) -> str:
+    if direction == "UP":
+        return f"close={snapshot.close} >= fast_ma={snapshot.fast_ma}"
+    return f"close={snapshot.close} <= fast_ma={snapshot.fast_ma}"
 
 
 def _ma_detail(snapshot: TrendSnapshot, direction: str) -> str:
