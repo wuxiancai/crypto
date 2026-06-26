@@ -145,11 +145,23 @@ fi
 
 sync_required_klines() {
   echo "检查并补齐策略所需 K 线数据..."
-  DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" scripts/sync_klines.py \
+  if [[ "${KLINE_SYNC_ON_START:-1}" != "1" ]]; then
+    echo "KLINE_SYNC_ON_START=${KLINE_SYNC_ON_START:-0}; 跳过启动前 K 线同步。"
+    return
+  fi
+
+  if ! DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" scripts/sync_klines.py \
     --symbols BTCUSDT ETHUSDT \
     --intervals 1d 4h 1h 15m \
     --limit "$KLINE_SYNC_LIMIT" \
-    --write
+    --write \
+    > "$LOG_DIR/kline-sync.log" 2>&1; then
+    echo "K 线同步失败。最近日志如下：" >&2
+    tail -n 120 "$LOG_DIR/kline-sync.log" >&2 || true
+    exit 1
+  fi
+
+  tail -n 20 "$LOG_DIR/kline-sync.log" || true
 }
 
 sync_required_klines

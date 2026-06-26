@@ -257,6 +257,7 @@ ${supplementary_groups}
 Environment=PYTHONUNBUFFERED=1
 Environment=START_MODE=foreground
 Environment=PAPER_WEB_HOST=0.0.0.0
+Environment=KLINE_SYNC_ON_START=1
 ExecStart=/bin/bash ${ROOT_DIR}/scripts/start_lan.sh
 Restart=always
 RestartSec=10
@@ -271,6 +272,14 @@ EOF
   sudo systemctl daemon-reload
   sudo systemctl enable "${service_name}.service"
   sudo systemctl restart "${service_name}.service"
+
+  echo "等待 systemd 服务启动检查..."
+  sleep 20
+  if ! sudo systemctl is-active --quiet "${service_name}.service"; then
+    echo "systemd 服务启动失败。最近日志如下：" >&2
+    sudo journalctl -u "${service_name}.service" -n 160 --no-pager >&2 || true
+    exit 1
+  fi
 
   cat <<EOF
 systemd 局域网测试服务已安装并启动
