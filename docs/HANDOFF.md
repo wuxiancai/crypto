@@ -25,6 +25,10 @@
 
 ## 本轮修复
 
+- 2026-06-27 模拟交易看板收益卡文案：
+  - 顶部收益卡标题从 `1天收益` / `3天收益` 调整为 `第1天收益` / `第3天收益`，符合页面评论要求。
+  - 覆盖测试：`tests/test_v1_0_paper_status_web.py::test_paper_status_html_shows_runtime_return_card`。
+
 - 2026-06-27 Ubuntu 局域网测试部署脚本：
   - 新增 `scripts/start_lan.sh`，作为 `scripts/start.sh` 的局域网测试副本，Web 状态页默认显式绑定 `PAPER_WEB_HOST=0.0.0.0`，可用 `PAPER_WEB_HOST` 环境变量覆盖。PostgreSQL 健康检查仍访问本机 `127.0.0.1`，不改变数据库安全边界。
   - 新增 `scripts/deploy_ubuntu_lan.sh`，作为 `scripts/deploy_ubuntu.sh` 的局域网测试副本，systemd 服务名默认 `crypto-paper-lan.service`，`ExecStart` 调用 `scripts/start_lan.sh`，并设置 `PAPER_WEB_HOST=0.0.0.0`。原 `deploy_ubuntu.sh` / `start.sh` 不改。

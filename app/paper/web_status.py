@@ -1855,7 +1855,7 @@ def _render_runtime_return_panel(payload: dict[str, Any]) -> str:
         class_name = "return-line return-profit" if profit >= 0 else "return-line return-loss"
     days = _runtime_calendar_days(started_at_ms, current_time_ms)
     return f"""<div class="panel return-panel">
-  <div class="return-title">{days}天收益</div>
+  <div class="return-title">第{days}天收益</div>
   <div class="{class_name}">收益：{amount_text}</div>
   <div class="{class_name}">收益率：{rate_text}</div>
 </div>"""

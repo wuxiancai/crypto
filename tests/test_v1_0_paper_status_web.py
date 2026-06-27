@@ -180,7 +180,7 @@ def test_paper_status_html_shows_runtime_return_card(tmp_path):
 
     html = render_paper_status_html(build_paper_status_payload(state_path, current_time_ms=current_time))
 
-    assert "3天收益" in html
+    assert "第3天收益" in html
     assert "收益：18.14USDT" in html
     assert "收益率：1.81%" in html
     assert "return-panel" in html
