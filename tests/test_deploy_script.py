@@ -97,6 +97,9 @@ def test_start_script_allows_best_effort_kline_sync_on_start():
     assert 'KLINE_SYNC_STRICT_ON_START="${KLINE_SYNC_STRICT_ON_START:-0}"' in content
     assert 'if [[ "$KLINE_SYNC_STRICT_ON_START" == "1" ]]; then' in content
     assert "Binance REST 连接超时或失败，已跳过启动前 K 线同步并继续启动。" in content
+    assert "curl -fsS https://fapi.binance.com/fapi/v1/ping" in content
+    assert "curl -fsS 'https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1d&limit=1'" in content
+    assert "curl -I https://fapi.binance.com/fapi/v1/ping" not in content
 
 
 def test_deploy_script_installs_systemd_service():

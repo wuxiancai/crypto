@@ -28,6 +28,7 @@
 - 2026-06-27 主服务启动前 K 线同步容错与超时提示：
   - 根因：`crypto-paper.service` 走的是 `scripts/start.sh`，它仍把启动前 `scripts/sync_klines.py` 失败当成硬退出；当目标机到 Binance REST `https://fapi.binance.com/fapi/v1/klines` 发生 `ConnectTimeout` 时，systemd 会不断重启服务。与此同时，`BinanceDataError` 对空消息超时异常只打印 `after retries:`，用户很难直接看出是币安连接超时。
   - 修复：`scripts/start.sh` 新增 `KLINE_SYNC_STRICT_ON_START`，默认值 `0`。启动前 K 线同步失败时，默认直接在控制台 / systemd 日志打印“Binance REST 连接超时或失败，已跳过启动前 K 线同步并继续启动”的明确提醒，并继续启动实时 Paper 与状态页；只有显式设置 `KLINE_SYNC_STRICT_ON_START=1` 时才保留硬失败。
+  - 2026-06-27 追加：排障提示里的 Binance 连通性检查从 `curl -I https://fapi.binance.com/fapi/v1/ping` 改为 `curl -fsS https://fapi.binance.com/fapi/v1/ping`，因为 Binance futures ping 更适合用 GET 验证；同时补充最小 K 线 GET 检查 `curl -fsS 'https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1d&limit=1'`，避免 HEAD 返回 404 误导排障。
   - `scripts/install_systemd_service.sh` 生成的正式 `crypto-paper.service` 默认写入 `Environment=KLINE_SYNC_STRICT_ON_START=0`，避免正式服务因 Binance REST 短时不可达而无限重启。
   - `app/data/binance.py` 新增异常摘要兜底；当 `httpx.ConnectTimeout("")` 这类空消息异常出现时，错误文本至少保留异常类名，例如 `ConnectTimeout`，不再只剩空的 `after retries:`。
   - 覆盖测试：`tests/test_deploy_script.py`、`tests/test_v0_1_database_and_binance.py`。
