@@ -114,6 +114,23 @@ def test_start_script_allows_best_effort_kline_sync_on_start():
     assert "curl -I https://fapi.binance.com/fapi/v1/ping" not in content
 
 
+def test_start_script_checks_binance_connectivity_before_realtime_runner():
+    content = Path("scripts/start.sh").read_text(encoding="utf-8")
+
+    assert 'BINANCE_CONNECTIVITY_CHECK_ON_START="${BINANCE_CONNECTIVITY_CHECK_ON_START:-1}"' in content
+    assert 'BINANCE_CONNECT_TIMEOUT="${BINANCE_CONNECT_TIMEOUT:-10}"' in content
+    assert 'BINANCE_MAX_TIME="${BINANCE_MAX_TIME:-25}"' in content
+    assert "check_binance_connectivity" in content
+    assert "启动前检查 Binance Futures REST 连通性" in content
+    assert "${BINANCE_BASE_URL%/}/fapi/v1/ping" in content
+    assert "symbol=BTCUSDT&interval=1d&limit=1" in content
+    assert "已停止启动，避免在无法连接 Binance 的情况下继续启动 WebSocket/Paper Trading。" in content
+    assert "已停止启动，避免在 BTCUSDT 1d 历史数据不可用时继续启动 WebSocket/Paper Trading。" in content
+    assert "BINANCE_CONNECTIVITY_CHECK_ON_START=0" in content
+    assert content.index("check_binance_connectivity") < content.index("sync_required_klines")
+    assert content.index("check_binance_connectivity") < content.index("start_paper_realtime")
+
+
 def test_deploy_script_installs_systemd_service():
     content = Path("scripts/deploy_ubuntu.sh").read_text(encoding="utf-8")
 

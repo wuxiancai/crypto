@@ -53,6 +53,7 @@
 - [x] WebSocket 默认连接参数已按官方 ping/pong 规则放宽：客户端 ping 间隔 180 秒，pong 超时 600 秒，并在断线、24 小时断开或 keepalive timeout 后自动指数退避重连。
 - [x] Binance REST K 线拉取已增加短退避重试：连接超时/网络错误、HTTP 408/429/503 默认最多 3 次；HTTP 451 仍直接提示当前网络/地区受限。
 - [x] 状态页顶部“永续实时价格”改为订阅 Binance USDⓈ-M Futures `<symbol>@ticker` WebSocket，使用 ticker 事件里的 last price，不再依赖成交、持仓或已收盘 K 线策略评估刷新。
+- [x] 2026-06-27 `scripts/start.sh` 在启动实时 Paper/WebSocket 前默认执行 Binance Futures REST 连通性硬检查：GET `/fapi/v1/ping` 和 `BTCUSDT 1d limit=1` K 线接口，任一失败立即退出并打印 curl 复查命令；如只想离线打开状态页，可设置 `BINANCE_CONNECTIVITY_CHECK_ON_START=0`。
 
 2026-06-20 回测胜率与交易成本诊断：
 

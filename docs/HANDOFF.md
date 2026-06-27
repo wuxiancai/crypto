@@ -25,6 +25,12 @@
 
 ## 本轮修复
 
+- 2026-06-27 Binance 启动前连通性硬检查：
+  - 根因说明：日志中的 `failed to fetch BTCUSDT 1d: Binance kline request failed after retries: ConnectTimeout` 发生在 Binance Futures REST 日线 K 线接口，表示目标服务器到 `https://fapi.binance.com/fapi/v1/klines` 建连/响应超时；常见原因是服务器出口网络、DNS、代理、防火墙、路由或所在网络/地区对 Binance Futures 访问受限，不是策略日线字段本身错误。
+  - 修复：`scripts/start.sh` 新增 `BINANCE_CONNECTIVITY_CHECK_ON_START`，默认 `1`。在启动实时 Paper/WebSocket 前先用 GET 检查 Binance Futures `/fapi/v1/ping` 和 `BTCUSDT 1d limit=1` K 线接口；任一失败立即退出并在 systemd/journal 中打印具体 curl 复查命令和网络/地区限制提示。
+  - 兼容：如只想离线打开状态页，可临时设置 `BINANCE_CONNECTIVITY_CHECK_ON_START=0` 跳过；`KLINE_SYNC_STRICT_ON_START` 仍只控制后续批量 K 线同步失败是否硬退出。
+  - 覆盖测试：`tests/test_deploy_script.py::test_start_script_checks_binance_connectivity_before_realtime_runner`。
+
 - 2026-06-27 systemd 反复重启根因可观察性修复：
   - 根因澄清：用户在 Ubuntu 上用 GET 验证 `https://fapi.binance.com/fapi/v1/ping` 和最小 K 线接口均可返回，说明 Binance REST 并非完全不可达；真正造成“启动完成后又反复重启”的链路是 `crypto-paper.service` 使用 `START_MODE=foreground`，`scripts/start.sh` 启动 Paper 实时交易进程和 Web 状态页后执行 `wait -n`，任一子进程退出都会让父脚本退出，systemd 随后按 Restart 策略拉起服务。
   - 修复：`scripts/start.sh` 在前台模式下显式捕获 `wait -n` 的退出码，避免 `set -e` 导致脚本来不及打印原因；退出前会直接输出“Paper 实时交易进程退出 / Paper Web 状态页进程退出”并附带对应日志最近 120 行，用户看 `sudo journalctl -u crypto-paper.service -f` 即可看到具体失败原因。
