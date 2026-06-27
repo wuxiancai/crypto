@@ -10,6 +10,7 @@ PORT_ENV="$ROOT_DIR/.env.ports.generated"
 REGENERATE_PORTS="${REGENERATE_PORTS:-0}"
 START_MODE="${START_MODE:-background}"
 KLINE_SYNC_LIMIT="${KLINE_SYNC_LIMIT:-800}"
+KLINE_SYNC_STRICT_ON_START="${KLINE_SYNC_STRICT_ON_START:-0}"
 RUNTIME_DIR="$ROOT_DIR/runtime"
 LOG_DIR="$RUNTIME_DIR/logs"
 PAPER_REALTIME_PID=""
@@ -122,11 +123,27 @@ DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" -m alembic upgrade head
 
 sync_required_klines() {
   echo "检查并补齐策略所需 K 线数据..."
-  DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" scripts/sync_klines.py \
+  if DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" scripts/sync_klines.py \
     --symbols BTCUSDT ETHUSDT \
     --intervals 1d 4h 1h 15m \
     --limit "$KLINE_SYNC_LIMIT" \
-    --write
+    --write; then
+    return
+  fi
+
+  if [[ "$KLINE_SYNC_STRICT_ON_START" == "1" ]]; then
+    echo "K 线同步失败，严格模式下停止启动。请检查 Binance REST 连通性。" >&2
+    exit 1
+  fi
+
+  cat >&2 <<EOF
+Binance REST 连接超时或失败，已跳过启动前 K 线同步并继续启动。
+这通常表示当前机器到 Binance REST 不通、超时，或所在网络/地区受限。
+后续若页面没有新的策略评估，请优先检查:
+  1. runtime/logs/paper-realtime.log
+  2. curl -I https://fapi.binance.com/fapi/v1/ping
+如需恢复旧的硬失败行为，可设置 KLINE_SYNC_STRICT_ON_START=1。
+EOF
 }
 
 sync_required_klines

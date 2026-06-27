@@ -17,6 +17,13 @@ class BinanceDataError(RuntimeError):
 RETRYABLE_STATUS_CODES = {408, 429, 503}
 
 
+def _exception_summary(exc: Exception) -> str:
+    message = str(exc).strip()
+    if message:
+        return message
+    return exc.__class__.__name__
+
+
 @dataclass(frozen=True)
 class FundingSnapshot:
     symbol: str
@@ -90,7 +97,9 @@ async def fetch_klines(
                 raise BinanceDataError(f"Binance kline request failed: {exc.response.status_code}") from exc
         except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
             if attempt >= max_attempts:
-                raise BinanceDataError(f"Binance kline request failed after retries: {exc}") from exc
+                raise BinanceDataError(
+                    f"Binance kline request failed after retries: {_exception_summary(exc)}"
+                ) from exc
         await asyncio.sleep(delay)
         delay *= 2
     effective_now_ms = now_ms if now_ms is not None else int(time.time() * 1000)
@@ -157,7 +166,7 @@ async def _get_premium_index_payload(
         except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
             if attempt >= max_attempts:
                 raise BinanceDataError(
-                    f"Binance premium index request failed after retries: {exc}"
+                    f"Binance premium index request failed after retries: {_exception_summary(exc)}"
                 ) from exc
         await asyncio.sleep(delay)
         delay *= 2

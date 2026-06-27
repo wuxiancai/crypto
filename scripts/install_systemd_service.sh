@@ -41,6 +41,7 @@ Group=${SERVICE_GROUP}
 ${SUPPLEMENTARY_GROUPS}
 Environment=PYTHONUNBUFFERED=1
 Environment=START_MODE=foreground
+Environment=KLINE_SYNC_STRICT_ON_START=0
 ExecStart=/bin/bash ${ROOT_DIR}/scripts/start.sh
 Restart=always
 RestartSec=10

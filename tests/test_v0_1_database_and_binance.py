@@ -183,6 +183,45 @@ def test_fetch_klines_retries_timeout_before_success(monkeypatch):
     assert rows[0].symbol == "BTCUSDT"
 
 
+def test_fetch_klines_timeout_error_message_keeps_exception_detail(monkeypatch):
+    import httpx
+    import pytest
+
+    from app.config.settings import Settings
+    from app.data import binance
+    from app.data.binance import BinanceDataError, fetch_klines
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        async def get(self, *args, **kwargs):
+            raise httpx.ConnectTimeout("")
+
+    async def fake_sleep(delay: float):
+        return None
+
+    monkeypatch.setattr(binance.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(binance.asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(BinanceDataError) as exc_info:
+        asyncio.run(
+            fetch_klines(
+                "BTCUSDT",
+                "1d",
+                settings=Settings(binance_base_url="https://fapi.binance.com"),
+            )
+        )
+
+    assert "ConnectTimeout" in str(exc_info.value)
+
+
 def test_fetch_klines_retries_http_503_with_backoff(monkeypatch):
     import httpx
 

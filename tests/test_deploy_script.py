@@ -91,19 +91,12 @@ def test_start_script_syncs_required_klines_before_realtime_runner():
     assert content.index("scripts/sync_klines.py") < content.index("start_paper_realtime")
 
 
-def test_start_lan_allows_best_effort_kline_sync_on_start():
-    content = Path("scripts/start_lan.sh").read_text(encoding="utf-8")
+def test_start_script_allows_best_effort_kline_sync_on_start():
+    content = Path("scripts/start.sh").read_text(encoding="utf-8")
 
     assert 'KLINE_SYNC_STRICT_ON_START="${KLINE_SYNC_STRICT_ON_START:-0}"' in content
     assert 'if [[ "$KLINE_SYNC_STRICT_ON_START" == "1" ]]; then' in content
-    assert "K 线同步失败，但 LAN 启动模式允许跳过，继续启动实时 Paper 与状态页。" in content
-
-
-def test_deploy_lan_service_defaults_to_non_strict_kline_sync():
-    content = Path("scripts/deploy_ubuntu_lan.sh").read_text(encoding="utf-8")
-
-    assert "Environment=KLINE_SYNC_ON_START=1" in content
-    assert "Environment=KLINE_SYNC_STRICT_ON_START=0" in content
+    assert "Binance REST 连接超时或失败，已跳过启动前 K 线同步并继续启动。" in content
 
 
 def test_deploy_script_installs_systemd_service():
@@ -154,6 +147,7 @@ def test_systemd_install_script_uses_start_script_in_foreground_mode():
     content = Path("scripts/install_systemd_service.sh").read_text(encoding="utf-8")
 
     assert "START_MODE=foreground" in content
+    assert "KLINE_SYNC_STRICT_ON_START=0" in content
     assert "ExecStart=/bin/bash ${ROOT_DIR}/scripts/start.sh" in content
     assert "Restart=always" in content
     assert "systemctl enable" in content
