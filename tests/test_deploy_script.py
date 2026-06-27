@@ -36,6 +36,10 @@ def test_start_script_reuses_existing_generated_ports():
     assert 'REGENERATE_PORTS="${REGENERATE_PORTS:-0}"' in content
     assert '[[ "$REGENERATE_PORTS" == "1" || ! -f "$PORT_ENV" ]]' in content
     assert "Using existing port config" in content
+    assert 'if [[ -f "$ROOT_DIR/.env" ]]; then' in content
+    assert 'source "$ROOT_DIR/.env"' in content
+    assert 'BINANCE_BASE_URL="${BINANCE_BASE_URL:-https://fapi.binance.com}"' in content
+    assert 'BINANCE_WEBSOCKET_BASE_URL="${BINANCE_WEBSOCKET_BASE_URL:-wss://fstream.binance.com/market}"' in content
 
 
 def test_start_script_removes_compose_orphans():
@@ -123,6 +127,7 @@ def test_start_script_checks_binance_connectivity_before_realtime_runner():
     assert "check_binance_connectivity" in content
     assert "启动前检查 Binance Futures REST 连通性" in content
     assert "${BINANCE_BASE_URL%/}/fapi/v1/ping" in content
+    assert "BINANCE_BASE_URL=\"${BINANCE_BASE_URL:-https://fapi.binance.com}\"" in content
     assert "symbol=BTCUSDT&interval=1d&limit=1" in content
     assert "已停止启动，避免在无法连接 Binance 的情况下继续启动 WebSocket/Paper Trading。" in content
     assert "已停止启动，避免在 BTCUSDT 1d 历史数据不可用时继续启动 WebSocket/Paper Trading。" in content

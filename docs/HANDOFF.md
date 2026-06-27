@@ -25,6 +25,12 @@
 
 ## 本轮修复
 
+- 2026-06-27 Binance 连通性检查未定义变量修复：
+  - 症状：旧 `.env.ports.generated` 没有 `BINANCE_BASE_URL` 时，`scripts/start.sh` 在 `set -u` 下执行启动前 Binance REST 连通性检查，报 `BINANCE_BASE_URL: unbound variable` 并中断。
+  - 修复：`scripts/start.sh` 现在先加载 `.env`，再加载 `.env.ports.generated` 覆盖端口/数据库等生成值，并对 `BINANCE_BASE_URL` 与 `BINANCE_WEBSOCKET_BASE_URL` 设置默认值，兼容旧端口配置文件。
+  - 用户确认删除 `scripts/start_lan.sh` 与 `scripts/deploy_ubuntu_lan.sh`，本次提交会纳入这两个删除。
+  - 覆盖测试：`tests/test_deploy_script.py`。
+
 - 2026-06-27 Binance 启动前连通性硬检查：
   - 根因说明：日志中的 `failed to fetch BTCUSDT 1d: Binance kline request failed after retries: ConnectTimeout` 发生在 Binance Futures REST 日线 K 线接口，表示目标服务器到 `https://fapi.binance.com/fapi/v1/klines` 建连/响应超时；常见原因是服务器出口网络、DNS、代理、防火墙、路由或所在网络/地区对 Binance Futures 访问受限，不是策略日线字段本身错误。
   - 修复：`scripts/start.sh` 新增 `BINANCE_CONNECTIVITY_CHECK_ON_START`，默认 `1`。在启动实时 Paper/WebSocket 前先用 GET 检查 Binance Futures `/fapi/v1/ping` 和 `BTCUSDT 1d limit=1` K 线接口；任一失败立即退出并在 systemd/journal 中打印具体 curl 复查命令和网络/地区限制提示。

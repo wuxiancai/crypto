@@ -37,8 +37,14 @@ else
 fi
 
 set -a
+if [[ -f "$ROOT_DIR/.env" ]]; then
+  source "$ROOT_DIR/.env"
+fi
 source "$PORT_ENV"
 set +a
+
+BINANCE_BASE_URL="${BINANCE_BASE_URL:-https://fapi.binance.com}"
+BINANCE_WEBSOCKET_BASE_URL="${BINANCE_WEBSOCKET_BASE_URL:-wss://fstream.binance.com/market}"
 
 compose() {
   if docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
