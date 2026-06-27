@@ -25,6 +25,10 @@
 
 ## 本轮修复
 
+- 2026-06-27 模拟交易看板顶部统计区布局：
+  - 将顶部统计卡里的“持仓情况”和“模拟交易记录”合并到同一个卡片内，上下两行展示，减少顶部卡片拥挤并符合页面评论要求。
+  - 覆盖测试：`tests/test_v1_0_paper_status_web.py::test_paper_status_html_shows_open_position_and_all_fills`。
+
 - 2026-06-27 模拟交易看板收益卡文案：
   - 顶部收益卡标题从 `1天收益` / `3天收益` 调整为 `第1天收益` / `第3天收益`，符合页面评论要求。
   - 覆盖测试：`tests/test_v1_0_paper_status_web.py::test_paper_status_html_shows_runtime_return_card`。

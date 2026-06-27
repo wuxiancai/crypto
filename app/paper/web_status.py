@@ -111,6 +111,8 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .return-line {{ white-space: nowrap; }}
     .return-profit {{ color: #0a7c52; }}
     .return-loss {{ color: #b42318; }}
+    .position-trade-panel {{ display: grid; gap: 12px; }}
+    .position-trade-row {{ display: grid; gap: 4px; }}
     .system-metrics {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 10px; font-size: 12px; line-height: 1.35; }}
     .metric-item {{ min-width: 0; }}
     .metric-key {{ color: #65748b; margin-right: 3px; }}
@@ -200,8 +202,7 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     <section class="grid">
       <div class="panel"><div class="label">账户权益 USDT</div><div class="value">{_format_decimal(payload.get("equity"), 2)}</div></div>
       {_render_runtime_return_panel(payload)}
-      <div class="panel"><div class="label">持仓情况</div><div class="value">{_position_title(positions)}</div></div>
-      <div class="panel"><div class="label">模拟交易记录</div><div class="value">{len(fills) + len(positions)}</div></div>
+      {_render_position_trade_summary_panel(positions, fills)}
       <div class="panel"><div class="label" id="rejected-signals">拒绝信号</div><div class="value">{_escape(payload.get("rejected_signals"))}</div></div>
       {_render_system_metrics(payload.get("system_metrics", {}))}
       {_render_strategy_details(payload.get("strategy_details", []))}
@@ -1858,6 +1859,13 @@ def _render_runtime_return_panel(payload: dict[str, Any]) -> str:
   <div class="return-title">第{days}天收益</div>
   <div class="{class_name}">收益：{amount_text}</div>
   <div class="{class_name}">收益率：{rate_text}</div>
+</div>"""
+
+
+def _render_position_trade_summary_panel(positions: list[dict[str, Any]], fills: list[dict[str, Any]]) -> str:
+    return f"""<div class="panel position-trade-panel">
+  <div class="position-trade-row"><div class="label">持仓情况</div><div class="value">{_position_title(positions)}</div></div>
+  <div class="position-trade-row"><div class="label">模拟交易记录</div><div class="value">{len(fills) + len(positions)}</div></div>
 </div>"""
 
 

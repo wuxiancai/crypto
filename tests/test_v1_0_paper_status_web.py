@@ -107,6 +107,10 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "2 分钟" in html
     assert "账户权益" in html
     assert "持仓情况" in html
+    assert "position-trade-panel" in html
+    assert "position-trade-row" in html
+    assert html.index("持仓情况") < html.index("模拟交易记录")
+    assert '<div class="panel"><div class="label">模拟交易记录</div><div class="value">' not in html
     assert "初始止损" in html
     assert "当前保护线" in html
     assert "止盈激活价" in html
