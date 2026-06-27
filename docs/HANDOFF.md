@@ -25,6 +25,12 @@
 
 ## 本轮修复
 
+- 2026-06-27 LAN 启动前 K 线同步容错：
+  - 根因：`crypto-paper-lan.service` 在 `scripts/start_lan.sh` 的启动前 `sync_klines.py` 阶段遇到 Binance REST `ConnectTimeout` 时，直接 `exit 1`，导致 systemd 持续重启，即使实时 Paper 自身后续仍有 WebSocket/预热容错能力也起不来。
+  - 修复：`scripts/start_lan.sh` 新增 `KLINE_SYNC_STRICT_ON_START`，LAN 默认值为 `0`。启动前 K 线同步失败时，默认打印最近 `kline-sync.log` 后继续启动实时 Paper 与状态页；只有显式设置 `KLINE_SYNC_STRICT_ON_START=1` 时才维持硬失败。
+  - `scripts/deploy_ubuntu_lan.sh` 生成的 systemd unit 默认写入 `Environment=KLINE_SYNC_STRICT_ON_START=0`，避免局域网测试服务因 Binance REST 短时超时反复重启。
+  - 覆盖测试：`tests/test_deploy_script.py`。
+
 - 2026-06-27 模拟交易看板顶部统计区布局：
   - 将顶部统计卡里的“持仓情况”和“模拟交易记录”合并到同一个卡片内，上下两行展示，减少顶部卡片拥挤并符合页面评论要求。
   - 覆盖测试：`tests/test_v1_0_paper_status_web.py::test_paper_status_html_shows_open_position_and_all_fills`。

@@ -258,6 +258,7 @@ Environment=PYTHONUNBUFFERED=1
 Environment=START_MODE=foreground
 Environment=PAPER_WEB_HOST=0.0.0.0
 Environment=KLINE_SYNC_ON_START=1
+Environment=KLINE_SYNC_STRICT_ON_START=0
 ExecStart=/bin/bash ${ROOT_DIR}/scripts/start_lan.sh
 Restart=always
 RestartSec=10

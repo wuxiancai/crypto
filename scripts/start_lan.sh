@@ -10,6 +10,7 @@ PORT_ENV="$ROOT_DIR/.env.ports.generated"
 REGENERATE_PORTS="${REGENERATE_PORTS:-0}"
 START_MODE="${START_MODE:-background}"
 KLINE_SYNC_LIMIT="${KLINE_SYNC_LIMIT:-800}"
+KLINE_SYNC_STRICT_ON_START="${KLINE_SYNC_STRICT_ON_START:-0}"
 PAPER_WEB_HOST="${PAPER_WEB_HOST:-0.0.0.0}"
 RUNTIME_DIR="$ROOT_DIR/runtime"
 LOG_DIR="$RUNTIME_DIR/logs"
@@ -189,9 +190,14 @@ sync_required_klines() {
     --limit "$KLINE_SYNC_LIMIT" \
     --write \
     > "$LOG_DIR/kline-sync.log" 2>&1; then
-    echo "K 线同步失败。最近日志如下：" >&2
+    if [[ "$KLINE_SYNC_STRICT_ON_START" == "1" ]]; then
+      echo "K 线同步失败。最近日志如下：" >&2
+      tail -n 120 "$LOG_DIR/kline-sync.log" >&2 || true
+      exit 1
+    fi
+    echo "K 线同步失败，但 LAN 启动模式允许跳过，继续启动实时 Paper 与状态页。" >&2
     tail -n 120 "$LOG_DIR/kline-sync.log" >&2 || true
-    exit 1
+    return
   fi
 
   tail -n 20 "$LOG_DIR/kline-sync.log" || true
