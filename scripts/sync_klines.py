@@ -64,7 +64,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    asyncio.run(sync_klines(args.symbols, args.intervals, args.limit, dry_run=not args.write))
+    try:
+        asyncio.run(sync_klines(args.symbols, args.intervals, args.limit, dry_run=not args.write))
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == "__main__":

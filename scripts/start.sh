@@ -203,6 +203,22 @@ cleanup_foreground() {
   POSTGRES_PORT="$POSTGRES_PORT" compose --env-file "$PORT_ENV" stop postgres >/dev/null 2>&1 || true
 }
 
+print_child_exit_logs() {
+  local exit_code="$1"
+
+  echo "Paper 子进程退出，服务将停止并交给 systemd 处理。退出码: ${exit_code}" >&2
+
+  if [[ -n "$PAPER_REALTIME_PID" ]] && ! kill -0 "$PAPER_REALTIME_PID" >/dev/null 2>&1; then
+    echo "Paper 实时交易进程退出。最近日志如下：" >&2
+    tail -n 120 "$LOG_DIR/paper-realtime.log" >&2 || true
+  fi
+
+  if [[ -n "$PAPER_WEB_PID" ]] && ! kill -0 "$PAPER_WEB_PID" >/dev/null 2>&1; then
+    echo "Paper Web 状态页进程退出。最近日志如下：" >&2
+    tail -n 120 "$LOG_DIR/paper-status-web.log" >&2 || true
+  fi
+}
+
 start_paper_realtime
 start_paper_status_web
 
@@ -219,8 +235,11 @@ EOF
 
 if [[ "$START_MODE" == "foreground" ]]; then
   trap cleanup_foreground TERM INT
+  set +e
   wait -n "$PAPER_REALTIME_PID" "$PAPER_WEB_PID"
   exit_code="$?"
+  set -e
+  print_child_exit_logs "$exit_code"
   cleanup_foreground
   exit "$exit_code"
 fi

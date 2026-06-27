@@ -25,6 +25,13 @@
 
 ## 本轮修复
 
+- 2026-06-27 systemd 反复重启根因可观察性修复：
+  - 根因澄清：用户在 Ubuntu 上用 GET 验证 `https://fapi.binance.com/fapi/v1/ping` 和最小 K 线接口均可返回，说明 Binance REST 并非完全不可达；真正造成“启动完成后又反复重启”的链路是 `crypto-paper.service` 使用 `START_MODE=foreground`，`scripts/start.sh` 启动 Paper 实时交易进程和 Web 状态页后执行 `wait -n`，任一子进程退出都会让父脚本退出，systemd 随后按 Restart 策略拉起服务。
+  - 修复：`scripts/start.sh` 在前台模式下显式捕获 `wait -n` 的退出码，避免 `set -e` 导致脚本来不及打印原因；退出前会直接输出“Paper 实时交易进程退出 / Paper Web 状态页进程退出”并附带对应日志最近 120 行，用户看 `sudo journalctl -u crypto-paper.service -f` 即可看到具体失败原因。
+  - 修复：`scripts/install_systemd_service.sh` 将 unit 从 `Restart=always` 改为 `Restart=on-failure`，并新增 `StartLimitIntervalSec=300` / `StartLimitBurst=3`，避免短时间无限重启刷屏。该 unit 变更需要在 Ubuntu 上重新执行 `bash scripts/install_systemd_service.sh` 才会写入 `/etc/systemd/system/crypto-paper.service`。
+  - 修复：`scripts/sync_klines.py` 捕获预期 `RuntimeError` 并以一行错误退出，启动前 K 线同步遇到 `ConnectTimeout` 时不再把整段 Python traceback 打进 journal。
+  - 覆盖测试：`tests/test_deploy_script.py`、`tests/test_v1_1_sync_klines.py`。
+
 - 2026-06-27 主服务启动前 K 线同步容错与超时提示：
   - 根因：`crypto-paper.service` 走的是 `scripts/start.sh`，它仍把启动前 `scripts/sync_klines.py` 失败当成硬退出；当目标机到 Binance REST `https://fapi.binance.com/fapi/v1/klines` 发生 `ConnectTimeout` 时，systemd 会不断重启服务。与此同时，`BinanceDataError` 对空消息超时异常只打印 `after retries:`，用户很难直接看出是币安连接超时。
   - 修复：`scripts/start.sh` 新增 `KLINE_SYNC_STRICT_ON_START`，默认值 `0`。启动前 K 线同步失败时，默认直接在控制台 / systemd 日志打印“Binance REST 连接超时或失败，已跳过启动前 K 线同步并继续启动”的明确提醒，并继续启动实时 Paper 与状态页；只有显式设置 `KLINE_SYNC_STRICT_ON_START=1` 时才保留硬失败。

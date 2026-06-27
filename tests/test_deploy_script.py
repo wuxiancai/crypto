@@ -80,6 +80,18 @@ def test_start_script_supports_systemd_foreground_mode():
     assert "trap cleanup_foreground TERM INT" in content
 
 
+def test_start_script_prints_child_logs_before_systemd_restart():
+    content = Path("scripts/start.sh").read_text(encoding="utf-8")
+
+    assert "print_child_exit_logs" in content
+    assert "Paper 实时交易进程退出。最近日志如下：" in content
+    assert 'tail -n 120 "$LOG_DIR/paper-realtime.log"' in content
+    assert "Paper Web 状态页进程退出。最近日志如下：" in content
+    assert 'tail -n 120 "$LOG_DIR/paper-status-web.log"' in content
+    assert content.index("wait -n") < content.index("print_child_exit_logs \"$exit_code\"")
+    assert content.index("print_child_exit_logs \"$exit_code\"") < content.rindex("cleanup_foreground")
+
+
 def test_start_script_syncs_required_klines_before_realtime_runner():
     content = Path("scripts/start.sh").read_text(encoding="utf-8")
 
@@ -152,7 +164,9 @@ def test_systemd_install_script_uses_start_script_in_foreground_mode():
     assert "START_MODE=foreground" in content
     assert "KLINE_SYNC_STRICT_ON_START=0" in content
     assert "ExecStart=/bin/bash ${ROOT_DIR}/scripts/start.sh" in content
-    assert "Restart=always" in content
+    assert "Restart=on-failure" in content
+    assert "StartLimitIntervalSec=300" in content
+    assert "StartLimitBurst=3" in content
     assert "systemctl enable" in content
     assert "systemctl restart" in content
 

@@ -1,5 +1,6 @@
 import asyncio
 from decimal import Decimal
+import sys
 
 
 def test_sync_klines_defaults_include_layered_strategy_intervals():
@@ -133,3 +134,22 @@ def test_sync_klines_reports_database_write_failure(monkeypatch):
 
     with pytest.raises(RuntimeError, match="failed to write klines to DATABASE_URL"):
         asyncio.run(sync.sync_klines(["BTCUSDT"], ["1d"], limit=1, dry_run=False))
+
+
+def test_sync_klines_main_exits_with_concise_runtime_error(monkeypatch):
+    import pytest
+    import scripts.sync_klines as sync
+
+    async def fake_sync_klines(_symbols, _intervals, _limit, dry_run):
+        assert dry_run is True
+        raise RuntimeError("failed to fetch BTCUSDT 1d: Binance kline request failed after retries: ConnectTimeout")
+
+    monkeypatch.setattr(sync, "sync_klines", fake_sync_klines)
+    monkeypatch.setattr(sys, "argv", ["sync_klines.py"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sync.main()
+
+    assert str(exc_info.value) == (
+        "failed to fetch BTCUSDT 1d: Binance kline request failed after retries: ConnectTimeout"
+    )

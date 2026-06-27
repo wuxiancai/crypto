@@ -32,6 +32,8 @@ Description=Crypto Paper Trading and Status Web
 Requires=docker.service
 After=network-online.target docker.service
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
 
 [Service]
 Type=simple
@@ -43,7 +45,7 @@ Environment=PYTHONUNBUFFERED=1
 Environment=START_MODE=foreground
 Environment=KLINE_SYNC_STRICT_ON_START=0
 ExecStart=/bin/bash ${ROOT_DIR}/scripts/start.sh
-Restart=always
+Restart=on-failure
 RestartSec=10
 TimeoutStopSec=45
 KillMode=control-group
