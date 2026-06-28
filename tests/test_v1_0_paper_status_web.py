@@ -1,4 +1,5 @@
 import json
+import os
 
 
 def test_paper_status_payload_marks_missing_state_file(tmp_path):
@@ -501,6 +502,68 @@ def test_paper_status_page_shows_binance_timeout_with_symbol_and_interval(tmp_pa
 
     assert "Binance REST 连接超时：BTCUSDT 4h 历史数据预热失败" in html
     assert "connect timed out" in html
+
+
+def test_paper_status_page_hides_stale_error_log_after_state_updates(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "last_update_at_ms": 200_000,
+            }
+        ),
+        encoding="utf-8",
+    )
+    log_path = tmp_path / "paper-realtime.log"
+    log_path.write_text("ERROR websocket disconnected", encoding="utf-8")
+    os.utime(log_path, (100, 100))
+
+    html = render_paper_status_html(
+        build_paper_status_payload(state_path, error_log_path=log_path)
+    )
+
+    assert "暂无错误日志" in html
+    assert "ERROR websocket disconnected" not in html
+
+
+def test_paper_status_page_clears_error_log_after_websocket_reconnects(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    log_path = tmp_path / "paper-realtime.log"
+    log_path.write_text(
+        "\n".join(
+            [
+                "Binance WebSocket reconnecting after error: no close frame received or sent",
+                "Binance WebSocket reconnected successfully",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    html = render_paper_status_html(
+        build_paper_status_payload(state_path, error_log_path=log_path)
+    )
+
+    assert "暂无错误日志" in html
+    assert "WebSocket 连接异常" not in html
 
 
 def test_paper_status_page_shows_recent_strategy_outputs(tmp_path):

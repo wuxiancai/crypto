@@ -163,9 +163,13 @@ async def _iter_reconnecting_websocket_klines(
 ) -> AsyncIterator[Kline]:
     connector = connect or _default_websocket_connect
     delay = reconnect_initial_delay
+    had_reconnect_error = False
     while True:
         try:
             async with connector(url) as websocket:
+                if had_reconnect_error:
+                    print("Binance WebSocket reconnected successfully")
+                    had_reconnect_error = False
                 async for kline in iter_binance_ws_klines(websocket):
                     delay = reconnect_initial_delay
                     yield kline
@@ -173,6 +177,7 @@ async def _iter_reconnecting_websocket_klines(
         except Exception as exc:
             if not reconnect:
                 raise
+            had_reconnect_error = True
             print(f"Binance WebSocket reconnecting after error: {exc}")
             if delay > 0:
                 await asyncio.sleep(delay)
@@ -188,9 +193,13 @@ async def _iter_reconnecting_websocket_ticker_prices(
 ) -> AsyncIterator[TickerPrice]:
     connector = connect or _default_websocket_connect
     delay = reconnect_initial_delay
+    had_reconnect_error = False
     while True:
         try:
             async with connector(url) as websocket:
+                if had_reconnect_error:
+                    print("Binance ticker WebSocket reconnected successfully")
+                    had_reconnect_error = False
                 async for price in iter_binance_ws_ticker_prices(websocket):
                     delay = reconnect_initial_delay
                     yield price
@@ -198,6 +207,7 @@ async def _iter_reconnecting_websocket_ticker_prices(
         except Exception as exc:
             if not reconnect:
                 raise
+            had_reconnect_error = True
             print(f"Binance ticker WebSocket reconnecting after error: {exc}")
             if delay > 0:
                 await asyncio.sleep(delay)

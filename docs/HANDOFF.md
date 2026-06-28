@@ -25,6 +25,12 @@
 
 ## 本轮修复
 
+- 2026-06-28 网络临时错误恢复后状态页错误日志清理：
+  - 根因：状态页每次都从整份 `runtime/logs/paper-realtime.log` 中提取 error-like 行并去重展示，没有区分历史错误和当前仍异常；WebSocket 临时断线恢复后，旧的 `ConnectionResetError` / `WebSocket reconnecting after error` 仍会停留在“错误日志”区，误导用户以为当前网络仍故障。
+  - 修复：`app/paper/web_status.py` 读取错误日志时会把 `last_update_at_ms` 晚于日志修改时间的旧错误视为已恢复并隐藏；同时识别 WebSocket / ticker WebSocket `reconnected successfully` 恢复标记，清空该标记之前的旧错误。
+  - 修复：`app/paper/binance_stream.py` 在 K 线 WebSocket 和 ticker WebSocket 发生重连错误后，一旦重新连接成功，会输出恢复标记，供状态页清理旧错误。
+  - 覆盖测试：`tests/test_v1_0_paper_status_web.py` 新增旧错误随状态更新清理、WebSocket 恢复标记清理两个回归。
+
 - 2026-06-27 Binance 连通性检查未定义变量修复：
   - 症状：旧 `.env.ports.generated` 没有 `BINANCE_BASE_URL` 时，`scripts/start.sh` 在 `set -u` 下执行启动前 Binance REST 连通性检查，报 `BINANCE_BASE_URL: unbound variable` 并中断。
   - 修复：`scripts/start.sh` 现在先加载 `.env`，再加载 `.env.ports.generated` 覆盖端口/数据库等生成值，并对 `BINANCE_BASE_URL` 与 `BINANCE_WEBSOCKET_BASE_URL` 设置默认值，兼容旧端口配置文件。

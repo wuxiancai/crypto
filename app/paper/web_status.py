@@ -60,7 +60,10 @@ def build_paper_status_payload(
         "current_time_ms": now_ms,
         "initial_equity": payload.get("initial_equity") or payload.get("starting_equity") or "1000",
         "last_update_at_ms": payload.get("last_update_at_ms"),
-        "error_logs": _read_error_logs(error_log_path),
+        "error_logs": _read_error_logs(
+            error_log_path,
+            active_after_ms=_int_or_none(payload.get("last_update_at_ms")),
+        ),
         "signal_evaluations": signal_evaluations,
         "market_prices": _stored_market_prices(payload.get("market_prices"))
         or _latest_market_prices(
@@ -2919,6 +2922,13 @@ def _runtime_seconds(started_at_ms: Any, now_ms: int) -> int:
     return max(0, int((now_ms - int(started_at_ms)) / 1000))
 
 
+def _int_or_none(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _format_duration(seconds: Any) -> str:
     total_seconds = max(0, int(seconds or 0))
     days, remainder = divmod(total_seconds, 24 * 60 * 60)
@@ -2936,12 +2946,21 @@ def _format_duration(seconds: Any) -> str:
     return " ".join(parts)
 
 
-def _read_error_logs(path: Path | None, max_lines: int = 50) -> list[str]:
+def _read_error_logs(
+    path: Path | None,
+    max_lines: int = 50,
+    active_after_ms: int | None = None,
+) -> list[str]:
     if path is None or not path.exists():
+        return []
+    if active_after_ms is not None and int(path.stat().st_mtime * 1000) <= active_after_ms:
         return []
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     matched = []
     for line in lines:
+        if _is_error_recovery_log_line(line):
+            matched.clear()
+            continue
         summary = _summarize_error_log_line(line)
         if summary and summary not in matched:
             matched.append(summary)
@@ -2967,6 +2986,14 @@ def _summarize_error_log_line(line: str) -> str | None:
     if _is_error_log_line(line):
         return line
     return None
+
+
+def _is_error_recovery_log_line(line: str) -> bool:
+    lowered = line.lower()
+    return (
+        "websocket reconnected successfully" in lowered
+        or "ticker websocket reconnected successfully" in lowered
+    )
 
 
 def _summarize_historical_warmup_error(line: str, lowered: str) -> str:
