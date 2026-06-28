@@ -25,6 +25,11 @@
 
 ## 本轮修复
 
+- 2026-06-28 状态页持仓/交易记录关键价格列语义色：
+  - 根据浏览器标注调整模拟交易看板：持仓表 `初始止损` 表头和值显示红色，`止盈激活价` 表头和值显示绿色，`USDT` 表头和值显示蓝色。
+  - 同步调整全部模拟交易记录：`开仓价` 表头和值显示红色，`平仓价` 表头和值显示绿色，`USDT` 表头和值显示蓝色。
+  - 实现上在 `app/paper/web_status.py` 中使用 `.price-stop` / `.price-target` / `.money-cell` 语义 class，避免依赖表格列序号；覆盖测试在 `tests/test_v1_0_paper_status_web.py`。
+
 - 2026-06-28 网络临时错误恢复后状态页错误日志清理：
   - 根因：状态页每次都从整份 `runtime/logs/paper-realtime.log` 中提取 error-like 行并去重展示，没有区分历史错误和当前仍异常；WebSocket 临时断线恢复后，旧的 `ConnectionResetError` / `WebSocket reconnecting after error` 仍会停留在“错误日志”区，误导用户以为当前网络仍故障。
   - 修复：`app/paper/web_status.py` 读取错误日志时会把 `last_update_at_ms` 晚于日志修改时间的旧错误视为已恢复并隐藏；同时识别 WebSocket / ticker WebSocket `reconnected successfully` 恢复标记，清空该标记之前的旧错误。

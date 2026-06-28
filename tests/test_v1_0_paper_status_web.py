@@ -112,12 +112,21 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "position-trade-row" in html
     assert html.index("持仓情况") < html.index("模拟交易记录")
     assert '<div class="panel"><div class="label">模拟交易记录</div><div class="value">' not in html
+    assert ".price-cell.price-stop { color: #b42318" in html
+    assert ".price-cell.price-target { color: #0a7c52" in html
+    assert ".money-cell { color: #175cd3" in html
     assert "初始止损" in html
     assert "当前保护线" in html
     assert "止盈激活价" in html
+    assert '<th class="price-cell price-stop">初始止损</th>' in html
+    assert '<td class="price-cell price-stop">1820.00</td>' in html
+    assert '<th class="price-cell price-target">止盈激活价</th>' in html
+    assert '<td class="price-cell price-target">1760.00</td>' in html
     assert "止盈逻辑" in html
     assert "杠杆" in html
     assert "USDT" in html
+    assert '<th class="money-cell">USDT</th>' in html
+    assert '<td class="money-cell">900.00</td>' in html
     assert "名义金额 USDT" not in html
     assert "1820.00" in html
     assert "1760.00" in html
@@ -129,6 +138,10 @@ def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     assert "平仓时间 UTC+8" in html
     assert "开仓价" in html
     assert "平仓价" in html
+    assert '<th class="price-cell price-stop">开仓价</th>' in html
+    assert '<td class="price-cell price-stop">64000.00</td>' in html
+    assert '<th class="price-cell price-target">平仓价</th>' in html
+    assert '<td class="price-cell price-target">64600.00</td>' in html
     assert "手续费" in html
     assert "资金费" in html
     assert "使用策略" in html

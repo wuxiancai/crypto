@@ -173,6 +173,9 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
     .candle-down {{ color: #b42318; }}
     .profit {{ color: #0a7c52; }}
     .loss {{ color: #b42318; }}
+    .price-cell.price-stop {{ color: #b42318; font-weight: 700; }}
+    .price-cell.price-target {{ color: #0a7c52; font-weight: 700; }}
+    .money-cell {{ color: #175cd3; font-weight: 700; }}
     .trade-scroll {{ max-height: 252px; overflow-y: auto; border: 1px solid #d9e0ec; border-radius: 6px; }}
     .trade-scroll table {{ border: 0; border-radius: 0; }}
     .compact-position th, .compact-position td {{ white-space: normal; }}
@@ -1299,18 +1302,18 @@ def _render_positions(positions: list[dict[str, Any]]) -> str:
             f"<td>{_escape(position.get('strategy_type'))}</td>"
             f"<td>{_escape(position.get('bucket') or '-')}</td>"
             f"<td>{_format_decimal(position.get('entry_price'), 2)}</td>"
-            f"<td>{_format_decimal(_initial_stop_loss_value(position), 2)}</td>"
+            f"<td class=\"price-cell price-stop\">{_format_decimal(_initial_stop_loss_value(position), 2)}</td>"
             f"<td>{_format_decimal(position.get('stop_loss'), 2)}</td>"
-            f"<td>{_format_decimal(position.get('take_profit'), 2)}</td>"
+            f"<td class=\"price-cell price-target\">{_format_decimal(position.get('take_profit'), 2)}</td>"
             f"<td>{'移动止盈中' if position.get('trailing_active') else '等待激活'}</td>"
             f"<td>{_leverage_label(position.get('leverage'))}</td>"
-            f"<td>{_format_notional_usdt(position)}</td>"
+            f"<td class=\"money-cell\">{_format_notional_usdt(position)}</td>"
             "</tr>"
         )
     return (
         '<div class="table-wrap"><table class="compact-position">'
         "<thead><tr><th>交易对</th><th>方向</th><th>使用策略</th><th>Bucket</th>"
-        "<th>入场</th><th>初始止损</th><th>当前保护线</th><th>止盈激活价</th><th>止盈逻辑</th><th>杠杆</th><th>USDT</th></tr></thead>"
+        "<th>入场</th><th class=\"price-cell price-stop\">初始止损</th><th>当前保护线</th><th class=\"price-cell price-target\">止盈激活价</th><th>止盈逻辑</th><th>杠杆</th><th class=\"money-cell\">USDT</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
 
@@ -1561,7 +1564,7 @@ def _render_fills(fills: list[dict[str, Any]], positions: list[dict[str, Any]] |
   <thead>
     <tr>
       <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间 UTC+8</th><th>平仓时间 UTC+8</th>
-      <th>开仓价</th><th>平仓价</th><th>杠杆</th><th>USDT</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
+      <th class="price-cell price-stop">开仓价</th><th class="price-cell price-target">平仓价</th><th>杠杆</th><th class="money-cell">USDT</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -1578,7 +1581,7 @@ def _render_backtest_trades(trades: list[dict[str, Any]]) -> str:
   <thead>
     <tr>
       <th>交易对</th><th>方向</th><th>使用策略</th><th>开仓时间 UTC+8</th><th>平仓时间 UTC+8</th>
-      <th>开仓价</th><th>平仓价</th><th>杠杆</th><th>USDT</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
+      <th class="price-cell price-stop">开仓价</th><th class="price-cell price-target">平仓价</th><th>杠杆</th><th class="money-cell">USDT</th><th>手续费</th><th>资金费</th><th>净盈亏</th><th>退出原因</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -2643,10 +2646,10 @@ def _render_fill_row(fill: dict[str, Any]) -> str:
   <td>{_escape(fill.get("strategy_type"))}</td>
   <td>{_format_time_ms(fill.get("entry_time"))}</td>
   <td>{_format_time_ms(fill.get("exit_time"))}</td>
-  <td>{_format_decimal(fill.get("entry_price"), 2)}</td>
-  <td>{_format_decimal(fill.get("exit_price"), 2)}</td>
+  <td class="price-cell price-stop">{_format_decimal(fill.get("entry_price"), 2)}</td>
+  <td class="price-cell price-target">{_format_decimal(fill.get("exit_price"), 2)}</td>
   <td>{_leverage_label(fill.get("leverage"))}</td>
-  <td>{_format_notional_usdt(fill)}</td>
+  <td class="money-cell">{_format_notional_usdt(fill)}</td>
   <td>{_format_decimal(fill.get("fees"), 2)}</td>
   <td>{_format_decimal(fill.get("funding_fee"), 2)}</td>
   <td class="{pnl_class}">{_format_decimal(fill.get("net_pnl"), 2)}</td>
