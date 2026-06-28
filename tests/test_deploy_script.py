@@ -64,6 +64,17 @@ def test_start_script_passes_realtime_error_log_to_status_page():
     assert "$LOG_DIR/paper-realtime.log" in content
 
 
+def test_start_script_enable_backtest_flag_enables_batch_backtest():
+    content = Path("scripts/start.sh").read_text(encoding="utf-8")
+
+    assert "--ENABLE_BACKTEST" in content
+    assert "ENABLE_BATCH_BACKTEST=1" in content
+    assert "PAPER_ENABLE_BATCH_BACKTEST=1" in content
+    assert 'STATUS_WEB_ARGS+=(--enable-batch-backtest)' in content
+    assert 'BATCH_BACKTEST_STATUS="已启用"' in content
+    assert "批量回测 Web 功能: ${BATCH_BACKTEST_STATUS}" in content
+
+
 def test_start_script_stops_existing_project_before_starting():
     content = Path("scripts/start.sh").read_text(encoding="utf-8")
 

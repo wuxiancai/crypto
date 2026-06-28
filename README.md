@@ -32,7 +32,7 @@
 - PostgreSQL 通过 Docker Compose 启动。
 - 回测页支持最近 `3m / 6m / 1y / 2y` 历史区间。
 - Web 页面支持查看 Paper 状态、策略条件、最近成交和回测结果。
-- Web 批量参数回测默认禁用，避免 Ubuntu 云服务器被公网请求触发重计算；本机临时研究时可设置 `PAPER_ENABLE_BATCH_BACKTEST=1` 后重启状态页。
+- Web 批量参数回测默认禁用，避免 Ubuntu 云服务器被公网请求触发重计算；局域网临时研究时可用 `bash scripts/start.sh --ENABLE_BACKTEST` 启动。
 
 当前不属于第一版范围的部分：
 

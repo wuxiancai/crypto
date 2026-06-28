@@ -18,6 +18,29 @@ RUNTIME_DIR="$ROOT_DIR/runtime"
 LOG_DIR="$RUNTIME_DIR/logs"
 PAPER_REALTIME_PID=""
 PAPER_WEB_PID=""
+ENABLE_BATCH_BACKTEST="${ENABLE_BATCH_BACKTEST:-0}"
+
+for arg in "$@"; do
+  case "$arg" in
+    --ENABLE_BACKTEST)
+      ENABLE_BATCH_BACKTEST=1
+      ;;
+    -h|--help)
+      cat <<EOF
+用法: bash scripts/start.sh [--ENABLE_BACKTEST]
+
+选项:
+  --ENABLE_BACKTEST   启用 Web 批量回测功能。默认禁用，避免公网访问触发重计算或清空回测记录。
+EOF
+      exit 0
+      ;;
+    *)
+      echo "未知参数: $arg" >&2
+      echo "用法: bash scripts/start.sh [--ENABLE_BACKTEST]" >&2
+      exit 2
+      ;;
+  esac
+done
 
 mkdir -p "$RUNTIME_DIR" "$LOG_DIR"
 
@@ -45,6 +68,17 @@ set +a
 
 BINANCE_BASE_URL="${BINANCE_BASE_URL:-https://fapi.binance.com}"
 BINANCE_WEBSOCKET_BASE_URL="${BINANCE_WEBSOCKET_BASE_URL:-wss://fstream.binance.com/market}"
+
+if [[ "$ENABLE_BATCH_BACKTEST" == "1" ]]; then
+  export PAPER_ENABLE_BATCH_BACKTEST=1
+fi
+
+STATUS_WEB_ARGS=()
+BATCH_BACKTEST_STATUS="默认禁用"
+if [[ "${PAPER_ENABLE_BATCH_BACKTEST:-0}" == "1" ]]; then
+  STATUS_WEB_ARGS+=(--enable-batch-backtest)
+  BATCH_BACKTEST_STATUS="已启用"
+fi
 
 compose() {
   if docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -229,6 +263,7 @@ start_paper_status_web() {
       --port "$PAPER_WEB_PORT" \
       --state-path "$PAPER_STATE_PATH" \
       --error-log-path "$LOG_DIR/paper-realtime.log" \
+      "${STATUS_WEB_ARGS[@]}" \
       >> "$LOG_DIR/paper-status-web.log" 2>&1 &
   else
     nohup "$VENV_PYTHON" scripts/run_paper_status_web.py \
@@ -236,6 +271,7 @@ start_paper_status_web() {
       --port "$PAPER_WEB_PORT" \
       --state-path "$PAPER_STATE_PATH" \
       --error-log-path "$LOG_DIR/paper-realtime.log" \
+      "${STATUS_WEB_ARGS[@]}" \
       > "$LOG_DIR/paper-status-web.log" 2>&1 &
   fi
   PAPER_WEB_PID="$!"
@@ -283,6 +319,7 @@ Web 页面地址: http://服务器IP:${PAPER_WEB_PORT}
 日志目录: ${LOG_DIR}
 启动模式: ${START_MODE}
 Binance 启动前连通性检查: ${BINANCE_CONNECTIVITY_CHECK_ON_START}
+批量回测 Web 功能: ${BATCH_BACKTEST_STATUS}
 EOF
 
 if [[ "$START_MODE" == "foreground" ]]; then

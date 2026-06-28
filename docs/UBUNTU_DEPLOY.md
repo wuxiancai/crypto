@@ -165,13 +165,13 @@ cat .env.ports.generated
 
 当前 `docker-compose.yml` 已为 PostgreSQL 设置保守启动参数：`shared_buffers=128MB`、`work_mem=4MB`、`maintenance_work_mem=64MB`、`max_connections=30`，并限制容器内存为 `512m`。云服务器只运行自动交易所需进程，不在服务器上执行批量回测、参数网格搜索、开发测试或其他重计算任务。
 
-状态页里的批量参数回测动作默认禁用，避免公网请求触发重计算或清空回测归档。本机临时研究确实需要使用批量页时，手动设置：
+状态页里的批量参数回测动作默认禁用，避免公网请求触发重计算或清空回测归档。局域网临时研究确实需要使用批量页时，手动启动：
 
 ```bash
-PAPER_ENABLE_BATCH_BACKTEST=1 bash scripts/run_paper_status_web.py
+bash scripts/start.sh --ENABLE_BACKTEST
 ```
 
-systemd 部署不建议开启该变量。
+启动摘要中看到 `批量回测 Web 功能: 已启用` 后，再打开状态页使用批量回测。systemd 常驻服务不建议开启该功能。
 
 如果服务器上残留早期版本创建的固定名容器，可以先查看：
 

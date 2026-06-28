@@ -25,6 +25,12 @@
 
 ## 本轮修复
 
+- 2026-06-28 `start.sh --ENABLE_BACKTEST` 局域网批量回测开关：
+  - 背景：Web 批量回测默认禁用，页面会提示设置 `PAPER_ENABLE_BATCH_BACKTEST=1`，但用户在局域网临时研究时不知道如何执行。
+  - 修复：`scripts/start.sh` 新增显式参数 `--ENABLE_BACKTEST`；执行 `bash scripts/start.sh --ENABLE_BACKTEST` 会导出 `PAPER_ENABLE_BATCH_BACKTEST=1`，并向 `scripts/run_paper_status_web.py` 传入 `--enable-batch-backtest`。
+  - 默认不带参数时仍禁用批量回测，避免公网请求触发重计算或清空回测归档；启动摘要会显示 `批量回测 Web 功能: 已启用/默认禁用`。
+  - 已同步 `README.md` 与 `docs/UBUNTU_DEPLOY.md` 的使用说明；覆盖测试在 `tests/test_deploy_script.py`。
+
 - 2026-06-28 状态页持仓/交易记录关键价格列语义色：
   - 根据浏览器标注调整模拟交易看板：持仓表 `初始止损` 表头和值显示红色，`止盈激活价` 表头和值显示绿色，`USDT` 表头和值显示蓝色。
   - 同步调整全部模拟交易记录：`开仓价` 表头和值显示红色，`平仓价` 表头和值显示绿色，`USDT` 表头和值显示蓝色。
