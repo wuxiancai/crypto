@@ -60,10 +60,7 @@ def save_paper_snapshot(snapshot: PaperSnapshot, path: Path, max_fills: int | No
         existing_signal_evaluations = existing_payload.get("signal_evaluations")
         if isinstance(existing_signal_evaluations, list) and existing_signal_evaluations:
             payload["signal_evaluations"] = existing_signal_evaluations
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+    _write_json_atomic(path, payload)
 
 
 def load_paper_snapshot(path: Path) -> PaperSnapshot | None:
@@ -81,6 +78,16 @@ def _read_existing_state_payload(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.tmp")
+    tmp_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    tmp_path.replace(path)
 
 
 def _read_preserved_state_fields(payload: dict[str, Any]) -> dict[str, Any]:

@@ -263,14 +263,19 @@ class PaperTradingEngine:
         stop_distance = abs(entry_price - stop_loss)
         if stop_distance <= 0:
             raise ValueError("stop distance must be positive")
-        risk_pct = getattr(signal, "risk_pct", None) or self._config.risk_per_trade_pct
+        signal_risk_pct = getattr(signal, "risk_pct", None)
+        risk_pct = signal_risk_pct if signal_risk_pct is not None else self._config.risk_per_trade_pct
         risk_multiplier = getattr(signal, "risk_multiplier", Decimal("1"))
         if risk_multiplier < 0:
             risk_multiplier = Decimal("0")
         risk_pct = risk_pct * risk_multiplier
+        if risk_pct <= 0:
+            return None
         risk_quantity = self._equity * risk_pct / stop_distance
         max_notional_quantity = self._max_single_position_quantity(entry_price)
         quantity = min(risk_quantity, max_notional_quantity)
+        if quantity <= 0:
+            return None
         entry_fee = entry_price * quantity * self._config.taker_fee_rate
         estimated_stop_fee = stop_loss * quantity * self._config.taker_fee_rate
         planned_risk = stop_distance * quantity

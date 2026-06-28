@@ -355,6 +355,48 @@ def test_strategy_backtest_config_passes_trigger_options_to_realtime_config(monk
     assert captured["config"].enable_reversal_probe is False
 
 
+def test_strategy_backtest_passes_open_bucket_context_to_realtime_signal(monkeypatch):
+    from app.paper import strategy_backtest
+    from app.paper.strategy_backtest import StrategyBacktestConfig, run_strategy_backtest
+    from app.strategy.signal_router import StrategySignal
+
+    observed_contexts = []
+
+    async def fake_fetch_backtest_klines(config):
+        return [
+            _kline("BTCUSDT", "15m", 0, "100", high="102", low="98"),
+            _kline("BTCUSDT", "15m", 1, "100", high="102", low="98"),
+        ]
+
+    def fake_build_default_realtime_signal_fn(config, warmup_klines=()):
+        def signal_fn(kline, has_position, context=None):
+            observed_contexts.append(context)
+            if not has_position:
+                return StrategySignal(
+                    action="LONG_ENTRY",
+                    strategy_type="LONG_DAY_CORE",
+                    bucket="DAY_CORE",
+                    entry_price=Decimal("100"),
+                    stop_loss=Decimal("92"),
+                    take_profit=Decimal("116"),
+                    risk_pct=Decimal("0.005"),
+                    reason=["open core"],
+                )
+            return StrategySignal(action="WAIT", strategy_type="SYSTEM", reason=["inspect context"])
+
+        return signal_fn
+
+    monkeypatch.setattr(strategy_backtest, "_fetch_backtest_klines", fake_fetch_backtest_klines)
+    monkeypatch.setattr(strategy_backtest, "build_default_realtime_signal_fn", fake_build_default_realtime_signal_fn)
+
+    result = asyncio.run(run_strategy_backtest(StrategyBacktestConfig()))
+
+    assert result.error is None
+    assert observed_contexts[1] is not None
+    assert observed_contexts[1].open_buckets == ("DAY_CORE",)
+    assert observed_contexts[1].open_strategy_types == ("LONG_DAY_CORE",)
+
+
 def test_strategy_backtest_returns_error_when_historical_fetch_fails(monkeypatch):
     from app.data.binance import BinanceDataError
     from app.paper import strategy_backtest

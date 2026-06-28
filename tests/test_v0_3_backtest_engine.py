@@ -219,6 +219,109 @@ def test_backtest_executes_reversal_signal_and_reports_strategy_metrics():
     assert result.metrics.by_strategy["REVERSAL_PROBE"].net_pnl == Decimal("40.000")
 
 
+def test_backtest_rejects_explicit_zero_risk_signal():
+    from app.backtest.engine import BacktestConfig, run_backtest
+    from app.data.quality import Kline
+    from app.strategy.signal_router import StrategySignal
+
+    klines = [
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        )
+    ]
+
+    def signal_fn(kline: Kline, has_position: bool) -> StrategySignal:
+        return StrategySignal(
+            action="LONG_ENTRY",
+            strategy_type="TREND_PULLBACK",
+            entry_price=Decimal("100"),
+            stop_loss=Decimal("95"),
+            take_profit=Decimal("110"),
+            risk_pct=Decimal("0"),
+            reason=["blocked by upstream risk"],
+        )
+
+    result = run_backtest(
+        klines=klines,
+        signal_fn=signal_fn,
+        config=BacktestConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+        ),
+    )
+
+    assert result.trades == []
+    assert result.metrics.rejected_entries == 1
+
+
+def test_backtest_applies_signal_risk_multiplier():
+    from app.backtest.engine import BacktestConfig, run_backtest
+    from app.data.quality import Kline
+    from app.strategy.signal_router import StrategySignal
+
+    klines = [
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=0,
+            close_time=899_999,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        ),
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("100"),
+            high=Decimal("110"),
+            low=Decimal("99"),
+            close=Decimal("110"),
+            volume=Decimal("10"),
+        ),
+    ]
+
+    def signal_fn(kline: Kline, has_position: bool) -> StrategySignal:
+        if kline.open_time == 0 and not has_position:
+            return StrategySignal(
+                action="LONG_ENTRY",
+                strategy_type="TREND_PULLBACK",
+                entry_price=Decimal("100"),
+                stop_loss=Decimal("95"),
+                take_profit=Decimal("110"),
+                risk_multiplier=Decimal("0.5"),
+                reason=["half risk"],
+            )
+        return StrategySignal(action="WAIT", strategy_type="SYSTEM", reason=[])
+
+    result = run_backtest(
+        klines=klines,
+        signal_fn=signal_fn,
+        config=BacktestConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+        ),
+    )
+
+    assert result.trades[0].quantity == Decimal("10.000")
+    assert result.trades[0].net_pnl == Decimal("100.000")
+
+
 def test_backtest_uses_taker_fee_for_entry_and_maker_fee_for_take_profit():
     from app.backtest.engine import BacktestConfig, run_backtest
     from app.data.quality import Kline

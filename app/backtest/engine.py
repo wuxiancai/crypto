@@ -161,11 +161,20 @@ def _open_position(kline: Kline, signal: SignalLike, equity: Decimal, config: Ba
     if stop_distance <= 0:
         raise ValueError("stop distance must be positive")
 
-    risk_pct = getattr(signal, "risk_pct", None) or config.risk_per_trade_pct
+    signal_risk_pct = getattr(signal, "risk_pct", None)
+    risk_pct = signal_risk_pct if signal_risk_pct is not None else config.risk_per_trade_pct
+    risk_multiplier = getattr(signal, "risk_multiplier", Decimal("1"))
+    if risk_multiplier < 0:
+        risk_multiplier = Decimal("0")
+    risk_pct = risk_pct * risk_multiplier
+    if risk_pct <= 0:
+        return None
     risk_amount = equity * risk_pct
     quantity = _apply_quantity_step(risk_amount / stop_distance, config)
     fill_ratio = _fill_ratio(signal)
     quantity = quantity * fill_ratio
+    if quantity <= 0:
+        return None
     if _violates_exchange_filters(quantity, entry_price, config):
         return None
     entry_fee = entry_price * quantity * _taker_fee_rate(config)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
+import inspect
 import json
 from pathlib import Path
 import time
@@ -11,8 +12,9 @@ from app.data.binance import BinanceDataError, fetch_klines
 from app.data.quality import INTERVAL_MS, Kline
 from app.paper.live_runner import build_default_realtime_signal_fn
 from app.paper.persistence import _fill_to_payload
+from app.paper.stream import PaperSignalContext
 from app.paper.strategy_adapter import RealtimeStrategyConfig
-from app.paper.trading import PaperConfig, PaperTradingEngine
+from app.paper.trading import PaperConfig, PaperSnapshot, PaperTradingEngine
 
 
 @dataclass(frozen=True)
@@ -134,7 +136,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         if closed_fills:
             continue
         snapshot = engine.snapshot()
-        signal = signal_fn(kline, snapshot.open_position is not None)
+        signal = _call_backtest_signal_fn(signal_fn, kline, snapshot)
         engine.on_signal(kline=kline, signal=signal)
 
     snapshot = engine.snapshot()
@@ -164,6 +166,19 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         bucket_metrics=_bucket_metrics(snapshot.fills),
         error=None,
     )
+
+
+def _call_backtest_signal_fn(signal_fn, kline: Kline, snapshot: PaperSnapshot):
+    has_position = snapshot.open_position is not None
+    context = PaperSignalContext(open_positions=tuple(snapshot.open_positions))
+    signature = inspect.signature(signal_fn)
+    accepts_context = any(
+        parameter.kind == inspect.Parameter.VAR_POSITIONAL
+        for parameter in signature.parameters.values()
+    ) or len(signature.parameters) >= 3
+    if accepts_context:
+        return signal_fn(kline, has_position, context)
+    return signal_fn(kline, has_position)
 
 
 async def _fetch_backtest_klines(config: StrategyBacktestConfig) -> list[Kline]:

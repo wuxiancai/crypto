@@ -1,6 +1,6 @@
 # Handoff
 
-更新时间：2026-06-24
+更新时间：2026-06-28
 
 ## 当前状态
 
@@ -24,6 +24,13 @@
 - 模拟交易看板当前策略详情已从统计卡右侧移到四个统计卡下方；统计卡行恢复为 4 列，策略详情内部按 BTCUSDT / ETHUSDT 上下两行紧凑展示，避免横向滚动条和统计卡行被撑高。
 
 ## 本轮修复
+
+- 2026-06-28 继续交易链路体检后的补强：
+  - 策略回测入口现在会像实时 Paper 一样把 `PaperSignalContext` 传给实时信号函数；回测中的 ADDON / bucket 去重 / 已开仓策略判断不再因为缺少持仓上下文而和实时运行不一致。
+  - Paper 交易引擎与通用回测引擎都改为显式区分 `risk_pct=None` 和 `risk_pct=0`；上游风控明确给出 0 风险时会拒绝开仓，不再回退到默认风险比例。
+  - 通用回测引擎已支持 `risk_multiplier`，资金费率或风控降仓信号在回测中不再被忽略；负数乘数按 0 处理。
+  - Paper 状态文件和实时价格文件写入改为临时文件原子替换；状态页遇到损坏 JSON 会显示 `STATE_CORRUPT` 和可读错误，不再整页异常。
+  - 覆盖测试：`tests/test_v0_3_backtest_engine.py`、`tests/test_v1_0_strategy_backtest_runner.py`、`tests/test_v1_1_paper_strategy_buckets.py`、`tests/test_v1_0_paper_status_web.py`、`tests/test_v1_0_paper_persistence.py`、`tests/test_v1_0_real_market_paper_runner.py`、`tests/test_v1_0_persistent_paper_stream.py`。
 
 - 2026-06-28 交易逻辑审计后的亏损风险修复：
   - 回测事件回放改为按 K 线 `close_time` 排序，而不是 `open_time`；避免 1d / 4h / 1h 高周期 K 线在尚未收盘时提前进入策略缓存，造成未来函数和虚高回测收益。

@@ -216,6 +216,41 @@ def test_paper_trading_blocks_new_position_when_portfolio_risk_limit_is_exceeded
     assert snapshot.rejected_signals == 1
 
 
+def test_paper_trading_rejects_explicit_zero_risk_signal():
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.signal_router import StrategySignal
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            max_fee_to_risk_ratio=Decimal("0"),
+        )
+    )
+
+    position = engine.on_signal(
+        _kline(),
+        StrategySignal(
+            action="LONG_ENTRY",
+            strategy_type="LONG_DAY_CORE",
+            bucket="DAY_CORE",
+            entry_price=Decimal("100"),
+            stop_loss=Decimal("95"),
+            take_profit=Decimal("110"),
+            risk_pct=Decimal("0"),
+            reason=["blocked by upstream risk"],
+        ),
+    )
+
+    snapshot = engine.snapshot()
+    assert position is None
+    assert snapshot.open_positions == []
+    assert snapshot.rejected_signals == 1
+
+
 def test_paper_trading_blocks_entries_when_kill_switch_is_active():
     from app.execution.kill_switch import activate_kill_switch
     from app.paper.trading import PaperConfig, PaperTradingEngine

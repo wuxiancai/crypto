@@ -15,7 +15,7 @@ from app.paper.binance_stream import (
     iter_binance_websocket_ticker_prices,
 )
 from app.paper.multitimeframe import MultiTimeframeKlineCache
-from app.paper.persistence import _fill_to_payload, _position_to_payload, load_paper_snapshot
+from app.paper.persistence import _fill_to_payload, _position_to_payload, _write_json_atomic, load_paper_snapshot
 from app.paper.strategy_adapter import RealtimeStrategyConfig, build_realtime_strategy_signal
 from app.paper.stream import PaperSignalContext, PaperStreamEvent, PaperStreamEventSink, SignalFn, run_persistent_paper_kline_stream
 from app.paper.trading import PaperConfig, PaperSnapshot, SignalLike
@@ -198,11 +198,7 @@ def save_realtime_market_price(
         "source": "binance_ticker_ws",
     }
     payload["market_prices"] = market_prices
-    price_path.parent.mkdir(parents=True, exist_ok=True)
-    price_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+    _write_json_atomic(price_path, payload)
 
 
 def realtime_market_price_path(state_path: Path) -> Path:

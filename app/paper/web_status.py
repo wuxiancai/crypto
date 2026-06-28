@@ -37,7 +37,13 @@ def build_paper_status_payload(
             "system_metrics": _system_metrics_payload(state_path.parent, now_ms),
         }
 
-    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    payload = _read_status_state_payload(state_path)
+    if payload is None:
+        return _corrupt_state_payload(
+            state_path=state_path,
+            now_ms=now_ms,
+            error_log_path=error_log_path,
+        )
     started_at = payload.get("runtime_started_at_ms")
     signal_evaluations = payload.get("signal_evaluations", [])
     fills = payload.get("fills", [])
@@ -74,6 +80,44 @@ def build_paper_status_payload(
             fills=fills,
         ),
         "strategy_details": _strategy_details_from_payload(payload.get("strategy_details")),
+        "system_metrics": _system_metrics_payload(state_path.parent, now_ms),
+    }
+
+
+def _read_status_state_payload(state_path: Path) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _corrupt_state_payload(
+    *,
+    state_path: Path,
+    now_ms: int,
+    error_log_path: Path | None,
+) -> dict[str, Any]:
+    return {
+        "status": "STATE_CORRUPT",
+        "state_path": str(state_path),
+        "equity": None,
+        "open_position": None,
+        "open_positions": [],
+        "fills": [],
+        "rejected_signals": 0,
+        "runtime_seconds": 0,
+        "runtime_started_at_ms": None,
+        "current_time_ms": now_ms,
+        "initial_equity": "1000",
+        "last_update_at_ms": None,
+        "error_logs": [
+            f"Paper 状态文件不可解析：{state_path}",
+            *_read_error_logs(error_log_path),
+        ],
+        "signal_evaluations": [],
+        "market_prices": _stored_market_prices(_read_market_price_payload(state_path).get("market_prices")),
+        "strategy_details": _default_strategy_details(),
         "system_metrics": _system_metrics_payload(state_path.parent, now_ms),
     }
 
@@ -2928,6 +2972,8 @@ def _status_label(status: Any) -> str:
         return "运行中"
     if status == "WAITING_FOR_STATE":
         return "等待状态文件"
+    if status == "STATE_CORRUPT":
+        return "状态文件损坏"
     return _escape(status)
 
 

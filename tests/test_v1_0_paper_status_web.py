@@ -12,6 +12,21 @@ def test_paper_status_payload_marks_missing_state_file(tmp_path):
     assert payload["fills"] == []
 
 
+def test_paper_status_payload_marks_corrupt_state_file(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text('{"equity": "1000"', encoding="utf-8")
+
+    payload = build_paper_status_payload(state_path)
+    html = render_paper_status_html(payload)
+
+    assert payload["status"] == "STATE_CORRUPT"
+    assert payload["equity"] is None
+    assert "Paper 状态文件不可解析" in payload["error_logs"][0]
+    assert "状态文件损坏" in html
+
+
 def test_paper_status_html_shows_open_position_and_all_fills(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 
