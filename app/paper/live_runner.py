@@ -186,7 +186,8 @@ def save_realtime_market_price(
     price: TickerPrice,
     initial_equity: Decimal,
 ) -> None:
-    payload = _read_state_payload_for_market_price(state_path, initial_equity)
+    price_path = realtime_market_price_path(state_path)
+    payload = _read_state_payload_for_market_price(price_path, initial_equity)
     market_prices = payload.get("market_prices")
     if not isinstance(market_prices, dict):
         market_prices = {}
@@ -197,11 +198,15 @@ def save_realtime_market_price(
         "source": "binance_ticker_ws",
     }
     payload["market_prices"] = market_prices
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    state_path.write_text(
+    price_path.parent.mkdir(parents=True, exist_ok=True)
+    price_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+
+
+def realtime_market_price_path(state_path: Path) -> Path:
+    return state_path.with_name("paper-market-prices.json")
 
 
 def _read_state_payload_for_market_price(state_path: Path, initial_equity: Decimal) -> dict[str, Any]:
@@ -360,6 +365,7 @@ def _apply_funding_filter(
         return signal
     if result.decision == "WARN":
         risk_pct = signal.risk_pct * result.position_multiplier if signal.risk_pct is not None else None
+        risk_multiplier = Decimal("1") if signal.risk_pct is not None else result.position_multiplier
         return StrategySignal(
             action=signal.action,
             strategy_type=signal.strategy_type,
@@ -378,6 +384,7 @@ def _apply_funding_filter(
             signal_level=signal.signal_level,
             score=signal.score,
             risk_pct=risk_pct,
+            risk_multiplier=risk_multiplier,
             trailing_atr=signal.trailing_atr,
             max_standard_position_pct=signal.max_standard_position_pct,
             core_rules=signal.core_rules,
@@ -407,6 +414,7 @@ def _apply_funding_filter(
         signal_level=signal.signal_level,
         score=signal.score,
         risk_pct=signal.risk_pct,
+        risk_multiplier=signal.risk_multiplier,
         trailing_atr=signal.trailing_atr,
         max_standard_position_pct=signal.max_standard_position_pct,
         core_rules=signal.core_rules,
@@ -445,6 +453,7 @@ def _funding_stale_allow_signal(
         signal_level=signal.signal_level,
         score=signal.score,
         risk_pct=signal.risk_pct,
+        risk_multiplier=signal.risk_multiplier,
         trailing_atr=signal.trailing_atr,
         max_standard_position_pct=signal.max_standard_position_pct,
         core_rules=signal.core_rules,

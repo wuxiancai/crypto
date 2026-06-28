@@ -684,6 +684,45 @@ def test_paper_status_page_explains_missing_strategy_data_and_shows_price_ticker
     assert "暂无K线图数据：等待实时策略评估更新" in html
 
 
+def test_status_page_reads_realtime_prices_from_separate_state_file(tmp_path):
+    from app.paper.web_status import build_paper_status_payload, render_paper_status_html
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": None,
+                "fills": [],
+                "rejected_signals": 0,
+                "signal_evaluations": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "paper-market-prices.json").write_text(
+        json.dumps(
+            {
+                "market_prices": {
+                    "BTCUSDT": {
+                        "price": "63424.90",
+                        "event_time_ms": 1_710_000_000_000,
+                        "source": "binance_ticker_ws",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = build_paper_status_payload(state_path)
+    html = render_paper_status_html(payload)
+
+    assert payload["market_prices"] == {"BTCUSDT": "63424.90"}
+    assert "BTCUSDT 永续" in html
+    assert "63424.90" in html
+
+
 def test_paper_status_page_shows_latest_output_per_symbol_interval_and_chart(tmp_path):
     from app.paper.web_status import build_paper_status_payload, render_paper_status_html
 

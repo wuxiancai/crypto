@@ -114,6 +114,20 @@ def test_strategy_backtest_fetches_history_and_runs_current_realtime_strategy(mo
     assert result.trades[0]["strategy_type"] == "TREND_PULLBACK"
 
 
+def test_strategy_backtest_orders_multitimeframe_events_by_close_time():
+    from app.paper.strategy_backtest import _sort_backtest_klines_for_event_replay
+
+    daily = _kline("BTCUSDT", "1d", 0, "100")
+    fifteen_before_daily_close = _kline("BTCUSDT", "15m", 1, "101")
+    fifteen_after_daily_close = _kline("BTCUSDT", "15m", 96, "102")
+
+    ordered = _sort_backtest_klines_for_event_replay(
+        [fifteen_after_daily_close, daily, fifteen_before_daily_close]
+    )
+
+    assert ordered == [fifteen_before_daily_close, daily, fifteen_after_daily_close]
+
+
 def test_strategy_backtest_drawdown_metrics_follow_closed_equity_curve():
     from app.paper.strategy_backtest import _drawdown_metrics
     from app.paper.trading import PaperFill

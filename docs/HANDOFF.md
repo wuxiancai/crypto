@@ -25,6 +25,14 @@
 
 ## 本轮修复
 
+- 2026-06-28 交易逻辑审计后的亏损风险修复：
+  - 回测事件回放改为按 K 线 `close_time` 排序，而不是 `open_time`；避免 1d / 4h / 1h 高周期 K 线在尚未收盘时提前进入策略缓存，造成未来函数和虚高回测收益。
+  - 分层策略的 `LONG_4H_HEDGE` / `SHORT_4H_HEDGE` 已补齐 15m 入场确认、止损有效和防追单过滤；对冲仓不再只凭日线背景 + 4h/1h 方向直接开仓。
+  - Binance ticker 实时价格写入独立 `paper-market-prices.json`，状态页优先读取该文件并保留旧 `paper-state.json.market_prices` 兼容；避免价格任务与交易快照任务并发写同一状态文件，覆盖持仓/成交/权益。
+  - Paper 持仓运行中新增估算强平触发检查；当 K 线跨过估算强平价时按 `LIQUIDATION` 出场，且优先于普通止损，降低极端行情下回测/Paper 低估亏损的问题。
+  - Funding WARN 对没有显式 `risk_pct` 的兼容旧信号也会通过 `risk_multiplier` 减半默认风险；分层信号仍直接减半其显式 `risk_pct`。
+  - 覆盖测试：`tests/test_v1_0_strategy_backtest_runner.py`、`tests/test_v1_1_layered_entry_filters.py`、`tests/test_v1_0_real_market_paper_runner.py`、`tests/test_v1_1_paper_strategy_buckets.py`、`tests/test_v1_0_paper_status_web.py`。
+
 - 2026-06-28 `start.sh --ENABLE_BACKTEST` 局域网批量回测开关：
   - 背景：Web 批量回测默认禁用，页面会提示设置 `PAPER_ENABLE_BATCH_BACKTEST=1`，但用户在局域网临时研究时不知道如何执行。
   - 修复：`scripts/start.sh` 新增显式参数 `--ENABLE_BACKTEST`；执行 `bash scripts/start.sh --ENABLE_BACKTEST` 会导出 `PAPER_ENABLE_BATCH_BACKTEST=1`，并向 `scripts/run_paper_status_web.py` 传入 `--enable-batch-backtest`。

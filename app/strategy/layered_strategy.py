@@ -145,16 +145,18 @@ def build_layered_strategy_decision(
             diagnostics.extend(_trend_diagnostics(LONG_4H_HEDGE, "日线空头", strategy_input.daily, "DOWN", effective_config, strategy_input.daily_regime))
             diagnostics.extend(_trend_diagnostics(LONG_4H_HEDGE, "4h 多头", strategy_input.four_hour, "UP", effective_config, strategy_input.four_hour_regime))
             diagnostics.extend(_trend_diagnostics(LONG_4H_HEDGE, "1h 多头", strategy_input.one_hour, "UP", effective_config, strategy_input.one_hour_regime))
-            hedge_signal = _long_signal(
-                strategy_type=LONG_4H_HEDGE,
-                bucket=FOUR_HOUR_HEDGE,
-                entry=strategy_input.entry,
-                risk_pct=effective_config.hedge_risk_pct,
-                config=effective_config,
-                reason=["daily bearish", "4h/1h bullish hedge"],
-            )
-            if hedge_signal is not None:
-                signal = hedge_signal
+            diagnostics.extend(_entry_diagnostics(LONG_4H_HEDGE, "15m 多头", strategy_input.entry, "UP", effective_config))
+            if _bullish_entry(strategy_input.entry, effective_config):
+                hedge_signal = _long_signal(
+                    strategy_type=LONG_4H_HEDGE,
+                    bucket=FOUR_HOUR_HEDGE,
+                    entry=strategy_input.entry,
+                    risk_pct=effective_config.hedge_risk_pct,
+                    config=effective_config,
+                    reason=["daily bearish", "4h/1h bullish hedge", "15m bullish entry"],
+                )
+                if hedge_signal is not None:
+                    signal = hedge_signal
     elif daily_long:
         candidates.append(LONG_DAY_CORE)
         diagnostics.extend(
@@ -195,16 +197,18 @@ def build_layered_strategy_decision(
             diagnostics.extend(_trend_diagnostics(SHORT_4H_HEDGE, "日线多头", strategy_input.daily, "UP", effective_config, strategy_input.daily_regime))
             diagnostics.extend(_trend_diagnostics(SHORT_4H_HEDGE, "4h 空头", strategy_input.four_hour, "DOWN", effective_config, strategy_input.four_hour_regime))
             diagnostics.extend(_trend_diagnostics(SHORT_4H_HEDGE, "1h 空头", strategy_input.one_hour, "DOWN", effective_config, strategy_input.one_hour_regime))
-            hedge_signal = _short_signal(
-                strategy_type=SHORT_4H_HEDGE,
-                bucket=FOUR_HOUR_HEDGE,
-                entry=strategy_input.entry,
-                risk_pct=effective_config.hedge_risk_pct,
-                config=effective_config,
-                reason=["daily bullish", "4h/1h bearish hedge"],
-            )
-            if hedge_signal is not None:
-                signal = hedge_signal
+            diagnostics.extend(_entry_diagnostics(SHORT_4H_HEDGE, "15m 空头", strategy_input.entry, "DOWN", effective_config))
+            if _bearish_entry(strategy_input.entry, effective_config):
+                hedge_signal = _short_signal(
+                    strategy_type=SHORT_4H_HEDGE,
+                    bucket=FOUR_HOUR_HEDGE,
+                    entry=strategy_input.entry,
+                    risk_pct=effective_config.hedge_risk_pct,
+                    config=effective_config,
+                    reason=["daily bullish", "4h/1h bearish hedge", "15m bearish entry"],
+                )
+                if hedge_signal is not None:
+                    signal = hedge_signal
     else:
         if _bearish_basis(strategy_input.daily):
             candidates.append(SHORT_DAY_CORE)

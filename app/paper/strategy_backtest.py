@@ -185,7 +185,30 @@ async def _fetch_backtest_klines(config: StrategyBacktestConfig) -> list[Kline]:
                     config.history_cache_dir,
                 )
             )
-    return sorted(historical, key=lambda kline: (kline.open_time, kline.symbol, kline.interval))
+    return _sort_backtest_klines_for_event_replay(historical)
+
+
+def _sort_backtest_klines_for_event_replay(klines: list[Kline]) -> list[Kline]:
+    return sorted(
+        klines,
+        key=lambda kline: (
+            kline.close_time,
+            _interval_replay_rank(kline.interval),
+            kline.symbol,
+            kline.open_time,
+        ),
+    )
+
+
+def _interval_replay_rank(interval: str) -> int:
+    ranks = {
+        "1d": 0,
+        "4h": 1,
+        "1h": 2,
+        "15m": 3,
+        "5m": 4,
+    }
+    return ranks.get(interval, 99)
 
 
 async def _fetch_interval_pages(

@@ -492,6 +492,7 @@ def _attach_realtime_diagnostics(
         signal_level=signal.signal_level,
         score=signal.score,
         risk_pct=signal.risk_pct,
+        risk_multiplier=signal.risk_multiplier,
         trailing_atr=signal.trailing_atr,
         max_standard_position_pct=signal.max_standard_position_pct,
         core_rules=_core_rules(frame=frame, config=config),

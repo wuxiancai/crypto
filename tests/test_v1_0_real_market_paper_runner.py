@@ -115,7 +115,11 @@ def test_realtime_price_update_writes_binance_ticker_price_to_state(tmp_path):
     import json
 
     from app.paper.binance_stream import TickerPrice
-    from app.paper.live_runner import RealMarketPaperConfig, run_realtime_price_updates
+    from app.paper.live_runner import (
+        RealMarketPaperConfig,
+        realtime_market_price_path,
+        run_realtime_price_updates,
+    )
 
     state_path = tmp_path / "paper-state.json"
 
@@ -140,11 +144,58 @@ def test_realtime_price_update_writes_binance_ticker_price_to_state(tmp_path):
         )
     )
 
-    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    payload = json.loads(realtime_market_price_path(state_path).read_text(encoding="utf-8"))
 
     assert payload["market_prices"]["BTCUSDT"]["price"] == "63424.90"
     assert payload["market_prices"]["BTCUSDT"]["event_time_ms"] == 1_710_000_000_000
     assert payload["market_prices"]["BTCUSDT"]["source"] == "binance_ticker_ws"
+
+
+def test_realtime_market_price_updates_use_separate_state_file(tmp_path):
+    import json
+
+    from app.paper.binance_stream import TickerPrice
+    from app.paper.live_runner import realtime_market_price_path, save_realtime_market_price
+
+    state_path = tmp_path / "paper-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "equity": "1000",
+                "open_position": {
+                    "symbol": "BTCUSDT",
+                    "side": "LONG",
+                    "strategy_type": "LONG_DAY_CORE",
+                    "entry_time": 1,
+                    "entry_price": "100",
+                    "stop_loss": "95",
+                    "take_profit": "110",
+                    "quantity": "1",
+                    "entry_fee": "0",
+                },
+                "fills": [],
+                "rejected_signals": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    save_realtime_market_price(
+        state_path=state_path,
+        price=TickerPrice(
+            symbol="BTCUSDT",
+            price=Decimal("63424.90"),
+            event_time_ms=1_710_000_000_000,
+        ),
+        initial_equity=Decimal("1000"),
+    )
+
+    paper_payload = json.loads(state_path.read_text(encoding="utf-8"))
+    price_payload = json.loads(realtime_market_price_path(state_path).read_text(encoding="utf-8"))
+
+    assert paper_payload["open_position"]["strategy_type"] == "LONG_DAY_CORE"
+    assert "market_prices" not in paper_payload
+    assert price_payload["market_prices"]["BTCUSDT"]["price"] == "63424.90"
 
 
 def test_real_market_paper_config_defaults_to_perpetual_costs_and_10x_leverage(tmp_path):
@@ -326,6 +377,63 @@ def test_funding_warn_keeps_signal_with_reduced_risk_pct():
     assert filtered.risk_pct == Decimal("0.0025")
     assert "funding_rate_warn" in filtered.reason
     assert filtered.nearest_strategy["position_multiplier"] == "0.5"
+
+
+def test_funding_warn_reduces_default_risk_when_signal_has_no_explicit_risk_pct():
+    from app.data.binance import FundingSnapshot
+    from app.data.quality import Kline
+    from app.paper.live_runner import _apply_funding_filter
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.signal_router import StrategySignal
+
+    kline = Kline(
+        symbol="BTCUSDT",
+        interval="15m",
+        open_time=0,
+        close_time=899_999,
+        open=Decimal("100"),
+        high=Decimal("101"),
+        low=Decimal("99"),
+        close=Decimal("100"),
+        volume=Decimal("10"),
+    )
+    signal = StrategySignal(
+        action="LONG_ENTRY",
+        strategy_type="TREND_PULLBACK",
+        entry_price=Decimal("100"),
+        stop_loss=Decimal("92"),
+        take_profit=Decimal("116"),
+        reason=["entry"],
+    )
+
+    filtered = _apply_funding_filter(
+        signal,
+        kline,
+        {
+            "BTCUSDT": FundingSnapshot(
+                symbol="BTCUSDT",
+                last_funding_rate=Decimal("0.0006"),
+                next_funding_time=kline.close_time + 60 * 60 * 1000,
+                event_time=kline.close_time,
+            )
+        },
+    )
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            max_fee_to_risk_ratio=Decimal("0"),
+        )
+    )
+
+    position = engine.on_signal(kline, filtered)
+
+    assert getattr(filtered, "risk_multiplier") == Decimal("0.5")
+    assert position is not None
+    assert position.quantity == Decimal("6.25")
 
 
 def test_real_market_paper_runner_writes_strategy_details_to_state(tmp_path):

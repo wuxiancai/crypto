@@ -264,6 +264,10 @@ class PaperTradingEngine:
         if stop_distance <= 0:
             raise ValueError("stop distance must be positive")
         risk_pct = getattr(signal, "risk_pct", None) or self._config.risk_per_trade_pct
+        risk_multiplier = getattr(signal, "risk_multiplier", Decimal("1"))
+        if risk_multiplier < 0:
+            risk_multiplier = Decimal("0")
+        risk_pct = risk_pct * risk_multiplier
         risk_quantity = self._equity * risk_pct / stop_distance
         max_notional_quantity = self._max_single_position_quantity(entry_price)
         quantity = min(risk_quantity, max_notional_quantity)
@@ -380,6 +384,9 @@ class PaperTradingEngine:
         return False
 
     def _maybe_close_position(self, position: PaperPosition, kline: Kline) -> PaperFill | None:
+        liquidation_fill = self._liquidation_fill(position, kline)
+        if liquidation_fill is not None:
+            return liquidation_fill
         if position.side == "LONG":
             if kline.low <= position.stop_loss:
                 # Gap-aware fill: if the bar opens below the stop, fill at the
@@ -409,6 +416,26 @@ class PaperTradingEngine:
         if kline.low <= position.take_profit:
             return self._handle_take_profit(position, kline)
         self._replace_position(position, _trail_position(position, kline, self._config))
+        return None
+
+    def _liquidation_fill(self, position: PaperPosition, kline: Kline) -> PaperFill | None:
+        liquidation_price = _estimated_liquidation_price(position)
+        if position.side == "LONG" and kline.low <= liquidation_price:
+            return self._close_position(
+                position,
+                kline,
+                liquidation_price,
+                "LIQUIDATION",
+                "强平风险：最低价触达估算强平价",
+            )
+        if position.side == "SHORT" and kline.high >= liquidation_price:
+            return self._close_position(
+                position,
+                kline,
+                liquidation_price,
+                "LIQUIDATION",
+                "强平风险：最高价触达估算强平价",
+            )
         return None
 
     def _handle_take_profit(self, position: PaperPosition, kline: Kline) -> PaperFill | None:

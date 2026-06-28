@@ -185,3 +185,68 @@ def test_long_entry_uses_symmetric_filters():
         if item.get("strategy") == "LONG_DAY_CORE"
     }
     assert statuses["4h 多头当前价格未跌破快线"]["passed"] is False
+
+
+def test_hedge_entry_uses_15m_confirmation_and_overextension_filters():
+    bearish_daily_bullish_lower = LayeredStrategyInput(
+        symbol="BTCUSDT",
+        daily=_snapshot("SHORT"),
+        four_hour=_snapshot("LONG"),
+        one_hour=_snapshot("LONG"),
+        entry=LayeredEntryFrame(
+            close=Decimal("71200"),
+            open=Decimal("71100"),
+            high=Decimal("71300"),
+            low=Decimal("71000"),
+            fast_ma=Decimal("70000"),
+            atr=Decimal("300"),
+            recent_swing_low=Decimal("69000"),
+            recent_swing_high=Decimal("71500"),
+        ),
+        daily_regime=TrendRegime("SHORT", 1000),
+        four_hour_regime=TrendRegime("LONG", 2000),
+        one_hour_regime=TrendRegime("LONG", 3000),
+    )
+    long_hedge = build_layered_strategy_decision(
+        bearish_daily_bullish_lower,
+        LayeredStrategyConfig(),
+    )
+
+    bullish_daily_bearish_lower = LayeredStrategyInput(
+        symbol="BTCUSDT",
+        daily=_snapshot("LONG"),
+        four_hour=_snapshot("SHORT"),
+        one_hour=_snapshot("SHORT"),
+        entry=LayeredEntryFrame(
+            close=Decimal("68800"),
+            open=Decimal("68900"),
+            high=Decimal("69000"),
+            low=Decimal("68700"),
+            fast_ma=Decimal("70000"),
+            atr=Decimal("300"),
+            recent_swing_low=Decimal("68500"),
+            recent_swing_high=Decimal("71000"),
+        ),
+        daily_regime=TrendRegime("LONG", 1000),
+        four_hour_regime=TrendRegime("SHORT", 2000),
+        one_hour_regime=TrendRegime("SHORT", 3000),
+    )
+    short_hedge = build_layered_strategy_decision(
+        bullish_daily_bearish_lower,
+        LayeredStrategyConfig(),
+    )
+
+    assert long_hedge.signal is None
+    assert short_hedge.signal is None
+    long_statuses = {
+        str(item["text"]): item
+        for item in long_hedge.diagnostics
+        if item.get("strategy") == "LONG_4H_HEDGE"
+    }
+    short_statuses = {
+        str(item["text"]): item
+        for item in short_hedge.diagnostics
+        if item.get("strategy") == "SHORT_4H_HEDGE"
+    }
+    assert long_statuses["15m 多头禁止追多"]["passed"] is False
+    assert short_statuses["15m 空头禁止追空"]["passed"] is False

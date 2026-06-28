@@ -295,6 +295,44 @@ def test_paper_trading_blocks_entry_when_stop_is_too_close_to_liquidation_price(
     assert engine.snapshot().rejected_signals == 1
 
 
+def test_paper_trading_liquidates_position_before_stop_when_price_crosses_liquidation():
+    from app.data.quality import Kline
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("10000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0"),
+            slippage_pct=Decimal("0"),
+            leverage=Decimal("10"),
+            max_fee_to_risk_ratio=Decimal("0"),
+        )
+    )
+    engine.on_signal(
+        _kline(),
+        _signal("LONG_ENTRY", "LONG_DAY_CORE", "95", "110", "DAY_CORE"),
+    )
+
+    fills = engine.on_kline_all(
+        Kline(
+            symbol="BTCUSDT",
+            interval="15m",
+            open_time=900_000,
+            close_time=1_799_999,
+            open=Decimal("89"),
+            high=Decimal("91"),
+            low=Decimal("88"),
+            close=Decimal("90"),
+            volume=Decimal("10"),
+        )
+    )
+
+    assert fills[0].exit_reason == "LIQUIDATION"
+    assert fills[0].exit_price == Decimal("90")
+
+
 def test_paper_trading_exits_opposite_day_core_when_new_daily_core_signal_arrives():
     from app.paper.trading import PaperConfig, PaperTradingEngine
 

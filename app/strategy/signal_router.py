@@ -22,6 +22,7 @@ class StrategySignal:
     signal_level: str | None = None
     score: Decimal | None = None
     risk_pct: Decimal | None = None
+    risk_multiplier: Decimal = Decimal("1")
     trailing_atr: Decimal | None = None
     max_standard_position_pct: Decimal | None = None
     core_rules: list[str] = field(default_factory=list)
@@ -70,6 +71,7 @@ def _from_candidate(signal: EntryCandidate) -> StrategySignal:
         signal_level=getattr(signal, "signal_level", None),
         score=getattr(signal, "score", None),
         risk_pct=getattr(signal, "risk_pct", None),
+        risk_multiplier=getattr(signal, "risk_multiplier", Decimal("1")),
         trailing_atr=getattr(signal, "trailing_atr", None) or getattr(signal, "atr", None),
         max_standard_position_pct=getattr(signal, "max_standard_position_pct", None),
         reason=signal.reason,

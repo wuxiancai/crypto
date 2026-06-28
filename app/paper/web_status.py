@@ -65,7 +65,8 @@ def build_paper_status_payload(
             active_after_ms=_int_or_none(payload.get("last_update_at_ms")),
         ),
         "signal_evaluations": signal_evaluations,
-        "market_prices": _stored_market_prices(payload.get("market_prices"))
+        "market_prices": _stored_market_prices(_read_market_price_payload(state_path).get("market_prices"))
+        or _stored_market_prices(payload.get("market_prices"))
         or _latest_market_prices(
             evaluations=signal_evaluations,
             open_position=open_position,
@@ -75,6 +76,17 @@ def build_paper_status_payload(
         "strategy_details": _strategy_details_from_payload(payload.get("strategy_details")),
         "system_metrics": _system_metrics_payload(state_path.parent, now_ms),
     }
+
+
+def _read_market_price_payload(state_path: Path) -> dict[str, Any]:
+    price_path = state_path.with_name("paper-market-prices.json")
+    if not price_path.exists():
+        return {}
+    try:
+        payload = json.loads(price_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def render_paper_status_html(payload: dict[str, Any]) -> str:
