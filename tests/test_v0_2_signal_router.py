@@ -2,8 +2,8 @@ from decimal import Decimal
 
 
 def test_exit_signal_takes_priority_over_new_entries():
-    from app.strategy.pullback_strategy import TradeSignal
-    from app.strategy.reversal_strategy import ReversalSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
+    from app.strategy.signal_router import StrategySignal as ReversalSignal
     from app.strategy.signal_router import SignalInputs, StrategySignal, select_signal
 
     decision = select_signal(
@@ -39,7 +39,7 @@ def test_exit_signal_takes_priority_over_new_entries():
 
 
 def test_risk_block_prevents_new_entries_after_exit_check():
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
     from app.strategy.signal_router import SignalInputs, select_signal
 
     decision = select_signal(
@@ -62,8 +62,8 @@ def test_risk_block_prevents_new_entries_after_exit_check():
 
 
 def test_main_signal_takes_priority_over_reversal_signal():
-    from app.strategy.pullback_strategy import TradeSignal
-    from app.strategy.reversal_strategy import ReversalSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
+    from app.strategy.signal_router import StrategySignal as ReversalSignal
     from app.strategy.signal_router import SignalInputs, select_signal
 
     decision = select_signal(
@@ -115,7 +115,7 @@ def test_data_sync_block_runs_before_all_signals():
 
 
 def test_reversal_signal_preserves_risk_fields_for_paper_execution():
-    from app.strategy.reversal_strategy import ReversalSignal
+    from app.strategy.signal_router import StrategySignal as ReversalSignal
     from app.strategy.signal_router import SignalInputs, select_signal
 
     decision = select_signal(

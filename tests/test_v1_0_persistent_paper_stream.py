@@ -7,7 +7,7 @@ def test_persistent_paper_stream_restores_state_and_saves_after_each_kline(tmp_p
     from app.paper.persistence import load_paper_snapshot, save_paper_snapshot
     from app.paper.stream import run_persistent_paper_kline_stream
     from app.paper.trading import PaperConfig, PaperPosition, PaperSnapshot
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     state_path = tmp_path / "paper-state.json"
     save_paper_snapshot(
@@ -83,7 +83,7 @@ def test_persistent_paper_stream_does_not_reenter_on_same_kline_after_exit(tmp_p
     from app.paper.persistence import save_paper_snapshot
     from app.paper.stream import run_persistent_paper_kline_stream
     from app.paper.trading import PaperConfig, PaperPosition, PaperSnapshot
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     state_path = tmp_path / "paper-state.json"
     save_paper_snapshot(
@@ -156,7 +156,7 @@ def test_persistent_paper_stream_keeps_strategy_evaluation_after_exit(tmp_path):
     from app.paper.persistence import load_paper_snapshot, save_paper_snapshot
     from app.paper.stream import run_persistent_paper_kline_stream
     from app.paper.trading import PaperConfig, PaperPosition, PaperSignalEvaluation, PaperSnapshot
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     state_path = tmp_path / "paper-state.json"
     save_paper_snapshot(
@@ -309,7 +309,7 @@ def test_persistent_paper_stream_records_wait_signal_reason(tmp_path):
     from app.paper.persistence import load_paper_snapshot
     from app.paper.stream import run_persistent_paper_kline_stream
     from app.paper.trading import PaperConfig
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     state_path = tmp_path / "paper-state.json"
 

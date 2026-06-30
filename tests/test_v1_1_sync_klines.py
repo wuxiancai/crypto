@@ -3,12 +3,12 @@ from decimal import Decimal
 import sys
 
 
-def test_sync_klines_defaults_include_layered_strategy_intervals():
+def test_sync_klines_defaults_include_weekly_daily_h4_intervals():
     from scripts.sync_klines import DEFAULT_SYNC_INTERVALS, parse_args
 
-    assert DEFAULT_SYNC_INTERVALS == ("1d", "4h", "1h", "15m")
+    assert DEFAULT_SYNC_INTERVALS == ("1w", "1d", "4h")
     args = parse_args([])
-    assert args.intervals == ["1d", "4h", "1h", "15m"]
+    assert args.intervals == ["1w", "1d", "4h"]
 
 
 def test_sync_klines_dry_run_fetches_each_symbol_interval_without_writing(monkeypatch, capsys):

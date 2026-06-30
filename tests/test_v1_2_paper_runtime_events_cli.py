@@ -44,4 +44,4 @@ def test_formats_paper_runtime_events_for_replay_cli():
 def test_formats_empty_paper_runtime_events():
     from scripts.show_paper_runtime_events import format_paper_runtime_events
 
-    assert format_paper_runtime_events([]) == "暂无 Paper Runtime 复盘事件"
+    assert format_paper_runtime_events([]) == "暂无 Paper Runtime 复盘事件（可按层级过滤）"

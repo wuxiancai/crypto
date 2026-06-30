@@ -1,6 +1,6 @@
 # Handoff
 
-更新时间：2026-06-30
+更新时间：2026-07-01
 
 ## 当前状态
 
@@ -28,6 +28,7 @@
 - 2026-06-30 已开始执行策略内核升级，工作分支为 `codex/weekly-daily-h4-kernel`。用户要求新版内核必须百分百作为系统执行主线，旧内核运行入口删除；实现时必须使用独立模块承载 `WEEKLY_DAILY_H4_V1`，避免后续升级和旧 `LAYERED_DAILY_V1` 混乱。
 - 2026-06-30 策略内核升级已进入代码落地：新增 `position_hierarchy.py`、`trade_controls.py`、`weekly_daily_h4_strategy.py`；`strategy_adapter.py` 已收敛为只调用 `WEEKLY_DAILY_H4_V1`；`scripts/start.sh`、`scripts/run_paper_realtime.py`、`scripts/sync_klines.py`、`strategy_backtest.py` 已切换到 `1w / 1d / 4h`；旧 `app/strategy/layered_strategy.py`、旧 pullback/reversal/trend detector 策略模块、旧 layered 验证脚本和旧策略恢复脚本已删除。旧 v0/v1 策略测试仍会因断言旧内核行为而失败，后续应归档或重写为 v2 测试，不可再用作当前策略内核验收。
 - 2026-06-30 已完成新内核周边模块适配：回测归档 payload 写入 `strategy_kernel=WEEKLY_DAILY_H4_V1` 和 `timeframes=1w,1d,4h`；批量回测网格改为 `1w / 1d / 4h` 并移除旧 Reversal/Zone/CloseBeyond 参数；`/backtest`、`/backtest/batch`、Paper 事件 CLI、实时启动脚本和策略详情展示均不再暴露旧内核参数，对外统一使用“层级”而非 Bucket。新增 v2 适配测试 `tests/test_v2_0_backtest_weekly_daily_h4_adaptation.py`，当前 v2 测试全部通过。
+- 2026-07-01 已完成剩余收口：旧 v0/v1 策略测试已归档到 `docs/archived-tests/2026-07-01-legacy-strategy-tests/` 或改写为新内核断言；全量 pytest 为 `209 passed`。真实运行态 smoke 已验证 Binance Futures `BTCUSDT 1w/1d/4h` dry-run、真实 K 线回测、SQLite 回测归档摘要、本地 HTTP `/backtest` 与 `/backtest/batch` 均输出 `WEEKLY_DAILY_H4_V1`，且页面不再出现旧 Reversal/Bucket/分层策略文案。
 
 ## 本轮修复
 

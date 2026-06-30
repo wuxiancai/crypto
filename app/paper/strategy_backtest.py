@@ -69,8 +69,6 @@ class StrategyBacktestResult:
 class StrategyBacktestRunSummary:
     created_at: datetime
     symbol: str
-    strategy_kernel: str
-    timeframes: str
     fast_ma_type: str
     fast_period: int
     slow_ma_type: str
@@ -90,6 +88,8 @@ class StrategyBacktestRunSummary:
     max_drawdown_pct: str = "0.00"
     profit_loss_ratio: str = "0.00"
     trend_pullback_take_profit_mode: str = "TRAILING"
+    strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
+    timeframes: str = "1w,1d,4h"
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
 
 

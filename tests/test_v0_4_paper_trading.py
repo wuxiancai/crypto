@@ -4,7 +4,7 @@ from decimal import Decimal
 def test_paper_trading_opens_and_closes_long_position():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         config=PaperConfig(
@@ -69,7 +69,7 @@ def test_paper_trading_opens_and_closes_long_position():
 def test_trend_pullback_locks_one_r_then_uses_two_r_step_fallback_without_atr():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         config=PaperConfig(
@@ -100,6 +100,7 @@ def test_trend_pullback_locks_one_r_then_uses_two_r_step_fallback_without_atr():
             take_profit=Decimal("90"),
             risk_reward=Decimal("2"),
             reason=["paper short"],
+            strategy_kernel="WEEKLY_DAILY_H4_V1",
         ),
     )
 
@@ -216,6 +217,7 @@ def test_layered_day_core_locks_one_r_then_uses_two_r_step_fallback_without_atr(
             stop_loss=Decimal("105"),
             take_profit=Decimal("90"),
             risk_pct=Decimal("0.01"),
+            strategy_kernel="WEEKLY_DAILY_H4_V1",
         ),
     )
 
@@ -301,7 +303,7 @@ def test_layered_day_core_locks_one_r_then_uses_two_r_step_fallback_without_atr(
 def test_long_trend_pullback_locks_one_r_then_uses_two_r_step_fallback_without_atr():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         config=PaperConfig(
@@ -332,6 +334,7 @@ def test_long_trend_pullback_locks_one_r_then_uses_two_r_step_fallback_without_a
             take_profit=Decimal("110"),
             risk_reward=Decimal("2"),
             reason=["paper long"],
+            strategy_kernel="WEEKLY_DAILY_H4_V1",
         ),
     )
 
@@ -411,7 +414,7 @@ def test_long_trend_pullback_locks_one_r_then_uses_two_r_step_fallback_without_a
 def test_trailing_take_profit_uses_r_floor_and_dynamic_atr_stop():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         config=PaperConfig(
@@ -445,6 +448,7 @@ def test_trailing_take_profit_uses_r_floor_and_dynamic_atr_stop():
             risk_reward=Decimal("2"),
             reason=["paper long"],
             trailing_atr=Decimal("2"),
+            strategy_kernel="WEEKLY_DAILY_H4_V1",
         ),
     )
 
@@ -509,7 +513,7 @@ def test_trailing_take_profit_uses_r_floor_and_dynamic_atr_stop():
 def test_paper_trading_blocks_second_position_until_first_closes():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         config=PaperConfig(
@@ -549,7 +553,7 @@ def test_paper_trading_blocks_second_position_until_first_closes():
 def test_paper_trading_ignores_exit_klines_from_other_symbols_and_timeframes():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         config=PaperConfig(
@@ -634,7 +638,7 @@ def test_paper_trading_ignores_exit_klines_from_other_symbols_and_timeframes():
 def test_paper_trading_accepts_reversal_signal_with_signal_risk_cap():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.reversal_strategy import ReversalSignal
+    from app.strategy.signal_router import StrategySignal as ReversalSignal
 
     engine = PaperTradingEngine(
         config=PaperConfig(
@@ -684,7 +688,7 @@ def test_paper_trading_accepts_reversal_signal_with_signal_risk_cap():
 def test_paper_trading_defaults_to_perpetual_contract_costs_and_10x_leverage():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     config = PaperConfig(
         initial_equity=Decimal("1000"),
@@ -729,7 +733,7 @@ def test_paper_trading_defaults_to_perpetual_contract_costs_and_10x_leverage():
 def test_paper_trading_rejects_entry_when_estimated_fees_are_too_high_for_planned_risk():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         config=PaperConfig(
@@ -776,7 +780,7 @@ def test_paper_trading_blocks_entries_when_kill_switch_is_active():
     from app.data.quality import Kline
     from app.execution.kill_switch import activate_kill_switch
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         PaperConfig(
@@ -822,7 +826,7 @@ def test_paper_trading_closes_open_positions_when_kill_switch_requests_close():
     from app.data.quality import Kline
     from app.execution.kill_switch import activate_kill_switch
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     base_config = PaperConfig(
         initial_equity=Decimal("1000"),
@@ -894,7 +898,7 @@ def test_paper_trading_closes_open_positions_when_kill_switch_requests_close():
 def test_paper_trading_rejects_entry_when_liquidation_guard_fails():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         PaperConfig(
@@ -938,7 +942,7 @@ def test_paper_trading_rejects_entry_when_liquidation_guard_fails():
 def test_paper_trading_rejects_entry_when_stop_order_guard_fails():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         PaperConfig(
@@ -980,7 +984,7 @@ def test_paper_trading_rejects_entry_when_stop_order_guard_fails():
 def test_paper_trading_applies_funding_every_eight_hours():
     from app.data.quality import Kline
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = PaperTradingEngine(
         config=PaperConfig(

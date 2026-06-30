@@ -154,8 +154,8 @@ def test_compose_limits_postgres_resources_for_small_ubuntu_host():
     assert "max_connections=30" in content
 
 
-def test_ubuntu_start_subscribes_layered_strategy_intervals():
+def test_ubuntu_start_subscribes_weekly_daily_h4_intervals():
     content = Path("scripts/start.sh").read_text(encoding="utf-8")
 
-    assert "--intervals 5m 15m 1h 4h 1d" in content
-    assert "--enable-layered-strategy" in content
+    assert "--intervals 1w 1d 4h" in content
+    assert "--enable-layered-strategy" not in content
