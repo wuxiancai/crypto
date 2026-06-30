@@ -10,6 +10,7 @@ PORT_ENV="$ROOT_DIR/.env.ports.generated"
 REGENERATE_PORTS="${REGENERATE_PORTS:-0}"
 START_MODE="${START_MODE:-background}"
 KLINE_SYNC_LIMIT="${KLINE_SYNC_LIMIT:-800}"
+KLINE_SYNC_WEEKLY_LIMIT="${KLINE_SYNC_WEEKLY_LIMIT:-159}"
 KLINE_SYNC_STRICT_ON_START="${KLINE_SYNC_STRICT_ON_START:-0}"
 BINANCE_CONNECTIVITY_CHECK_ON_START="${BINANCE_CONNECTIVITY_CHECK_ON_START:-1}"
 BINANCE_CONNECT_TIMEOUT="${BINANCE_CONNECT_TIMEOUT:-10}"
@@ -209,7 +210,12 @@ sync_required_klines() {
   echo "检查并补齐策略所需 K 线数据..."
   if DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" scripts/sync_klines.py \
     --symbols BTCUSDT ETHUSDT \
-    --intervals 1w 1d 4h \
+    --intervals 1w \
+    --limit "$KLINE_SYNC_WEEKLY_LIMIT" \
+    --write \
+    && DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" scripts/sync_klines.py \
+    --symbols BTCUSDT ETHUSDT \
+    --intervals 1d 4h \
     --limit "$KLINE_SYNC_LIMIT" \
     --write; then
     return

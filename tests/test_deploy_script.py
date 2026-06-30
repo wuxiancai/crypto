@@ -109,11 +109,20 @@ def test_start_script_prints_child_logs_before_systemd_restart():
 
 def test_start_script_syncs_required_klines_before_realtime_runner():
     content = Path("scripts/start.sh").read_text(encoding="utf-8")
+    sync_block = content[
+        content.index("sync_required_klines()"):
+        content.index("check_binance_connectivity\nsync_required_klines")
+    ]
 
     assert 'KLINE_SYNC_LIMIT="${KLINE_SYNC_LIMIT:-800}"' in content
-    assert "scripts/sync_klines.py" in content
-    assert "--intervals 1w 1d 4h" in content
-    assert "--write" in content
+    assert 'KLINE_SYNC_WEEKLY_LIMIT="${KLINE_SYNC_WEEKLY_LIMIT:-159}"' in content
+    assert "scripts/sync_klines.py" in sync_block
+    assert "--intervals 1w" in sync_block
+    assert "--limit \"$KLINE_SYNC_WEEKLY_LIMIT\"" in sync_block
+    assert "--intervals 1d 4h" in sync_block
+    assert "--limit \"$KLINE_SYNC_LIMIT\"" in sync_block
+    assert "--intervals 1w 1d 4h" not in sync_block
+    assert "--write" in sync_block
     assert content.index("alembic upgrade head") < content.index("scripts/sync_klines.py")
     assert content.index("scripts/sync_klines.py") < content.index("start_paper_realtime")
 

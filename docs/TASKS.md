@@ -31,6 +31,7 @@
 - [x] 2026-07-01 旧策略测试归档到 `docs/archived-tests/2026-07-01-legacy-strategy-tests/`，保留的 v0/v1 基础设施测试已改为通用 `StrategySignal` 或新内核断言。
 - [x] 2026-07-01 已完成真实运行态 smoke：Binance Futures `BTCUSDT 1w/1d/4h` dry-run 拉取成功；真实 K 线策略回测路径、SQLite 归档摘要、HTTP `/backtest` 和 `/backtest/batch` 均确认输出 `WEEKLY_DAILY_H4_V1`。
 - [x] 2026-07-01 回测新增分层风险参数：`WEEKLY=0.008`、`DAILY=0.005`、`H4=0.002`，页面可调，归档 payload 和历史结果展示保留参数口径。
+- [x] 2026-07-01 启动前 K 线同步新增周线独立默认窗口：`KLINE_SYNC_WEEKLY_LIMIT=159`，约 3 年周线；`KLINE_SYNC_LIMIT=800` 继续用于 `1d / 4h`。
 
 ## 下一阶段：分层策略系统
 
