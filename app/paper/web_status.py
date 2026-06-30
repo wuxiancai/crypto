@@ -742,7 +742,7 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
       {_render_parameter_comparison_table(recent)}
     </section>
     <section style="margin-top: 16px;">
-      <h2>策略 / Bucket / 交易对统计</h2>
+      <h2>策略 / 层级 / 交易对统计</h2>
       {_render_backtest_metric_tables(result)}
     </section>
     <section style="margin-top: 16px;">
@@ -840,10 +840,10 @@ def render_strategy_backtest_batch_html(
     <section class="panel">
       <h2>批量回测参数</h2>
       <div class="batch-summary">
-        <div class="summary-item"><div class="summary-label">策略框架</div><div class="summary-value">1d 主趋势 + 4h 子趋势 + 1h 确认 + 15m 入场</div></div>
+        <div class="summary-item"><div class="summary-label">策略内核</div><div class="summary-value">WEEKLY_DAILY_H4_V1</div></div>
+        <div class="summary-item"><div class="summary-label">策略框架</div><div class="summary-value">1w 周线 + 1d 日线 + 4h 执行</div></div>
         <div class="summary-item"><div class="summary-label">默认均线</div><div class="summary-value">EMA15 / MA60</div></div>
-        <div class="summary-item"><div class="summary-label">默认过滤</div><div class="summary-value">ATR14 / DMI12 / Swing20 / Reversal关闭</div></div>
-        <div class="summary-item"><div class="summary-label">输出统计</div><div class="summary-value">按策略、Bucket、交易对聚合</div></div>
+        <div class="summary-item"><div class="summary-label">输出统计</div><div class="summary-value">按策略、层级、交易对聚合</div></div>
       </div>
       <form class="batch-form" method="get" action="/backtest/batch">
         <fieldset class="form-section">
@@ -879,21 +879,12 @@ def render_strategy_backtest_batch_html(
           </div>
         </fieldset>
         <fieldset class="form-section">
-          <legend>分层策略参数</legend>
-          <p class="section-note">这些参数会进入同一套分层策略系统，不再是旧单仓位策略。多个值用英文逗号分隔。</p>
+          <legend>WEEKLY_DAILY_H4_V1 参数</legend>
+          <p class="section-note">这些参数进入周线、日线、4H 三层策略内核；多个值用英文逗号分隔。</p>
           <div class="form-grid compact">
             <div class="form-field">{_render_batch_field_label("atr_periods", "ATR 周期")}<input id="atr_periods" name="atr_periods" value="{_escape(_join_values(getattr(config, "atr_periods", (12, 14))))}"></div>
             <div class="form-field">{_render_batch_field_label("dmi_periods", "DMI 周期")}<input id="dmi_periods" name="dmi_periods" value="{_escape(_join_values(getattr(config, "dmi_periods", (12, 14))))}"></div>
             <div class="form-field">{_render_batch_field_label("swing_lookbacks", "Swing Lookback")}<input id="swing_lookbacks" name="swing_lookbacks" value="{_escape(_join_values(getattr(config, "swing_lookbacks", (20, 30))))}"></div>
-            <div class="form-field">{_render_batch_field_label("pullback_zone_atr_multipliers", "快线区域ATR倍数")}<input id="pullback_zone_atr_multipliers" name="pullback_zone_atr_multipliers" value="{_escape(_join_values(getattr(config, "pullback_zone_atr_multipliers", ("1",))))}"></div>
-            <div class="form-field">
-              {_render_batch_field_label("require_pullback_close_beyond_fast_ma_options", "收盘回到快线方向侧")}
-              <select id="require_pullback_close_beyond_fast_ma_options" name="require_pullback_close_beyond_fast_ma_options">{_render_bool_series_options(getattr(config, "require_pullback_close_beyond_fast_ma_options", (False,)))}</select>
-            </div>
-            <div class="form-field">
-              {_render_batch_field_label("enable_reversal_probe_options", "启用趋势转换试仓")}
-              <select id="enable_reversal_probe_options" name="enable_reversal_probe_options">{_render_bool_series_options(getattr(config, "enable_reversal_probe_options", (False,)))}</select>
-            </div>
             <div class="form-field">{_render_batch_field_label("max_fee_to_risk_ratios", "手续费占风险过滤")}<input id="max_fee_to_risk_ratios" name="max_fee_to_risk_ratios" value="{_escape(_join_values(getattr(config, "max_fee_to_risk_ratios", ("0.25", "0"))))}"></div>
             <div class="form-field">
               {_render_batch_field_label("take_profit_modes", "止盈模式")}
@@ -1478,9 +1469,6 @@ _BATCH_PARAMETER_HELP = {
     "atr_periods": "ATR 波动率周期，用于止损距离和回踩区域判断。\n影响：周期小更贴近近期波动但更抖；周期大更稳但止损可能偏宽。\n建议：12-14，当前优先 14。",
     "dmi_periods": "DMI 趋势强度周期，用于过滤趋势质量。\n影响：周期小更敏感，周期大更保守；过大可能错过趋势启动。\n建议：12-14，当前优先 12。",
     "swing_lookbacks": "Swing 高低点回看窗口，用于结构止损和关键高低点判断。\n影响：数值小止损更近、交易更多；数值大止损更宽、胜率可能更稳但盈亏比受影响。\n建议：20-30，当前优先 20。",
-    "pullback_zone_atr_multipliers": "允许价格距离快线的 ATR 倍数。\n影响：数值小要求贴近快线，入场更严格；数值大允许追得更远，机会更多但风险变大。\n建议：0.5-1.0，当前默认 1。",
-    "require_pullback_close_beyond_fast_ma_options": "是否要求收盘重新回到快线方向侧。\n影响：开启更确认、信号更少；关闭更早进场但噪音更多。\n建议：先用否，稳定后再对比“否 + 是”。",
-    "enable_reversal_probe_options": "是否启用趋势转换试仓。\n影响：开启可能抓到 V 型反转，但也会增加逆势试错；关闭更稳。\n建议：默认关闭，专门研究反转行情时再打开。",
     "max_fee_to_risk_ratios": "这是手续费占单笔风险比例的过滤阈值，不是手续费开关。固定手续费始终按 maker 0.02%、taker 0.05% 计入回测。\n影响：数值越低越严格，会过滤掉止损过近、手续费占风险过高的交易；0 只表示不启用这道过滤。\n建议：默认 0.25，并保留 0 作为关闭过滤的对照组。",
     "take_profit_modes": "止盈方式。TRAILING 是移动止盈，FIXED 是固定目标止盈。\n影响：TRAILING 更适合趋势延伸，FIXED 更容易落袋但可能放弃大行情。\n建议：批量对比 TRAILING + FIXED，最终按净盈亏、回撤和盈亏比选择。",
 }
@@ -1679,7 +1667,7 @@ def _render_recent_backtest_results(results: list[Any]) -> str:
 <table>
   <thead>
     <tr>
-      <th>回测时间 UTC+8</th><th>交易对</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>Zone</th><th>收盘确认</th><th>反转试仓</th><th>手续费过滤</th><th>止盈</th><th>周期</th>
+      <th>回测时间 UTC+8</th><th>交易对</th><th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>止盈</th><th>周期</th>
       <th>初始权益</th><th>账户权益</th><th>总交易次数</th><th>胜 / 负 / 胜率</th><th>净盈亏</th>
     </tr>
   </thead>
@@ -1699,8 +1687,8 @@ def _render_parameter_comparison_table(results: list[Any]) -> str:
 <table>
   <thead>
     <tr>
-      <th>排名</th><th>交易对</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>Zone</th><th>收盘确认</th><th>反转试仓</th><th>手续费过滤</th><th>止盈</th><th>周期</th>
-      <th>账户权益</th><th>净盈亏</th><th>胜率</th><th>盈亏比</th><th>最大回撤</th><th>Bucket净盈亏</th><th>交易次数</th>
+      <th>排名</th><th>交易对</th><th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>止盈</th><th>周期</th>
+      <th>账户权益</th><th>净盈亏</th><th>胜率</th><th>盈亏比</th><th>最大回撤</th><th>层级净盈亏</th><th>交易次数</th>
     </tr>
   </thead>
   <tbody>{rows}</tbody>
@@ -1713,13 +1701,12 @@ def _render_parameter_comparison_row(index: int, result: Any) -> str:
     return f"""<tr>
   <td>{_escape(index)}</td>
   <td>{_escape(getattr(result, "symbol", "-"))}</td>
+  <td>{_escape(getattr(result, "strategy_kernel", "WEEKLY_DAILY_H4_V1"))}</td>
+  <td>{_escape(getattr(result, "timeframes", "1w,1d,4h"))}</td>
   <td>{_escape(_average_combo_label(result))}</td>
   <td>{_escape(getattr(result, "atr_period", "-"))}</td>
   <td>{_escape(getattr(result, "dmi_period", "-"))}</td>
   <td>{_escape(getattr(result, "swing_lookback", "-"))}</td>
-  <td>{_escape(getattr(result, "pullback_zone_atr_multiplier", "1"))}</td>
-  <td>{_escape(_bool_config_label(getattr(result, "require_pullback_close_beyond_fast_ma", False)))}</td>
-  <td>{_escape(_bool_config_label(getattr(result, "enable_reversal_probe", False)))}</td>
   <td>{_escape(_fee_to_risk_label(getattr(result, "max_fee_to_risk_ratio", "-")))}</td>
   <td>{_escape(getattr(result, "trend_pullback_take_profit_mode", "TRAILING"))}</td>
   <td>{_escape(_history_period_label(getattr(result, "history_period", "")))}</td>
@@ -1738,7 +1725,7 @@ def _render_bucket_comparison_cell(metrics: dict[str, dict[str, Any]]) -> str:
     if not metrics:
         return _escape(label)
     details = "<br>".join(_escape(line) for line in _bucket_comparison_details(metrics))
-    return f"{_escape(label)}<details><summary>Bucket明细</summary>{details}</details>"
+    return f"{_escape(label)}<details><summary>层级明细</summary>{details}</details>"
 
 
 def _bucket_comparison_label(metrics: dict[str, dict[str, Any]]) -> str:
@@ -1774,7 +1761,7 @@ def _render_backtest_metric_tables(result: Any | None) -> str:
     return (
         '<div class="table-wrap" style="display: grid; gap: 12px;">'
         f"{_render_metric_table('按策略统计', strategy_metrics, '策略')}"
-        f"{_render_metric_table('按 Bucket 统计', bucket_metrics, 'Bucket')}"
+        f"{_render_metric_table('按层级统计', bucket_metrics, '层级')}"
         f"{_render_metric_table('按交易对统计', symbol_metrics, '交易对')}"
         "</div>"
     )
@@ -1810,13 +1797,12 @@ def _render_recent_backtest_result_row(result: Any) -> str:
     return f"""<tr>
   <td>{_escape(_format_datetime(getattr(result, "created_at", None)))}</td>
   <td>{_escape(getattr(result, "symbol", "-"))}</td>
+  <td>{_escape(getattr(result, "strategy_kernel", "WEEKLY_DAILY_H4_V1"))}</td>
+  <td>{_escape(getattr(result, "timeframes", "1w,1d,4h"))}</td>
   <td>{_escape(_average_combo_label(result))}</td>
   <td>{_escape(getattr(result, "atr_period", "-"))}</td>
   <td>{_escape(getattr(result, "dmi_period", "-"))}</td>
   <td>{_escape(getattr(result, "swing_lookback", "-"))}</td>
-  <td>{_escape(getattr(result, "pullback_zone_atr_multiplier", "1"))}</td>
-  <td>{_escape(_bool_config_label(getattr(result, "require_pullback_close_beyond_fast_ma", False)))}</td>
-  <td>{_escape(_bool_config_label(getattr(result, "enable_reversal_probe", False)))}</td>
   <td>{_escape(_fee_to_risk_label(getattr(result, "max_fee_to_risk_ratio", "-")))}</td>
   <td>{_escape(getattr(result, "trend_pullback_take_profit_mode", "TRAILING"))}</td>
   <td>{_escape(_history_period_label(getattr(result, "history_period", "")))}</td>
@@ -2007,9 +1993,8 @@ def _render_strategy_detail_rows(detail: dict[str, Any]) -> str:
         ("Swing", "swing_lookback"),
         ("费险", "max_fee_to_risk_ratio"),
         ("止盈", "trend_pullback_take_profit_mode"),
-        ("Zone", "pullback_zone_atr_multiplier"),
-        ("收盘", "require_pullback_close_beyond_fast_ma"),
-        ("反转", "enable_reversal_probe"),
+        ("策略内核", "strategy_kernel"),
+        ("时间层级", "timeframes"),
     )
     return "".join(
         f'<div class="strategy-detail-row"><span class="strategy-detail-key">{_escape(label)}</span><span class="strategy-detail-value">{_escape(_strategy_detail_value(detail.get(key)))}</span></div>'
@@ -2047,9 +2032,8 @@ def _default_strategy_details() -> list[dict[str, Any]]:
             "swing_lookback": "20",
             "max_fee_to_risk_ratio": "0.25",
             "trend_pullback_take_profit_mode": "TRAILING",
-            "pullback_zone_atr_multiplier": "1",
-            "require_pullback_close_beyond_fast_ma": False,
-            "enable_reversal_probe": False,
+            "strategy_kernel": "WEEKLY_DAILY_H4_V1",
+            "timeframes": "1w,1d,4h",
         }
         for symbol in ("BTCUSDT", "ETHUSDT")
     ]

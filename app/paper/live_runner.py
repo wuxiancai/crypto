@@ -35,9 +35,6 @@ def default_paper_strategy_config() -> RealtimeStrategyConfig:
         atr_period=14,
         dmi_period=12,
         swing_lookback=20,
-        pullback_zone_atr_multiplier=Decimal("1"),
-        require_pullback_close_beyond_fast_ma=False,
-        enable_reversal_probe=False,
         strategy_kernel="WEEKLY_DAILY_H4_V1",
     )
 
@@ -290,9 +287,6 @@ def _strategy_detail_payload(symbol: str, config: RealMarketPaperConfig) -> dict
         if config.max_fee_to_risk_ratio is None
         else str(config.max_fee_to_risk_ratio),
         "trend_pullback_take_profit_mode": config.trend_pullback_take_profit_mode,
-        "pullback_zone_atr_multiplier": str(strategy_config.pullback_zone_atr_multiplier),
-        "require_pullback_close_beyond_fast_ma": strategy_config.require_pullback_close_beyond_fast_ma,
-        "enable_reversal_probe": strategy_config.enable_reversal_probe,
     }
 
 

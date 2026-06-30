@@ -27,6 +27,7 @@
 - 2026-06-30 已新增策略内核升级实施计划：`docs/superpowers/plans/2026-06-30-weekly-daily-h4-strategy-core-upgrade.md`。该计划明确 `交易逻辑优化.md` 是新版策略需求源，新内核命名为 `WEEKLY_DAILY_H4_V1`，必须在现有系统上增量升级，不从头开发；旧 `DAY_CORE / FOUR_HOUR_ADDON / FOUR_HOUR_HEDGE` 不得直接映射为新 `WEEKLY / DAILY / H4`；同一次 Paper/Backtest 只能运行一个策略内核。当前仅完成升级步骤文档，尚未开始代码内核改造；下一轮实现必须从计划 Task 0 的文档决策冻结开始。
 - 2026-06-30 已开始执行策略内核升级，工作分支为 `codex/weekly-daily-h4-kernel`。用户要求新版内核必须百分百作为系统执行主线，旧内核运行入口删除；实现时必须使用独立模块承载 `WEEKLY_DAILY_H4_V1`，避免后续升级和旧 `LAYERED_DAILY_V1` 混乱。
 - 2026-06-30 策略内核升级已进入代码落地：新增 `position_hierarchy.py`、`trade_controls.py`、`weekly_daily_h4_strategy.py`；`strategy_adapter.py` 已收敛为只调用 `WEEKLY_DAILY_H4_V1`；`scripts/start.sh`、`scripts/run_paper_realtime.py`、`scripts/sync_klines.py`、`strategy_backtest.py` 已切换到 `1w / 1d / 4h`；旧 `app/strategy/layered_strategy.py`、旧 pullback/reversal/trend detector 策略模块、旧 layered 验证脚本和旧策略恢复脚本已删除。旧 v0/v1 策略测试仍会因断言旧内核行为而失败，后续应归档或重写为 v2 测试，不可再用作当前策略内核验收。
+- 2026-06-30 已完成新内核周边模块适配：回测归档 payload 写入 `strategy_kernel=WEEKLY_DAILY_H4_V1` 和 `timeframes=1w,1d,4h`；批量回测网格改为 `1w / 1d / 4h` 并移除旧 Reversal/Zone/CloseBeyond 参数；`/backtest`、`/backtest/batch`、Paper 事件 CLI、实时启动脚本和策略详情展示均不再暴露旧内核参数，对外统一使用“层级”而非 Bucket。新增 v2 适配测试 `tests/test_v2_0_backtest_weekly_daily_h4_adaptation.py`，当前 v2 测试全部通过。
 
 ## 本轮修复
 

@@ -27,9 +27,6 @@ class RealtimeStrategyConfig:
     min_adx: Decimal = Decimal("18")
     min_risk_reward: Decimal = Decimal("1.5")
     target_risk_reward: Decimal = Decimal("2")
-    pullback_zone_atr_multiplier: Decimal = Decimal("1")
-    require_pullback_close_beyond_fast_ma: bool = False
-    enable_reversal_probe: bool = False
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
     weekly_interval: str = "1w"
     daily_interval: str = "1d"

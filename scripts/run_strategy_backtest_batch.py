@@ -28,7 +28,7 @@ from app.database.models import KlineRecord
 from app.database.repositories import archive_strategy_backtest_result, find_archived_strategy_backtest_run, upsert_klines
 from app.paper.strategy_backtest import StrategyBacktestConfig, run_strategy_backtest
 
-SUPPORTED_INTERVALS = ("4h", "1h", "15m")
+SUPPORTED_INTERVALS = ("1w", "1d", "4h")
 HISTORY_PERIOD = "1y"
 HISTORY_WINDOW_MS = 365 * 24 * 60 * 60 * 1000
 HISTORY_WINDOWS_MS = {
@@ -59,12 +59,9 @@ class ParameterSet:
     swing_lookback: int = 20
     max_fee_to_risk_ratio: str = "0.25"
     trend_pullback_take_profit_mode: str = "TRAILING"
-    pullback_zone_atr_multiplier: str = "1"
-    require_pullback_close_beyond_fast_ma: bool = False
-    enable_reversal_probe: bool = False
 
     def key(self) -> str:
-        key = (
+        return (
             f"{self.fast_ma_type.lower()}{self.fast_period}"
             f"-{self.slow_ma_type.lower()}{self.slow_period}"
             f"-atr{self.atr_period}"
@@ -73,29 +70,17 @@ class ParameterSet:
             f"-feerisk{self.max_fee_to_risk_ratio}"
             f"-tp{self.trend_pullback_take_profit_mode.lower()}"
         )
-        if (
-            self.pullback_zone_atr_multiplier != "1"
-            or self.require_pullback_close_beyond_fast_ma
-            or not self.enable_reversal_probe
-        ):
-            key += (
-                f"-zoneatr{self.pullback_zone_atr_multiplier}"
-                f"-closebeyond{int(self.require_pullback_close_beyond_fast_ma)}"
-                f"-reversal{int(self.enable_reversal_probe)}"
-            )
-        return key
 
     def label(self) -> str:
         return (
+            "WEEKLY_DAILY_H4_V1"
+            f" | 1w/1d/4h | "
             f"{self.fast_ma_type}{self.fast_period}/{self.slow_ma_type}{self.slow_period}"
             f" | ATR {self.atr_period}"
             f" | DMI {self.dmi_period}"
             f" | Swing {self.swing_lookback}"
             f" | Fee/Risk {self.max_fee_to_risk_ratio}"
             f" | TP {self.trend_pullback_take_profit_mode}"
-            f" | ZoneATR {self.pullback_zone_atr_multiplier}"
-            f" | CloseBeyondMA {self.require_pullback_close_beyond_fast_ma}"
-            f" | Reversal {self.enable_reversal_probe}"
         )
 
     def to_config(
@@ -121,9 +106,6 @@ class ParameterSet:
             history_cache_dir=cache_dir,
             max_fee_to_risk_ratio=Decimal(self.max_fee_to_risk_ratio),
             trend_pullback_take_profit_mode=self.trend_pullback_take_profit_mode,
-            pullback_zone_atr_multiplier=Decimal(self.pullback_zone_atr_multiplier),
-            require_pullback_close_beyond_fast_ma=self.require_pullback_close_beyond_fast_ma,
-            enable_reversal_probe=self.enable_reversal_probe,
         )
 
 
@@ -140,9 +122,6 @@ class StrategyBacktestBatchConfig:
     swing_lookbacks: tuple[int, ...] = (20, 30)
     max_fee_to_risk_ratios: tuple[str, ...] = ("0.25", "0")
     take_profit_modes: tuple[str, ...] = ("TRAILING", "FIXED")
-    pullback_zone_atr_multipliers: tuple[str, ...] = ("1",)
-    require_pullback_close_beyond_fast_ma_options: tuple[bool, ...] = (False,)
-    enable_reversal_probe_options: tuple[bool, ...] = (False,)
     history_period: str = HISTORY_PERIOD
     history_window_ms: int = HISTORY_WINDOW_MS
     skip_fast_gte_slow: bool = True
@@ -174,9 +153,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--swing-lookbacks", default="20,30")
     parser.add_argument("--max-fee-to-risk-ratios", default="0.25,0")
     parser.add_argument("--take-profit-modes", default="TRAILING,FIXED")
-    parser.add_argument("--pullback-zone-atr-multipliers", default="1")
-    parser.add_argument("--require-pullback-close-beyond-fast-ma-options", default="false")
-    parser.add_argument("--enable-reversal-probe-options", default="true")
     parser.add_argument("--history-period", default=HISTORY_PERIOD, choices=tuple(HISTORY_WINDOWS_MS))
     parser.add_argument(
         "--workspace",
@@ -238,11 +214,6 @@ def _batch_config_from_args(args: argparse.Namespace) -> StrategyBacktestBatchCo
         swing_lookbacks=_parse_int_series(args.swing_lookbacks),
         max_fee_to_risk_ratios=_parse_decimal_series(args.max_fee_to_risk_ratios),
         take_profit_modes=_parse_take_profit_modes(args.take_profit_modes),
-        pullback_zone_atr_multipliers=_parse_decimal_series(args.pullback_zone_atr_multipliers),
-        require_pullback_close_beyond_fast_ma_options=_parse_bool_series(
-            args.require_pullback_close_beyond_fast_ma_options
-        ),
-        enable_reversal_probe_options=_parse_bool_series(args.enable_reversal_probe_options),
         history_period=args.history_period,
         history_window_ms=HISTORY_WINDOWS_MS[args.history_period],
         skip_fast_gte_slow=args.skip_fast_gte_slow,
@@ -778,25 +749,17 @@ def _build_primary_candidates(config: StrategyBacktestBatchConfig | bool) -> Ite
                     for swing_lookback in config.swing_lookbacks:
                         for max_fee_to_risk_ratio in config.max_fee_to_risk_ratios:
                             for take_profit_mode in config.take_profit_modes:
-                                for zone_atr_multiplier in config.pullback_zone_atr_multipliers:
-                                    for require_close_beyond_fast_ma in (
-                                        config.require_pullback_close_beyond_fast_ma_options
-                                    ):
-                                        for enable_reversal_probe in config.enable_reversal_probe_options:
-                                            yield ParameterSet(
-                                                fast_period=fast_period,
-                                                slow_period=slow_period,
-                                                fast_ma_type=config.fast_ma_type,
-                                                slow_ma_type=config.slow_ma_type,
-                                                atr_period=atr_period,
-                                                dmi_period=dmi_period,
-                                                swing_lookback=swing_lookback,
-                                                max_fee_to_risk_ratio=max_fee_to_risk_ratio,
-                                                trend_pullback_take_profit_mode=take_profit_mode,
-                                                pullback_zone_atr_multiplier=zone_atr_multiplier,
-                                                require_pullback_close_beyond_fast_ma=require_close_beyond_fast_ma,
-                                                enable_reversal_probe=enable_reversal_probe,
-                                            )
+                                yield ParameterSet(
+                                    fast_period=fast_period,
+                                    slow_period=slow_period,
+                                    fast_ma_type=config.fast_ma_type,
+                                    slow_ma_type=config.slow_ma_type,
+                                    atr_period=atr_period,
+                                    dmi_period=dmi_period,
+                                    swing_lookback=swing_lookback,
+                                    max_fee_to_risk_ratio=max_fee_to_risk_ratio,
+                                    trend_pullback_take_profit_mode=take_profit_mode,
+                                )
 
 
 def _build_refinement_candidates(
@@ -1112,12 +1075,6 @@ def _params_from_record(record: dict[str, Any]) -> ParameterSet:
         swing_lookback=int(params["swing_lookback"]),
         max_fee_to_risk_ratio=str(params["max_fee_to_risk_ratio"]),
         trend_pullback_take_profit_mode=str(params["trend_pullback_take_profit_mode"]),
-        pullback_zone_atr_multiplier=str(params.get("pullback_zone_atr_multiplier") or "1"),
-        require_pullback_close_beyond_fast_ma=_record_bool(
-            params.get("require_pullback_close_beyond_fast_ma"),
-            default=False,
-        ),
-        enable_reversal_probe=_record_bool(params.get("enable_reversal_probe"), default=False),
     )
 
 
@@ -1262,9 +1219,6 @@ def _record_params_label(record: dict[str, Any]) -> str:
         f", Swing {params.get('swing_lookback', '-')}"
         f", Fee/Risk {params.get('max_fee_to_risk_ratio', '-')}"
         f", TP {params.get('trend_pullback_take_profit_mode', '-')}"
-        f", ZoneATR {params.get('pullback_zone_atr_multiplier', '1')}"
-        f", CloseBeyondMA {params.get('require_pullback_close_beyond_fast_ma', False)}"
-        f", Reversal {params.get('enable_reversal_probe', False)}"
     )
 
 

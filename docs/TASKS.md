@@ -10,12 +10,13 @@
 
 ## 当前阶段：WEEKLY_DAILY_H4_V1 策略内核升级
 
-- [ ] 冻结升级决策：`交易逻辑优化.md` 是新版策略需求源，旧 `DAY_CORE / FOUR_HOUR_ADDON / FOUR_HOUR_HEDGE` 不得映射为新 `WEEKLY / DAILY / H4`。
-- [ ] 新增独立策略内核模块：`app.strategy.weekly_daily_h4_strategy`。
-- [ ] 新增 canonical 仓位层级、交易模式、生命周期和控制层合同。
-- [ ] Paper/Backtest/Web 状态页切换到 `WEEKLY_DAILY_H4_V1`，删除旧 `enable_layered_strategy` 运行开关。
-- [ ] 旧 `LAYERED_DAILY_V1` 只能作为历史代码或测试背景存在，不允许成为默认或 fallback 策略内核。
-- [ ] 新内核验证完成后更新 Handoff 并提交 git。
+- [x] 冻结升级决策：`交易逻辑优化.md` 是新版策略需求源，旧 `DAY_CORE / FOUR_HOUR_ADDON / FOUR_HOUR_HEDGE` 不得映射为新 `WEEKLY / DAILY / H4`。
+- [x] 新增独立策略内核模块：`app.strategy.weekly_daily_h4_strategy`。
+- [x] 新增 canonical 仓位层级、交易模式、生命周期和控制层合同。
+- [x] Paper/Backtest/Web 状态页切换到 `WEEKLY_DAILY_H4_V1`，删除旧 `enable_layered_strategy` 运行开关。
+- [x] 旧 `LAYERED_DAILY_V1` 只能作为历史代码或测试背景存在，不允许成为默认或 fallback 策略内核。
+- [x] 回测、批量回测、Web 批量参数页、Paper 事件 CLI 和实时启动脚本已适配新内核，不再暴露旧 Reversal/Zone/CloseBeyond 参数。
+- [ ] 旧 v0/v1 策略测试仍需后续归档或改写为 v2 口径；本次不再以旧内核断言作为验收标准。
 
 2026-06-30 实施进度：
 
@@ -24,7 +25,9 @@
 - [x] 删除旧 `enable_layered_strategy` 运行开关、旧 `app/strategy/layered_strategy.py`、旧 pullback/reversal/trend detector 策略模块和旧 layered 验证/恢复脚本。
 - [x] 启动同步、实时订阅、历史 warmup、策略回测改为当前内核周期 `1w / 1d / 4h`。
 - [x] 新增 v2 合同、策略、Paper、adapter 测试。
-- [ ] 旧 v0/v1 策略测试仍需后续归档或改写为 v2 口径；本次不再以旧内核断言作为验收标准。
+- [x] `strategy_backtest_config_payload()` 写入 `strategy_kernel=WEEKLY_DAILY_H4_V1` 和 `timeframes=1w,1d,4h`，不再归档旧内核参数。
+- [x] `scripts/run_strategy_backtest_batch.py` 的批量网格改为 `1w / 1d / 4h`，参数标签只保留新内核语义。
+- [x] `/backtest`、`/backtest/batch` 和 `scripts/show_paper_runtime_events.py` 的用户展示从 Bucket/Reversal/分层策略旧语义收敛为“层级”和 `WEEKLY_DAILY_H4_V1`。
 
 ## 下一阶段：分层策略系统
 

@@ -227,6 +227,8 @@ def strategy_backtest_config_hash(config: object) -> str:
 
 def strategy_backtest_config_payload(config: object) -> dict[str, str]:
     return {
+        "strategy_kernel": str(getattr(config, "strategy_kernel", "WEEKLY_DAILY_H4_V1")),
+        "timeframes": "1w,1d,4h",
         "symbols": ",".join(getattr(config, "symbols")),
         "fast_ma_type": str(getattr(config, "fast_ma_type")),
         "slow_ma_type": str(getattr(config, "slow_ma_type")),
@@ -244,11 +246,6 @@ def strategy_backtest_config_payload(config: object) -> dict[str, str]:
         "leverage": str(getattr(config, "leverage")),
         "trend_pullback_take_profit_mode": str(getattr(config, "trend_pullback_take_profit_mode")),
         "max_fee_to_risk_ratio": str(getattr(config, "max_fee_to_risk_ratio")),
-        "pullback_zone_atr_multiplier": str(getattr(config, "pullback_zone_atr_multiplier", "1")),
-        "require_pullback_close_beyond_fast_ma": str(
-            getattr(config, "require_pullback_close_beyond_fast_ma", False)
-        ),
-        "enable_reversal_probe": str(getattr(config, "enable_reversal_probe", True)),
     }
 
 
@@ -358,6 +355,8 @@ def _strategy_backtest_summary(
     return StrategyBacktestRunSummary(
         created_at=run.created_at,
         symbol=symbol,
+        strategy_kernel=str(payload.get("strategy_kernel") or "WEEKLY_DAILY_H4_V1"),
+        timeframes=str(payload.get("timeframes") or "1w,1d,4h"),
         fast_ma_type=_average_type_from_payload(payload, "fast_ma_type"),
         fast_period=_int_from_payload(payload, "ema_fast_period", 50),
         slow_ma_type=_average_type_from_payload(payload, "slow_ma_type"),
@@ -377,11 +376,6 @@ def _strategy_backtest_summary(
         max_drawdown_pct=max_drawdown_pct,
         profit_loss_ratio=_summary_profit_loss_ratio(trades or []),
         trend_pullback_take_profit_mode=str(payload.get("trend_pullback_take_profit_mode") or "TRAILING"),
-        pullback_zone_atr_multiplier=str(payload.get("pullback_zone_atr_multiplier") or "1"),
-        require_pullback_close_beyond_fast_ma=str(
-            payload.get("require_pullback_close_beyond_fast_ma") or "False"
-        ),
-        enable_reversal_probe=str(payload.get("enable_reversal_probe") or "False"),
         bucket_metrics=_summary_bucket_metrics(trades or []),
     )
 
