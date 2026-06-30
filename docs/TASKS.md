@@ -32,6 +32,7 @@
 - [x] 2026-07-01 已完成真实运行态 smoke：Binance Futures `BTCUSDT 1w/1d/4h` dry-run 拉取成功；真实 K 线策略回测路径、SQLite 归档摘要、HTTP `/backtest` 和 `/backtest/batch` 均确认输出 `WEEKLY_DAILY_H4_V1`。
 - [x] 2026-07-01 回测新增分层风险参数：`WEEKLY=0.008`、`DAILY=0.005`、`H4=0.002`，页面可调，归档 payload 和历史结果展示保留参数口径。
 - [x] 2026-07-01 启动前 K 线同步新增周线独立默认窗口：`KLINE_SYNC_WEEKLY_LIMIT=159`，约 3 年周线；`KLINE_SYNC_LIMIT=800` 继续用于 `1d / 4h`。
+- [x] 2026-07-01 周线仓止损止盈独立化：`WEEKLY` 入场使用周线结构生成生命周期价格；Paper/Backtest 撮合不再用普通止损、固定止盈或 ATR trailing 自动退出周线仓，只接受策略层周线减仓/强制退出信号和强平保护。
 
 ## 下一阶段：分层策略系统
 

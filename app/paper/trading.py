@@ -449,6 +449,8 @@ class PaperTradingEngine:
         liquidation_fill = self._liquidation_fill(position, kline)
         if liquidation_fill is not None:
             return liquidation_fill
+        if _is_kernel_weekly_position(position):
+            return None
         if position.side == "LONG":
             if kline.low <= position.stop_loss:
                 # Gap-aware fill: if the bar opens below the stop, fill at the
@@ -662,9 +664,15 @@ def _bucket_from_signal(signal: SignalLike) -> str:
 def _uses_trailing_take_profit(position: PaperPosition, config: PaperConfig) -> bool:
     if config.trend_pullback_take_profit_mode != "TRAILING":
         return False
+    if _is_kernel_weekly_position(position):
+        return False
     if position.strategy_kernel == "WEEKLY_DAILY_H4_V1":
         return True
     return False
+
+
+def _is_kernel_weekly_position(position: PaperPosition) -> bool:
+    return position.strategy_kernel == "WEEKLY_DAILY_H4_V1" and position.position_level == "WEEKLY"
 
 
 def _activate_trailing_take_profit(position: PaperPosition, kline: Kline, config: PaperConfig) -> PaperPosition:

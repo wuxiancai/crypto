@@ -31,6 +31,7 @@
 - 2026-07-01 已完成剩余收口：旧 v0/v1 策略测试已归档到 `docs/archived-tests/2026-07-01-legacy-strategy-tests/` 或改写为新内核断言；全量 pytest 为 `209 passed`。真实运行态 smoke 已验证 Binance Futures `BTCUSDT 1w/1d/4h` dry-run、真实 K 线回测、SQLite 回测归档摘要、本地 HTTP `/backtest` 与 `/backtest/batch` 均输出 `WEEKLY_DAILY_H4_V1`，且页面不再出现旧 Reversal/Bucket/分层策略文案。
 - 2026-07-01 已完成回测分层风险参数：`StrategyBacktestConfig` 新增 `weekly_risk_pct=0.008`、`daily_risk_pct=0.005`、`h4_risk_pct=0.002`；回测执行会按信号 `position_level/bucket` 注入对应风险比例；`/backtest` 页面新增“周线风险 / 日线风险 / 4H风险”输入，归档 payload 和历史结果表会显示风险口径。
 - 2026-07-01 启动前 K 线同步已把周线窗口单独限制为 `KLINE_SYNC_WEEKLY_LIMIT=159`，约 3 年；`KLINE_SYNC_LIMIT=800` 继续用于 `1d / 4h`。实时订阅周期仍是 `1w / 1d / 4h`，只是启动补齐时不再为周线拉取 800 根。
+- 2026-07-01 周线仓止损止盈已独立于日线/4H：`WEEKLY` 开仓信号使用周线 frame 生成入场、防线和生命周期目标；`PaperTradingEngine` 对 `WEEKLY_DAILY_H4_V1 + position_level=WEEKLY` 跳过普通 stop/take-profit/trailing，只保留强平保护，并通过策略层 `REDUCE_POSITION` / `EXIT_POSITION` 管理周线 MA60、结构、动能和金叉/死叉退出。
 
 ## 本轮修复
 
