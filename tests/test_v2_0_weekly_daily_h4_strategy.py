@@ -49,13 +49,13 @@ def test_weekly_bear_and_daily_death_cross_opens_weekly_short():
     assert decision.signal.bucket == "WEEKLY"
 
 
-def test_weekly_short_uses_weekly_frame_for_lifecycle_prices_not_h4_noise():
+def test_weekly_short_uses_weekly_ma60_for_lifecycle_defense_not_h4_or_structure_high():
     from app.strategy.weekly_daily_h4_strategy import WeeklyDailyH4Input, build_weekly_daily_h4_decision
 
     decision = build_weekly_daily_h4_decision(
         WeeklyDailyH4Input(
             symbol="BTCUSDT",
-            weekly=_frame(close="100", previous_high="130", previous_low="80"),
+            weekly=_frame(close="100", slow="112", previous_high="130", previous_low="80"),
             daily=_frame(close="96", previous_high="110", previous_low="90"),
             h4=_frame(close="88", previous_high="92", previous_low="84"),
         )
@@ -64,8 +64,8 @@ def test_weekly_short_uses_weekly_frame_for_lifecycle_prices_not_h4_noise():
     assert decision.signal.action == "SHORT_ENTRY"
     assert decision.signal.position_level == "WEEKLY"
     assert decision.signal.entry_price == Decimal("100")
-    assert decision.signal.stop_loss == Decimal("130")
-    assert decision.signal.take_profit == Decimal("40")
+    assert decision.signal.stop_loss == Decimal("112")
+    assert decision.signal.take_profit == Decimal("76")
 
 
 def test_weekly_trend_damage_reduces_weekly_position_before_forced_exit():

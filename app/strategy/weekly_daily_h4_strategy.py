@@ -255,11 +255,17 @@ def _entry_signal(
     entry_price = frame.close
     atr_value = frame.atr or abs(frame.fast_ma - frame.slow_ma) or entry_price * Decimal("0.02")
     if side == "LONG":
-        stop_loss = min(frame.previous_low or entry_price - atr_value, entry_price - atr_value)
+        if level == PositionLevel.WEEKLY:
+            stop_loss = frame.slow_ma if frame.slow_ma < entry_price else entry_price - atr_value
+        else:
+            stop_loss = min(frame.previous_low or entry_price - atr_value, entry_price - atr_value)
         take_profit = entry_price + (entry_price - stop_loss) * Decimal("2")
         action = "LONG_ENTRY"
     else:
-        stop_loss = max(frame.previous_high or entry_price + atr_value, entry_price + atr_value)
+        if level == PositionLevel.WEEKLY:
+            stop_loss = frame.slow_ma if frame.slow_ma > entry_price else entry_price + atr_value
+        else:
+            stop_loss = max(frame.previous_high or entry_price + atr_value, entry_price + atr_value)
         take_profit = entry_price - (stop_loss - entry_price) * Decimal("2")
         action = "SHORT_ENTRY"
     return StrategySignal(
