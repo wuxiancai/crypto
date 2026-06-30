@@ -26,6 +26,7 @@ def load_paper_runtime_events(
     event_type: str | None = None,
     symbol: str | None = None,
     strategy_type: str | None = None,
+    level: str | None = None,
     bucket: str | None = None,
     start_time_ms: int | None = None,
     end_time_ms: int | None = None,
@@ -37,8 +38,9 @@ def load_paper_runtime_events(
         query = query.where(PaperRuntimeEvent.symbol == symbol)
     if strategy_type:
         query = query.where(PaperRuntimeEvent.strategy_type == strategy_type)
-    if bucket:
-        query = query.where(PaperRuntimeEvent.bucket == bucket)
+    position_level = level or bucket
+    if position_level:
+        query = query.where(PaperRuntimeEvent.bucket == position_level)
     if start_time_ms is not None:
         query = query.where(PaperRuntimeEvent.event_time >= start_time_ms)
     if end_time_ms is not None:
@@ -48,8 +50,8 @@ def load_paper_runtime_events(
 
 def format_paper_runtime_events(events: list[PaperRuntimeEvent]) -> str:
     if not events:
-        return "暂无 Paper Runtime 复盘事件"
-    headers = ("时间 UTC+8", "类型", "交易对", "周期", "策略", "动作", "Bucket", "摘要")
+        return "暂无 Paper Runtime 复盘事件（可按层级过滤）"
+    headers = ("时间 UTC+8", "类型", "交易对", "周期", "策略", "动作", "层级", "摘要")
     rows = [
         (
             _format_event_time(event.event_time),
@@ -123,7 +125,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--event-type", choices=["signal", "blocked_signal", "rejected_signal", "fill", "snapshot"])
     parser.add_argument("--symbol")
     parser.add_argument("--strategy-type")
-    parser.add_argument("--bucket")
+    parser.add_argument("--level", help="Filter by position level.")
+    parser.add_argument("--bucket", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -137,6 +140,7 @@ def main(argv: list[str] | None = None) -> None:
             event_type=args.event_type,
             symbol=args.symbol,
             strategy_type=args.strategy_type,
+            level=args.level,
             bucket=args.bucket,
         )
     print(format_paper_runtime_events(events))

@@ -35,10 +35,7 @@ def default_paper_strategy_config() -> RealtimeStrategyConfig:
         atr_period=14,
         dmi_period=12,
         swing_lookback=20,
-        pullback_zone_atr_multiplier=Decimal("1"),
-        require_pullback_close_beyond_fast_ma=False,
-        enable_reversal_probe=False,
-        enable_layered_strategy=True,
+        strategy_kernel="WEEKLY_DAILY_H4_V1",
     )
 
 
@@ -283,13 +280,13 @@ def _strategy_detail_payload(symbol: str, config: RealMarketPaperConfig) -> dict
         "atr_period": str(strategy_config.atr_period),
         "dmi_period": str(strategy_config.dmi_period),
         "swing_lookback": str(strategy_config.swing_lookback),
+        "strategy_kernel": strategy_config.strategy_kernel,
+        "position_levels": "WEEKLY / DAILY / H4",
+        "timeframes": f"{strategy_config.weekly_interval} / {strategy_config.daily_interval} / {strategy_config.h4_interval}",
         "max_fee_to_risk_ratio": "0"
         if config.max_fee_to_risk_ratio is None
         else str(config.max_fee_to_risk_ratio),
         "trend_pullback_take_profit_mode": config.trend_pullback_take_profit_mode,
-        "pullback_zone_atr_multiplier": str(strategy_config.pullback_zone_atr_multiplier),
-        "require_pullback_close_beyond_fast_ma": strategy_config.require_pullback_close_beyond_fast_ma,
-        "enable_reversal_probe": strategy_config.enable_reversal_probe,
     }
 
 
@@ -317,12 +314,14 @@ def build_default_realtime_signal_fn(
                 action="WAIT",
                 strategy_type="SYSTEM",
                 reason=["waiting for required realtime timeframes"],
+                strategy_kernel=config.strategy_kernel,
             )
         if kline.interval != config.entry_interval:
             return StrategySignal(
                 action="WAIT",
                 strategy_type="SYSTEM",
                 reason=["non-entry interval observed"],
+                strategy_kernel=config.strategy_kernel,
             )
         signal = build_realtime_strategy_signal(
             frame,
@@ -392,6 +391,12 @@ def _apply_funding_filter(
                 "funding_decision": result.decision,
                 "position_multiplier": str(result.position_multiplier),
             },
+            strategy_kernel=signal.strategy_kernel,
+            position_level=signal.position_level,
+            trade_mode=signal.trade_mode,
+            market_regime=signal.market_regime,
+            lifecycle_state=signal.lifecycle_state,
+            reduce_pct=signal.reduce_pct,
         )
     return StrategySignal(
         action="WAIT",
@@ -423,6 +428,12 @@ def _apply_funding_filter(
             "original_action": signal.action,
             "funding_decision": result.decision,
         },
+        strategy_kernel=signal.strategy_kernel,
+        position_level=signal.position_level,
+        trade_mode=signal.trade_mode,
+        market_regime=signal.market_regime,
+        lifecycle_state=signal.lifecycle_state,
+        reduce_pct=signal.reduce_pct,
     )
 
 
@@ -461,6 +472,12 @@ def _funding_stale_allow_signal(
             "funding_decision": "STALE_ALLOW",
             "funding_snapshot_stale": True,
         },
+        strategy_kernel=signal.strategy_kernel,
+        position_level=signal.position_level,
+        trade_mode=signal.trade_mode,
+        market_regime=signal.market_regime,
+        lifecycle_state=signal.lifecycle_state,
+        reduce_pct=signal.reduce_pct,
     )
 
 
@@ -497,12 +514,7 @@ def _required_history_limit(config: RealtimeStrategyConfig) -> int:
 
 
 def _required_strategy_intervals(config: RealtimeStrategyConfig) -> tuple[str, ...]:
-    intervals = (
-        (config.main_trend_interval,) if config.enable_layered_strategy else ()
-    ) + (*config.trend_intervals, config.entry_interval)
-    return tuple(
-        dict.fromkeys(intervals)
-    )
+    return tuple(dict.fromkeys((config.weekly_interval, config.daily_interval, config.h4_interval)))
 
 
 def wait_signal(kline: Kline, has_position: bool) -> StrategySignal:

@@ -490,7 +490,7 @@ def test_real_market_paper_runner_writes_strategy_details_to_state(tmp_path):
 def test_real_market_paper_runner_uses_injected_strategy_signal(tmp_path):
     from app.data.quality import Kline
     from app.paper.live_runner import RealMarketPaperConfig, run_real_market_paper
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     state_path = tmp_path / "paper-state.json"
     klines = [
@@ -576,7 +576,7 @@ def test_real_market_paper_runner_persists_runtime_events_to_database(tmp_path):
     from app.data.quality import Kline
     from app.database.models import Base, PaperRuntimeEvent
     from app.paper.live_runner import RealMarketPaperConfig, run_real_market_paper
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
@@ -669,7 +669,7 @@ def test_real_market_paper_runner_persists_rejected_signal_events(tmp_path):
     from app.data.quality import Kline
     from app.database.models import Base, PaperRuntimeEvent
     from app.paper.live_runner import RealMarketPaperConfig, run_real_market_paper
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)

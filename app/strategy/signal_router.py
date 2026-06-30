@@ -30,6 +30,12 @@ class StrategySignal:
     chart_timeframes: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     condition_statuses: list[dict[str, object]] = field(default_factory=list)
     nearest_strategy: dict[str, object] = field(default_factory=dict)
+    strategy_kernel: str | None = None
+    position_level: str | None = None
+    trade_mode: str | None = None
+    market_regime: str | None = None
+    lifecycle_state: str | None = None
+    reduce_pct: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -74,6 +80,12 @@ def _from_candidate(signal: EntryCandidate) -> StrategySignal:
         risk_multiplier=getattr(signal, "risk_multiplier", Decimal("1")),
         trailing_atr=getattr(signal, "trailing_atr", None) or getattr(signal, "atr", None),
         max_standard_position_pct=getattr(signal, "max_standard_position_pct", None),
+        strategy_kernel=getattr(signal, "strategy_kernel", None),
+        position_level=getattr(signal, "position_level", None),
+        trade_mode=getattr(signal, "trade_mode", None),
+        market_regime=getattr(signal, "market_regime", None),
+        lifecycle_state=getattr(signal, "lifecycle_state", None),
+        reduce_pct=getattr(signal, "reduce_pct", None),
         reason=signal.reason,
     )
 

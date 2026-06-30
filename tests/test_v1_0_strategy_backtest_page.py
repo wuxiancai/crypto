@@ -48,13 +48,13 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
             max_drawdown_pct="1.25",
             profit_loss_ratio="2.40",
             symbol_metrics={"BTCUSDT": {"trade_count": 2, "wins": 1, "losses": 1, "net_pnl": "30.25"}},
-            strategy_metrics={"SHORT_DAY_CORE": {"trade_count": 2, "wins": 1, "losses": 1, "net_pnl": "30.25"}},
-            bucket_metrics={"DAY_CORE": {"trade_count": 2, "wins": 1, "losses": 1, "net_pnl": "30.25"}},
+            strategy_metrics={"DAILY_SHORT_TREND": {"trade_count": 2, "wins": 1, "losses": 1, "net_pnl": "30.25"}},
+            bucket_metrics={"DAILY": {"trade_count": 2, "wins": 1, "losses": 1, "net_pnl": "30.25"}},
             trades=[
                 {
                     "symbol": "BTCUSDT",
                     "side": "SHORT",
-                    "strategy_type": "TREND_PULLBACK",
+                    "strategy_type": "DAILY_SHORT_TREND",
                     "entry_time": 1_800_000,
                     "exit_time": 2_700_000,
                     "entry_price": "62847.0078",
@@ -94,9 +94,9 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     assert "12.50 / 1.25%" in html
     assert "盈亏比" in html
     assert "2.40" in html
-    assert "策略 / Bucket / 交易对统计" in html
-    assert "SHORT_DAY_CORE" in html
-    assert "DAY_CORE" in html
+    assert "策略 / 层级 / 交易对统计" in html
+    assert "DAILY_SHORT_TREND" in html
+    assert "DAILY" in html
     assert "按交易对统计" in html
     assert "BTCUSDT" in html
     assert "策略K线图" not in html
@@ -259,7 +259,7 @@ def test_strategy_backtest_archived_summary_derives_risk_metrics_from_trades():
             {
                 "symbol": "BTCUSDT",
                 "side": "SHORT",
-                "strategy_type": "SHORT_DAY_CORE",
+                "strategy_type": "WEEKLY_SHORT_TREND",
                 "entry_time": "1",
                 "exit_time": "2",
                 "entry_price": "64000",
@@ -274,7 +274,7 @@ def test_strategy_backtest_archived_summary_derives_risk_metrics_from_trades():
             {
                 "symbol": "BTCUSDT",
                 "side": "LONG",
-                "strategy_type": "LONG_4H_HEDGE",
+                "strategy_type": "H4_LONG_REBOUND",
                 "entry_time": "3",
                 "exit_time": "4",
                 "entry_price": "62000",
@@ -289,7 +289,7 @@ def test_strategy_backtest_archived_summary_derives_risk_metrics_from_trades():
             {
                 "symbol": "BTCUSDT",
                 "side": "SHORT",
-                "strategy_type": "SHORT_4H_1H_ADDON",
+                "strategy_type": "H4_SHORT_CONTINUATION",
                 "entry_time": "5",
                 "exit_time": "6",
                 "entry_price": "61000",
@@ -313,9 +313,8 @@ def test_strategy_backtest_archived_summary_derives_risk_metrics_from_trades():
     assert summaries[0].max_drawdown_pct == "25.00"
     assert summaries[0].profit_loss_ratio == "1.33"
     assert summaries[0].bucket_metrics == {
-        "DAY_CORE": {"trade_count": 1, "wins": 1, "losses": 0, "net_pnl": "200.00"},
-        "FOUR_HOUR_ADDON": {"trade_count": 1, "wins": 0, "losses": 1, "net_pnl": "-50.00"},
-        "FOUR_HOUR_HEDGE": {"trade_count": 1, "wins": 0, "losses": 1, "net_pnl": "-250.00"},
+        "H4": {"trade_count": 2, "wins": 0, "losses": 2, "net_pnl": "-300.00"},
+        "WEEKLY": {"trade_count": 1, "wins": 1, "losses": 0, "net_pnl": "200.00"},
     }
 
 
@@ -362,10 +361,7 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
                 max_fee_to_risk_ratio="0.25",
                 history_period="1y",
                 trend_pullback_take_profit_mode="FIXED",
-                pullback_zone_atr_multiplier="0.5",
-                require_pullback_close_beyond_fast_ma="True",
-                enable_reversal_probe="False",
-                initial_equity="1000.00",
+                    initial_equity="1000.00",
                 final_equity="1044.00",
                 total_trades=25,
                 wins=11,
@@ -379,12 +375,11 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
     assert "参数组合对比" in html
     assert "recent-results-scroll" in html
     assert "EMA50 / MA200" in html
-    assert "<th>ATR</th><th>DMI</th><th>Swing</th><th>Zone</th><th>收盘确认</th><th>反转试仓</th><th>手续费过滤</th><th>止盈</th><th>周期</th>" in html
+    assert "<th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>止盈</th><th>周期</th>" in html
+    assert "WEEKLY_DAILY_H4_V1" in html
+    assert "1w,1d,4h" in html
     assert "<td>14</td>" in html
     assert "<td>25</td>" in html
-    assert "<td>0.5</td>" in html
-    assert "<td>是</td>" in html
-    assert "<td>否</td>" in html
     assert "<td>0.25</td>" in html
     assert "<td>FIXED</td>" in html
     assert "<td>1年</td>" in html
@@ -442,8 +437,8 @@ def test_strategy_backtest_parameter_comparison_sorts_by_final_equity():
                 max_drawdown_pct="8.14",
                 profit_loss_ratio="1.80",
                 bucket_metrics={
-                    "DAY_CORE": {"trade_count": 100, "wins": 44, "losses": 56, "net_pnl": "400.00"},
-                    "FOUR_HOUR_HEDGE": {"trade_count": 22, "wins": 10, "losses": 12, "net_pnl": "73.15"},
+                    "DAILY": {"trade_count": 100, "wins": 44, "losses": 56, "net_pnl": "400.00"},
+                    "H4": {"trade_count": 22, "wins": 10, "losses": 12, "net_pnl": "73.15"},
                 },
             ),
         ]
@@ -454,16 +449,16 @@ def test_strategy_backtest_parameter_comparison_sorts_by_final_equity():
     assert comparison_html.index("BTCUSDT") < comparison_html.index("ETHUSDT")
     assert "<th>盈亏比</th>" in comparison_html
     assert "<th>最大回撤</th>" in comparison_html
-    assert "<th>Bucket净盈亏</th>" in comparison_html
+    assert "<th>层级净盈亏</th>" in comparison_html
     assert "<td>1</td>" in comparison_html
     assert "1473.15" in comparison_html
     assert "1.80" in comparison_html
     assert "120.00 / 8.14%" in comparison_html
-    assert "DAY_CORE 400.00 (100)" in comparison_html
-    assert "FOUR_HOUR_HEDGE 73.15 (22)" in comparison_html
-    assert "<summary>Bucket明细</summary>" in comparison_html
-    assert "DAY_CORE：交易 100，胜/负 44/56，净盈亏 400.00" in comparison_html
-    assert "FOUR_HOUR_HEDGE：交易 22，胜/负 10/12，净盈亏 73.15" in comparison_html
+    assert "DAILY 400.00 (100)" in comparison_html
+    assert "H4 73.15 (22)" in comparison_html
+    assert "<summary>层级明细</summary>" in comparison_html
+    assert "DAILY：交易 100，胜/负 44/56，净盈亏 400.00" in comparison_html
+    assert "H4：交易 22，胜/负 10/12，净盈亏 73.15" in comparison_html
 
 
 def test_strategy_backtest_page_links_to_batch_parameter_page():
@@ -492,20 +487,18 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
             swing_lookbacks=(15, 20),
             max_fee_to_risk_ratios=("0.20", "0.25"),
             take_profit_modes=("TRAILING", "FIXED"),
-            pullback_zone_atr_multipliers=("1", "0.5"),
-            require_pullback_close_beyond_fast_ma_options=(False, True),
-            enable_reversal_probe_options=(True, False),
-            history_period="6m",
-        )
+                history_period="6m",
+            )
     )
 
     assert "批量参数回测" in html
+    assert "WEEKLY_DAILY_H4_V1" in html
     assert "策略框架" in html
-    assert "1d 主趋势 + 4h 子趋势 + 1h 确认 + 15m 入场" in html
+    assert "1w 周线 + 1d 日线 + 4h 执行" in html
     assert "默认均线" in html
     assert "EMA15 / MA60" in html
     assert "基础范围" in html
-    assert "分层策略参数" in html
+    assert "WEEKLY_DAILY_H4_V1 参数" in html
     assert "执行控制" in html
     assert 'name="fast_start"' in html
     assert 'value="15"' in html
@@ -527,17 +520,7 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     assert 'data-tooltip="选择回测使用的历史长度。' in html
     assert 'title="选择回测使用的历史长度。' not in html
     assert "影响：周期越长越能覆盖多种行情" in html
-    assert "建议：0.5-1.0，当前默认 1。" in html
     assert "建议：批量对比 TRAILING + FIXED" in html
-    assert "快线区域ATR倍数" in html
-    assert 'name="pullback_zone_atr_multipliers"' in html
-    assert 'value="1,0.5"' in html
-    assert "收盘回到快线方向侧" in html
-    assert 'name="require_pullback_close_beyond_fast_ma_options"' in html
-    assert '<option value="false,true" selected>否 + 是</option>' in html
-    assert "启用趋势转换试仓" in html
-    assert 'name="enable_reversal_probe_options"' in html
-    assert '<option value="false,true" selected>否 + 是</option>' in html
     assert "回测周期" in html
     assert "开始批量回测" in html
 
@@ -552,10 +535,9 @@ def test_strategy_backtest_batch_page_defaults_to_smaller_refinement_grid():
     assert 'name="dmi_periods" value="12,14"' in html
     assert 'name="swing_lookbacks" value="20,30"' in html
     assert 'name="max_fee_to_risk_ratios" value="0.25,0"' in html
-    assert 'name="pullback_zone_atr_multipliers" value="1"' in html
-    assert 'name="require_pullback_close_beyond_fast_ma_options"' in html
-    assert 'name="enable_reversal_probe_options"' in html
-    assert '<option value="false" selected>否</option>' in html
+    assert 'name="pullback_zone_atr_multipliers"' not in html
+    assert 'name="require_pullback_close_beyond_fast_ma_options"' not in html
+    assert 'name="enable_reversal_probe_options"' not in html
     assert '<option value="1" selected>是</option>' in html
 
 

@@ -1,12 +1,35 @@
 # Tasks
 
-更新时间：2026-06-24
+更新时间：2026-07-01
 
 ## 当前阶段
 
-当前 V0.6 AI/Funding 过滤纯风控层已完成，真实行情驱动 Paper Trading 已跑通基础闭环。用户已确认下一阶段不再继续微调旧 `TREND_PULLBACK`，而是升级为独立的分层策略系统：日线主趋势、4h 子趋势、1h 确认、15m 入场，并支持 Paper/Backtest 多策略子仓和主仓/hedge 仓共存。
+当前 V0.6 AI/Funding 过滤纯风控层已完成，真实行情驱动 Paper Trading 已跑通基础闭环。2026-06-30 用户要求按 `交易逻辑优化.md` 执行策略内核升级：新版内核为 `WEEKLY_DAILY_H4_V1`，只保留 `WEEKLY / DAILY / H4` 三类仓位，并删除旧内核运行入口，确保 Paper/Backtest/Web 状态页按新内核执行。
 
 版本边界：第一版只开发 Backtest、Paper Trading、Web 状态/复盘和模拟风控闭环，不开发测试网下单、真实下单、API 下单适配器或小资金实盘。第二版才允许开发 Live Trading；第二版开发永久暂停，除非用户明确发出“开始开发第二版实盘交易”的指令。
+
+## 当前阶段：WEEKLY_DAILY_H4_V1 策略内核升级
+
+- [x] 冻结升级决策：`交易逻辑优化.md` 是新版策略需求源，旧 `DAY_CORE / FOUR_HOUR_ADDON / FOUR_HOUR_HEDGE` 不得映射为新 `WEEKLY / DAILY / H4`。
+- [x] 新增独立策略内核模块：`app.strategy.weekly_daily_h4_strategy`。
+- [x] 新增 canonical 仓位层级、交易模式、生命周期和控制层合同。
+- [x] Paper/Backtest/Web 状态页切换到 `WEEKLY_DAILY_H4_V1`，删除旧 `enable_layered_strategy` 运行开关。
+- [x] 旧 `LAYERED_DAILY_V1` 只能作为历史代码或测试背景存在，不允许成为默认或 fallback 策略内核。
+- [x] 回测、批量回测、Web 批量参数页、Paper 事件 CLI 和实时启动脚本已适配新内核，不再暴露旧 Reversal/Zone/CloseBeyond 参数。
+- [x] 旧 v0/v1 策略测试已归档或改写为 v2 口径；全量 pytest 不再依赖旧内核断言。
+
+2026-06-30 实施进度：
+
+- [x] 新增 `app/strategy/position_hierarchy.py`、`app/strategy/trade_controls.py`、`app/strategy/weekly_daily_h4_strategy.py`。
+- [x] Paper/Backtest/Realtime adapter 切换为 `WEEKLY_DAILY_H4_V1`。
+- [x] 删除旧 `enable_layered_strategy` 运行开关、旧 `app/strategy/layered_strategy.py`、旧 pullback/reversal/trend detector 策略模块和旧 layered 验证/恢复脚本。
+- [x] 启动同步、实时订阅、历史 warmup、策略回测改为当前内核周期 `1w / 1d / 4h`。
+- [x] 新增 v2 合同、策略、Paper、adapter 测试。
+- [x] `strategy_backtest_config_payload()` 写入 `strategy_kernel=WEEKLY_DAILY_H4_V1` 和 `timeframes=1w,1d,4h`，不再归档旧内核参数。
+- [x] `scripts/run_strategy_backtest_batch.py` 的批量网格改为 `1w / 1d / 4h`，参数标签只保留新内核语义。
+- [x] `/backtest`、`/backtest/batch` 和 `scripts/show_paper_runtime_events.py` 的用户展示从 Bucket/Reversal/分层策略旧语义收敛为“层级”和 `WEEKLY_DAILY_H4_V1`。
+- [x] 2026-07-01 旧策略测试归档到 `docs/archived-tests/2026-07-01-legacy-strategy-tests/`，保留的 v0/v1 基础设施测试已改为通用 `StrategySignal` 或新内核断言。
+- [x] 2026-07-01 已完成真实运行态 smoke：Binance Futures `BTCUSDT 1w/1d/4h` dry-run 拉取成功；真实 K 线策略回测路径、SQLite 归档摘要、HTTP `/backtest` 和 `/backtest/batch` 均确认输出 `WEEKLY_DAILY_H4_V1`。
 
 ## 下一阶段：分层策略系统
 

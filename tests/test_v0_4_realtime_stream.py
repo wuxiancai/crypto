@@ -6,7 +6,7 @@ def test_paper_stream_consumes_async_klines_and_updates_engine():
     from app.data.quality import Kline
     from app.paper.stream import run_paper_kline_stream
     from app.paper.trading import PaperConfig, PaperTradingEngine
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     klines = [
         Kline(

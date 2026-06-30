@@ -121,6 +121,11 @@ def _position_to_payload(position: PaperPosition | None) -> dict[str, Any] | Non
         "trailing_active": position.trailing_active,
         "trailing_atr": str(position.trailing_atr) if position.trailing_atr is not None else None,
         "trailing_last_close": str(position.trailing_last_close) if position.trailing_last_close is not None else None,
+        "strategy_kernel": position.strategy_kernel,
+        "position_level": position.position_level,
+        "trade_mode": position.trade_mode,
+        "market_regime": position.market_regime,
+        "lifecycle_state": position.lifecycle_state,
     }
 
 
@@ -144,6 +149,11 @@ def _position_from_payload(payload: dict[str, Any] | None) -> PaperPosition | No
         trailing_active=bool(payload.get("trailing_active", False)),
         trailing_atr=Decimal(payload["trailing_atr"]) if payload.get("trailing_atr") is not None else None,
         trailing_last_close=Decimal(payload["trailing_last_close"]) if payload.get("trailing_last_close") is not None else None,
+        strategy_kernel=payload.get("strategy_kernel"),
+        position_level=payload.get("position_level"),
+        trade_mode=payload.get("trade_mode"),
+        market_regime=payload.get("market_regime"),
+        lifecycle_state=payload.get("lifecycle_state"),
     )
 
 
@@ -165,6 +175,11 @@ def _fill_to_payload(fill: PaperFill) -> dict[str, Any]:
         "net_pnl": str(fill.net_pnl),
         "exit_reason": fill.exit_reason,
         "exit_detail": fill.exit_detail,
+        "strategy_kernel": fill.strategy_kernel,
+        "position_level": fill.position_level,
+        "trade_mode": fill.trade_mode,
+        "market_regime": fill.market_regime,
+        "lifecycle_state": fill.lifecycle_state,
     }
 
 
@@ -186,6 +201,11 @@ def _fill_from_payload(payload: dict[str, Any]) -> PaperFill:
         net_pnl=Decimal(payload["net_pnl"]),
         exit_reason=payload["exit_reason"],
         exit_detail=payload.get("exit_detail", ""),
+        strategy_kernel=payload.get("strategy_kernel"),
+        position_level=payload.get("position_level"),
+        trade_mode=payload.get("trade_mode"),
+        market_regime=payload.get("market_regime"),
+        lifecycle_state=payload.get("lifecycle_state"),
     )
 
 
@@ -206,6 +226,11 @@ def _signal_evaluation_to_payload(evaluation: PaperSignalEvaluation) -> dict[str
         },
         "condition_statuses": list(evaluation.condition_statuses),
         "nearest_strategy": evaluation.nearest_strategy,
+        "strategy_kernel": evaluation.strategy_kernel,
+        "position_level": evaluation.position_level,
+        "trade_mode": evaluation.trade_mode,
+        "market_regime": evaluation.market_regime,
+        "lifecycle_state": evaluation.lifecycle_state,
     }
 
 
@@ -226,4 +251,9 @@ def _signal_evaluation_from_payload(payload: dict[str, Any]) -> PaperSignalEvalu
         },
         condition_statuses=tuple(payload.get("condition_statuses", [])),
         nearest_strategy=payload.get("nearest_strategy", {}),
+        strategy_kernel=payload.get("strategy_kernel"),
+        position_level=payload.get("position_level"),
+        trade_mode=payload.get("trade_mode"),
+        market_regime=payload.get("market_regime"),
+        lifecycle_state=payload.get("lifecycle_state"),
     )

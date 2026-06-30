@@ -287,23 +287,6 @@ def _batch_config_from_query(query: dict[str, list[str]]):
             maximum=Decimal("2"),
         ),
         take_profit_modes=_query_choice_list(query, "take_profit_modes", ("TRAILING", "FIXED"), {"TRAILING", "FIXED"}),
-        pullback_zone_atr_multipliers=_query_decimal_list(
-            query,
-            "pullback_zone_atr_multipliers",
-            ("1",),
-            minimum=Decimal("0"),
-            maximum=Decimal("3"),
-        ),
-        require_pullback_close_beyond_fast_ma_options=_query_bool_list(
-            query,
-            "require_pullback_close_beyond_fast_ma_options",
-            (False,),
-        ),
-        enable_reversal_probe_options=_query_bool_list(
-            query,
-            "enable_reversal_probe_options",
-            (False,),
-        ),
         history_period=history_period,
         history_window_ms=HISTORY_WINDOWS_MS[history_period],
         skip_fast_gte_slow=_query_bool(query, "skip_fast_gte_slow", True),

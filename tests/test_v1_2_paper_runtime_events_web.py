@@ -8,20 +8,20 @@ def test_renders_paper_runtime_events_page():
             event_time=1_800_000,
             event_type="signal",
             symbol="BTCUSDT",
-            interval="15m",
-            strategy_type="SHORT_DAY_CORE",
+            interval="4h",
+            strategy_type="DAILY_SHORT_TREND",
             action="SHORT_ENTRY",
-            bucket="DAY_CORE",
+            bucket="DAILY",
             payload='{"reason":["daily bearish"],"opened_position":{"side":"SHORT"}}',
         ),
         SimpleNamespace(
             event_time=2_700_000,
             event_type="fill",
             symbol="BTCUSDT",
-            interval="15m",
-            strategy_type="SHORT_DAY_CORE",
+            interval="4h",
+            strategy_type="DAILY_SHORT_TREND",
             action="EXIT",
-            bucket="DAY_CORE",
+            bucket="DAILY",
             payload='{"net_pnl":"25.50","exit_reason":"TAKE_PROFIT","quantity":"0.01"}',
         ),
     ]
@@ -32,8 +32,8 @@ def test_renders_paper_runtime_events_page():
             "limit": "20",
             "symbol": "BTCUSDT",
             "event_type": "fill",
-            "strategy_type": "SHORT_DAY_CORE",
-            "bucket": "DAY_CORE",
+            "strategy_type": "DAILY_SHORT_TREND",
+            "bucket": "DAILY",
         },
     )
 
@@ -41,17 +41,17 @@ def test_renders_paper_runtime_events_page():
     assert 'action="/paper/events"' in html
     assert 'name="event_type"' in html
     assert 'value="BTCUSDT"' in html
-    assert "SHORT_DAY_CORE" in html
-    assert "DAY_CORE" in html
+    assert "DAILY_SHORT_TREND" in html
+    assert "DAILY" in html
     assert "策略信号：1" in html
     assert "成交：1" in html
     assert 'href="/paper/events?event_type=fill"' in html
     assert 'href="/paper/events?event_type=rejected_signal"' in html
     assert "净盈亏=25.50, 退出原因=止盈, 数量=0.0100" in html
     assert "是否开仓=是, 原因=日线空头" in html
-    assert "日线核心做空 (SHORT_DAY_CORE)" in html
+    assert "日线顺势做空 (DAILY_SHORT_TREND)" in html
     assert "做空入场 (SHORT_ENTRY)" in html
-    assert "日线核心仓 (DAY_CORE)" in html
+    assert "日线仓 (DAILY)" in html
 
 
 def test_loads_paper_runtime_events_for_web_with_filters():

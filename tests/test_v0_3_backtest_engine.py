@@ -5,7 +5,7 @@ from dataclasses import dataclass
 def test_backtest_opens_and_closes_long_trade_with_costs():
     from app.backtest.engine import BacktestConfig, run_backtest
     from app.data.quality import Kline
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     klines = [
         Kline(
@@ -78,7 +78,7 @@ def test_backtest_opens_and_closes_long_trade_with_costs():
 def test_backtest_opens_and_stops_short_trade():
     from app.backtest.engine import BacktestConfig, run_backtest
     from app.data.quality import Kline
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     klines = [
         Kline(
@@ -148,7 +148,7 @@ def test_backtest_opens_and_stops_short_trade():
 def test_backtest_executes_reversal_signal_and_reports_strategy_metrics():
     from app.backtest.engine import BacktestConfig, run_backtest
     from app.data.quality import Kline
-    from app.strategy.reversal_strategy import ReversalSignal
+    from app.strategy.signal_router import StrategySignal as ReversalSignal
 
     klines = [
         Kline(
@@ -325,7 +325,7 @@ def test_backtest_applies_signal_risk_multiplier():
 def test_backtest_uses_taker_fee_for_entry_and_maker_fee_for_take_profit():
     from app.backtest.engine import BacktestConfig, run_backtest
     from app.data.quality import Kline
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     klines = [
         Kline(
@@ -394,7 +394,7 @@ def test_backtest_uses_taker_fee_for_entry_and_maker_fee_for_take_profit():
 def test_backtest_rounds_quantity_to_exchange_step_size():
     from app.backtest.engine import BacktestConfig, run_backtest
     from app.data.quality import Kline
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     klines = [
         Kline(
@@ -463,7 +463,7 @@ def test_backtest_rounds_quantity_to_exchange_step_size():
 def test_backtest_rejects_entry_below_min_notional():
     from app.backtest.engine import BacktestConfig, run_backtest
     from app.data.quality import Kline
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     klines = [
         Kline(
@@ -532,7 +532,7 @@ def test_backtest_rejects_entry_below_min_notional():
 def test_backtest_applies_funding_fee_while_position_is_open():
     from app.backtest.engine import BacktestConfig, FundingRate, run_backtest
     from app.data.quality import Kline
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     klines = [
         Kline(
@@ -602,7 +602,7 @@ def test_backtest_applies_funding_fee_while_position_is_open():
 def test_backtest_uses_stop_slippage_and_gap_price_for_extreme_stop():
     from app.backtest.engine import BacktestConfig, run_backtest
     from app.data.quality import Kline
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     klines = [
         Kline(
@@ -791,7 +791,7 @@ def test_backtest_applies_limit_partial_fill_ratio():
 def test_backtest_rounds_prices_by_tick_direction():
     from app.backtest.engine import BacktestConfig, run_backtest
     from app.data.quality import Kline
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     klines = [
         Kline(
@@ -858,7 +858,7 @@ def test_backtest_rounds_prices_by_tick_direction():
 def test_backtest_exits_at_liquidation_before_stop_loss():
     from app.backtest.engine import BacktestConfig, run_backtest
     from app.data.quality import Kline
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     klines = [
         Kline(

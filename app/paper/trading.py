@@ -54,6 +54,11 @@ class PaperPosition:
     trailing_atr: Decimal | None = None
     trailing_last_close: Decimal | None = None
     interval: str = "15m"
+    strategy_kernel: str | None = None
+    position_level: str | None = None
+    trade_mode: str | None = None
+    market_regime: str | None = None
+    lifecycle_state: str | None = None
 
     def __post_init__(self) -> None:
         if self.initial_stop_loss is None:
@@ -78,6 +83,11 @@ class PaperFill:
     leverage: Decimal = Decimal("10")
     funding_fee: Decimal = Decimal("0")
     exit_detail: str = ""
+    strategy_kernel: str | None = None
+    position_level: str | None = None
+    trade_mode: str | None = None
+    market_regime: str | None = None
+    lifecycle_state: str | None = None
 
 
 @dataclass(frozen=True)
@@ -94,6 +104,11 @@ class PaperSignalEvaluation:
     chart_timeframes: dict[str, tuple[dict[str, str], ...]] = field(default_factory=dict)
     condition_statuses: tuple[dict[str, object], ...] = ()
     nearest_strategy: dict[str, object] = field(default_factory=dict)
+    strategy_kernel: str | None = None
+    position_level: str | None = None
+    trade_mode: str | None = None
+    market_regime: str | None = None
+    lifecycle_state: str | None = None
 
 
 @dataclass(frozen=True)
@@ -118,6 +133,10 @@ class SignalLike:
     entry_price: Decimal | None
     stop_loss: Decimal | None
     take_profit: Decimal | None
+    strategy_kernel: str | None
+    position_level: str | None
+    trade_mode: str | None
+    reduce_pct: Decimal | None
 
 
 class PaperTradingEngine:
@@ -140,16 +159,15 @@ class PaperTradingEngine:
         return engine
 
     def on_signal(self, kline: Kline, signal: SignalLike) -> PaperPosition | PaperFill | None:
-        if signal.action == "EXIT_DAY_CORE_REVERSAL":
-            return self._exit_day_core_on_reversal(kline)
+        if signal.action == "EXIT_POSITION":
+            return self._exit_position_by_signal(kline, signal)
+        if signal.action == "REDUCE_POSITION":
+            return self._reduce_position_by_signal(kline, signal)
         if signal.action not in {"LONG_ENTRY", "SHORT_ENTRY", "REVERSAL_LONG_ENTRY", "REVERSAL_SHORT_ENTRY"}:
             return None
         if self._kill_switch_blocks_new_entries():
             self._rejected_signals += 1
             return None
-        reversal_fill = self._exit_opposite_day_core_if_needed(kline, signal)
-        if reversal_fill is not None:
-            return reversal_fill
         if self._has_conflicting_position(kline.symbol, signal):
             self._rejected_signals += 1
             return None
@@ -160,52 +178,12 @@ class PaperTradingEngine:
         self._positions.append(position)
         return position
 
-    def _exit_day_core_on_reversal(self, kline: Kline) -> PaperFill | None:
-        for position in list(self._positions):
-            if position.symbol != kline.symbol or position.bucket != "DAY_CORE":
-                continue
-            fill = self._close_position(
-                position=position,
-                kline=kline,
-                raw_exit_price=kline.close,
-                exit_reason="DAILY_REGIME_REVERSAL",
-                exit_detail="日线主趋势反向确认，按当前已收盘 K 线价格退出日线核心仓",
-            )
-            self._fills.append(fill)
-            self._equity += fill.net_pnl
-            self._positions.remove(position)
-            return fill
-        return None
-
-    def _exit_opposite_day_core_if_needed(self, kline: Kline, signal: SignalLike) -> PaperFill | None:
-        if _bucket_from_signal(signal) != "DAY_CORE":
-            return None
-        new_side = _side_from_action(signal.action)
-        for position in list(self._positions):
-            if position.symbol != kline.symbol or position.bucket != "DAY_CORE":
-                continue
-            if position.side == new_side:
-                return None
-            fill = self._close_position(
-                position=position,
-                kline=kline,
-                raw_exit_price=kline.close,
-                exit_reason="DAILY_REGIME_REVERSAL",
-                exit_detail="日线主趋势反向确认，先退出旧日线核心仓",
-            )
-            self._fills.append(fill)
-            self._equity += fill.net_pnl
-            self._positions.remove(position)
-            return fill
-        return None
-
     def on_kline_all(self, kline: Kline) -> list[PaperFill]:
         """Evaluate every coexisting sub-position against this kline.
 
-        A single kline can close more than one position (e.g. a DAY_CORE and a
-        4H hedge that share a symbol/interval). Positions that are not closed are
-        still updated in place by ``_maybe_close_position`` (trailing stop), so
-        all open sub-positions are processed on every kline.
+        A single kline can close more than one position. Positions that are not
+        closed are still updated in place by ``_maybe_close_position`` (trailing
+        stop), so all open sub-positions are processed on every kline.
         """
         fills: list[PaperFill] = []
         for position in list(self._positions):
@@ -239,6 +217,16 @@ class PaperTradingEngine:
         )
 
     def _has_conflicting_position(self, symbol: str, signal: SignalLike) -> bool:
+        signal_level = getattr(signal, "position_level", None)
+        if signal_level:
+            for position in self._positions:
+                if position.symbol != symbol:
+                    continue
+                if position.strategy_kernel and position.strategy_kernel != getattr(signal, "strategy_kernel", None):
+                    return True
+                if position.position_level == signal_level:
+                    return True
+            return False
         bucket = _bucket_from_signal(signal)
         for position in self._positions:
             if position.symbol != symbol:
@@ -304,12 +292,81 @@ class PaperTradingEngine:
             interval=kline.interval,
             trailing_atr=getattr(signal, "trailing_atr", None) or getattr(signal, "atr", None),
             trailing_last_close=entry_price,
+            strategy_kernel=getattr(signal, "strategy_kernel", None),
+            position_level=getattr(signal, "position_level", None),
+            trade_mode=getattr(signal, "trade_mode", None),
+            market_regime=getattr(signal, "market_regime", None),
+            lifecycle_state=getattr(signal, "lifecycle_state", "OPEN") or "OPEN",
         )
         if not self._liquidation_guard_allows(position):
             return None
         if not self._stop_order_guard_allows(position):
             return None
         return position
+
+    def _exit_position_by_signal(self, kline: Kline, signal: SignalLike) -> PaperFill | None:
+        target = self._find_position_for_signal(kline.symbol, signal)
+        if target is None:
+            return None
+        fill = self._close_position(
+            position=target,
+            kline=kline,
+            raw_exit_price=kline.close,
+            exit_reason="KERNEL_FORCED_EXIT",
+            exit_detail="新版策略内核触发强制退出",
+        )
+        self._fills.append(fill)
+        self._equity += fill.net_pnl
+        self._positions.remove(target)
+        return fill
+
+    def _reduce_position_by_signal(self, kline: Kline, signal: SignalLike) -> PaperFill | None:
+        target = self._find_position_for_signal(kline.symbol, signal)
+        if target is None:
+            return None
+        reduce_pct = getattr(signal, "reduce_pct", None) or Decimal("0.5")
+        reduce_pct = max(Decimal("0"), min(Decimal("1"), reduce_pct))
+        if reduce_pct <= 0:
+            return None
+        if reduce_pct >= 1:
+            return self._exit_position_by_signal(kline, signal)
+        reduced_quantity = target.quantity * reduce_pct
+        remaining = replace(
+            target,
+            quantity=target.quantity - reduced_quantity,
+            entry_fee=target.entry_fee * (Decimal("1") - reduce_pct),
+            lifecycle_state="REDUCING",
+        )
+        partial = replace(
+            target,
+            quantity=reduced_quantity,
+            entry_fee=target.entry_fee * reduce_pct,
+            lifecycle_state="REDUCING",
+        )
+        fill = self._close_position(
+            position=partial,
+            kline=kline,
+            raw_exit_price=kline.close,
+            exit_reason="KERNEL_STAGED_REDUCTION",
+            exit_detail=f"新版策略内核触发分批减仓 {reduce_pct}",
+        )
+        self._replace_position(target, remaining)
+        self._fills.append(fill)
+        self._equity += fill.net_pnl
+        return fill
+
+    def _find_position_for_signal(self, symbol: str, signal: SignalLike) -> PaperPosition | None:
+        signal_level = getattr(signal, "position_level", None)
+        signal_kernel = getattr(signal, "strategy_kernel", None)
+        for position in self._positions:
+            if position.symbol != symbol:
+                continue
+            if signal_kernel and position.strategy_kernel != signal_kernel:
+                continue
+            if signal_level and position.position_level != signal_level:
+                continue
+            return position
+        return None
 
     def _kill_switch_blocks_new_entries(self) -> bool:
         state = self._kill_switch_state()
@@ -489,6 +546,11 @@ class PaperTradingEngine:
             net_pnl=net_pnl,
             exit_reason=exit_reason,
             exit_detail=exit_detail,
+            strategy_kernel=position.strategy_kernel,
+            position_level=position.position_level,
+            trade_mode=position.trade_mode,
+            market_regime=position.market_regime,
+            lifecycle_state=position.lifecycle_state,
         )
 
     def _replace_position(self, old: PaperPosition, new: PaperPosition) -> None:
@@ -588,31 +650,21 @@ def _fees_too_high_for_planned_risk(
 
 
 def _bucket_from_signal(signal: SignalLike) -> str:
+    position_level = getattr(signal, "position_level", None)
+    if position_level:
+        return str(position_level)
     explicit_bucket = getattr(signal, "bucket", None)
     if explicit_bucket:
         return str(explicit_bucket)
-    strategy_type = getattr(signal, "strategy_type", "")
-    if strategy_type in {"SHORT_DAY_CORE", "LONG_DAY_CORE"}:
-        return "DAY_CORE"
-    if strategy_type in {"SHORT_4H_1H_ADDON", "LONG_4H_1H_ADDON"}:
-        return "FOUR_HOUR_ADDON"
-    if strategy_type in {"LONG_4H_HEDGE", "SHORT_4H_HEDGE"}:
-        return "FOUR_HOUR_HEDGE"
     return "LEGACY"
 
 
 def _uses_trailing_take_profit(position: PaperPosition, config: PaperConfig) -> bool:
     if config.trend_pullback_take_profit_mode != "TRAILING":
         return False
-    return position.strategy_type in {
-        "TREND_PULLBACK",
-        "SHORT_DAY_CORE",
-        "SHORT_4H_1H_ADDON",
-        "LONG_4H_HEDGE",
-        "LONG_DAY_CORE",
-        "LONG_4H_1H_ADDON",
-        "SHORT_4H_HEDGE",
-    }
+    if position.strategy_kernel == "WEEKLY_DAILY_H4_V1":
+        return True
+    return False
 
 
 def _activate_trailing_take_profit(position: PaperPosition, kline: Kline, config: PaperConfig) -> PaperPosition:

@@ -9,7 +9,7 @@ def test_archives_backtest_run_config_snapshot_and_trades():
     from app.data.quality import Kline
     from app.database.models import BacktestRun, BacktestTradeRecord, Base, ConfigSnapshot
     from app.database.repositories import archive_backtest_result
-    from app.strategy.pullback_strategy import TradeSignal
+    from app.strategy.signal_router import StrategySignal as TradeSignal
 
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
