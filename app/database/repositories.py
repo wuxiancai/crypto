@@ -10,17 +10,6 @@ from app.backtest.engine import BacktestResult
 from app.data.quality import Kline
 from app.database.models import BacktestRun, BacktestTradeRecord, ConfigSnapshot, KlineRecord, PaperRuntimeEvent
 from app.paper.strategy_backtest import StrategyBacktestResult, StrategyBacktestRunSummary
-from app.strategy.layered_strategy import (
-    DAY_CORE,
-    FOUR_HOUR_ADDON,
-    FOUR_HOUR_HEDGE,
-    LONG_4H_1H_ADDON,
-    LONG_4H_HEDGE,
-    LONG_DAY_CORE,
-    SHORT_4H_1H_ADDON,
-    SHORT_4H_HEDGE,
-    SHORT_DAY_CORE,
-)
 
 
 @dataclass(frozen=True)
@@ -457,12 +446,12 @@ def _summary_bucket_metrics(trades: list[BacktestTradeRecord]) -> dict[str, dict
 
 
 def _bucket_from_strategy_type(strategy_type: str) -> str:
-    if strategy_type in {SHORT_DAY_CORE, LONG_DAY_CORE}:
-        return DAY_CORE
-    if strategy_type in {SHORT_4H_1H_ADDON, LONG_4H_1H_ADDON}:
-        return FOUR_HOUR_ADDON
-    if strategy_type in {LONG_4H_HEDGE, SHORT_4H_HEDGE}:
-        return FOUR_HOUR_HEDGE
+    if strategy_type.startswith("WEEKLY_"):
+        return "WEEKLY"
+    if strategy_type.startswith("DAILY_"):
+        return "DAILY"
+    if strategy_type.startswith("H4_"):
+        return "H4"
     return "LEGACY"
 
 

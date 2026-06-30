@@ -1044,11 +1044,11 @@ def _render_paper_runtime_event_filters(filters: dict[str, str]) -> str:
     </div>
     <div class="form-field">
       <label>策略代码</label>
-      <input name="strategy_type" value="{_escape(filters.get("strategy_type", ""))}" placeholder="SHORT_DAY_CORE">
+      <input name="strategy_type" value="{_escape(filters.get("strategy_type", ""))}" placeholder="WEEKLY_SHORT_TREND">
     </div>
     <div class="form-field">
       <label>策略分组</label>
-      <input name="bucket" value="{_escape(filters.get("bucket", ""))}" placeholder="DAY_CORE">
+      <input name="bucket" value="{_escape(filters.get("bucket", ""))}" placeholder="WEEKLY">
     </div>
     <div class="form-field">
       <label>开始 UTC+8</label>
@@ -1258,14 +1258,16 @@ def _event_type_label(event_type: Any) -> str:
 def _strategy_type_label(strategy_type: Any) -> str:
     labels = {
         "SYSTEM": "系统",
-        "SHORT_DAY_CORE": "日线核心做空",
-        "LONG_DAY_CORE": "日线核心做多",
-        "SHORT_4H_1H_ADDON": "4小时/1小时顺势做空",
-        "LONG_4H_1H_ADDON": "4小时/1小时顺势做多",
-        "SHORT_4H_HEDGE": "4小时对冲做空",
-        "LONG_4H_HEDGE": "4小时对冲做多",
-        "TREND_PULLBACK": "趋势回踩",
-        "REVERSAL_PROBE": "趋势转换试探",
+        "WEEKLY_SHORT_TREND": "周线趋势做空",
+        "WEEKLY_LONG_TREND": "周线趋势做多",
+        "DAILY_SHORT_TREND": "日线顺势做空",
+        "DAILY_LONG_TREND": "日线顺势做多",
+        "DAILY_LONG_REBOUND": "日线反弹做多",
+        "DAILY_SHORT_REBOUND": "日线反弹做空",
+        "H4_SHORT_BREAKOUT": "4H突破做空",
+        "H4_LONG_BREAKOUT": "4H突破做多",
+        "H4_SHORT_CONTINUATION": "4H延续做空",
+        "H4_LONG_CONTINUATION": "4H延续做多",
     }
     key = str(strategy_type or "")
     label = labels.get(key)
@@ -1276,15 +1278,37 @@ def _strategy_type_label(strategy_type: Any) -> str:
 
 def _bucket_label(bucket: Any) -> str:
     labels = {
-        "DAY_CORE": "日线核心仓",
-        "FOUR_HOUR_ADDON": "4小时加仓",
-        "FOUR_HOUR_HEDGE": "4小时对冲仓",
+        "WEEKLY": "周线仓",
+        "DAILY": "日线仓",
+        "H4": "4H仓",
     }
     key = str(bucket or "")
     if not key:
         return "-"
     label = labels.get(key)
     return f"{label} ({key})" if label else key
+
+
+def _position_level_label(level: Any) -> str:
+    labels = {
+        "WEEKLY": "周线",
+        "DAILY": "日线",
+        "H4": "4H",
+    }
+    key = str(level or "")
+    return labels.get(key, key or "-")
+
+
+def _trade_mode_label(mode: Any) -> str:
+    labels = {
+        "TREND": "顺势",
+        "REBOUND": "反弹",
+        "BREAKOUT": "突破",
+        "PULLBACK": "回踩",
+        "CONTINUATION": "延续",
+    }
+    key = str(mode or "")
+    return labels.get(key, key or "-")
 
 
 def _format_reason_list(reasons: Any) -> str:
@@ -1356,7 +1380,9 @@ def _render_positions(positions: list[dict[str, Any]]) -> str:
             f"<td>{_escape(position.get('symbol'))}</td>"
             f"<td>{_side_label(position.get('side'))}</td>"
             f"<td>{_escape(position.get('strategy_type'))}</td>"
-            f"<td>{_escape(position.get('bucket') or '-')}</td>"
+            f"<td>{_escape(position.get('strategy_kernel') or '-')}</td>"
+            f"<td>{_position_level_label(position.get('position_level') or position.get('bucket'))}</td>"
+            f"<td>{_trade_mode_label(position.get('trade_mode'))}</td>"
             f"<td>{_format_decimal(position.get('entry_price'), 2)}</td>"
             f"<td class=\"price-cell price-stop\">{_format_decimal(_initial_stop_loss_value(position), 2)}</td>"
             f"<td>{_format_decimal(position.get('stop_loss'), 2)}</td>"
@@ -1368,7 +1394,7 @@ def _render_positions(positions: list[dict[str, Any]]) -> str:
         )
     return (
         '<div class="table-wrap"><table class="compact-position">'
-        "<thead><tr><th>交易对</th><th>方向</th><th>使用策略</th><th>Bucket</th>"
+        "<thead><tr><th>交易对</th><th>方向</th><th>使用策略</th><th>内核</th><th>层级</th><th>模式</th>"
         "<th>入场</th><th class=\"price-cell price-stop\">初始止损</th><th>当前保护线</th><th class=\"price-cell price-target\">止盈激活价</th><th>止盈逻辑</th><th>杠杆</th><th class=\"money-cell\">USDT</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
@@ -2227,28 +2253,13 @@ def _nearest_strategy_for_conditions(nearest: Any, conditions: list[dict[str, An
             "matched": rendered_matched,
             "total": rendered_total,
         }
-    if (
-        name == condition_strategy
-        and _is_layered_strategy_name(condition_strategy)
-        and (matched != rendered_matched or total != rendered_total)
-    ):
+    if name == condition_strategy and (matched != rendered_matched or total != rendered_total):
         return {
             **nearest,
             "matched": rendered_matched,
             "total": rendered_total,
         }
     return nearest
-
-
-def _is_layered_strategy_name(strategy: Any) -> bool:
-    return str(strategy or "") in {
-        "SHORT_DAY_CORE",
-        "LONG_DAY_CORE",
-        "SHORT_4H_1H_ADDON",
-        "LONG_4H_1H_ADDON",
-        "SHORT_4H_HEDGE",
-        "LONG_4H_HEDGE",
-    }
 
 
 def _normalize_condition(condition: dict[str, Any]) -> dict[str, Any] | None:
@@ -2265,37 +2276,11 @@ def _normalize_condition(condition: dict[str, Any]) -> dict[str, Any] | None:
     normalized["strategy"] = str(strategy) if strategy else "-"
     normalized["text"] = _normalize_condition_text(str(text))
     normalized["detail"] = str(detail)
-    if _legacy_entry_zone_condition_is_satisfied(normalized):
-        normalized["passed"] = True
-        normalized["detail"] = _append_condition_detail(
-            normalized["detail"],
-            "兼容旧状态：价格已在快线顺势侧，按15m入场条件满足显示",
-        )
     return normalized
 
 
 def _normalize_condition_text(text: str) -> str:
-    replacements = {
-        "15m 空头反弹到快线区域": "15m 空头入场条件",
-        "15m 多头回踩到快线区域": "15m 多头入场条件",
-    }
-    return replacements.get(text, text)
-
-
-def _legacy_entry_zone_condition_is_satisfied(condition: dict[str, Any]) -> bool:
-    text = str(condition.get("text") or "")
-    if text not in {"15m 空头入场条件", "15m 多头入场条件"}:
-        return False
-    if bool(condition.get("passed")):
-        return False
-    detail = str(condition.get("detail") or "")
-    if "顺势延续" in detail:
-        return True
-    if text == "15m 空头入场条件" and "close < fast_ma" in detail:
-        return True
-    if text == "15m 多头入场条件" and "close > fast_ma" in detail:
-        return True
-    return False
+    return text
 
 
 def _append_condition_detail(detail: str, addition: str) -> str:
@@ -2308,26 +2293,18 @@ def _append_condition_detail(detail: str, addition: str) -> str:
 
 def _strategy_condition_text(strategy: Any) -> str:
     labels = {
-        "DAY_CORE": "日线趋势明确",
-        "SHORT_DAY_CORE": "日线空头主趋势",
-        "LONG_DAY_CORE": "日线多头主趋势",
-        "SHORT_4H_1H_ADDON": "4h/1h 空头顺势加仓",
-        "LONG_4H_1H_ADDON": "4h/1h 多头顺势加仓",
-        "SHORT_4H_HEDGE": "4h 空头对冲",
-        "LONG_4H_HEDGE": "4h 多头对冲",
+        "WEEKLY": "周线大环境",
+        "DAILY": "日线战术层",
+        "H4": "4H执行层",
     }
     return labels.get(str(strategy or ""), "")
 
 
 def _strategy_condition_group_label(strategy: Any) -> str:
     labels = {
-        "DAY_CORE": "日线主趋势",
-        "SHORT_DAY_CORE": "日线核心做空",
-        "LONG_DAY_CORE": "日线核心做多",
-        "SHORT_4H_1H_ADDON": "4h/1h 顺势做空",
-        "LONG_4H_1H_ADDON": "4h/1h 顺势做多",
-        "SHORT_4H_HEDGE": "4h 对冲做空",
-        "LONG_4H_HEDGE": "4h 对冲做多",
+        "WEEKLY": "周线仓",
+        "DAILY": "日线仓",
+        "H4": "4H仓",
         "SYSTEM": "系统",
     }
     key = str(strategy or "")
@@ -2678,6 +2655,11 @@ def _open_position_trade_rows(positions: list[dict[str, Any]]) -> list[dict[str,
                 "symbol": position.get("symbol"),
                 "side": position.get("side"),
                 "strategy_type": position.get("strategy_type"),
+                "strategy_kernel": position.get("strategy_kernel"),
+                "position_level": position.get("position_level"),
+                "trade_mode": position.get("trade_mode"),
+                "market_regime": position.get("market_regime"),
+                "lifecycle_state": position.get("lifecycle_state"),
                 "entry_time": position.get("entry_time"),
                 "exit_time": None,
                 "entry_price": position.get("entry_price"),
@@ -2696,10 +2678,11 @@ def _open_position_trade_rows(positions: list[dict[str, Any]]) -> list[dict[str,
 def _render_fill_row(fill: dict[str, Any]) -> str:
     pnl = str(fill.get("net_pnl", "0"))
     pnl_class = "loss" if pnl.startswith("-") else "profit"
+    strategy_cell = _trade_identity_label(fill)
     return f"""<tr>
   <td>{_escape(fill.get("symbol"))}</td>
   <td>{_side_label(fill.get("side"))}</td>
-  <td>{_escape(fill.get("strategy_type"))}</td>
+  <td>{strategy_cell}</td>
   <td>{_format_time_ms(fill.get("entry_time"))}</td>
   <td>{_format_time_ms(fill.get("exit_time"))}</td>
   <td class="price-cell price-stop">{_format_decimal(fill.get("entry_price"), 2)}</td>
@@ -2711,6 +2694,17 @@ def _render_fill_row(fill: dict[str, Any]) -> str:
   <td class="{pnl_class}">{_format_decimal(fill.get("net_pnl"), 2)}</td>
   <td>{_exit_reason_label(fill.get("exit_reason"), fill.get("exit_detail"))}</td>
 </tr>"""
+
+
+def _trade_identity_label(item: dict[str, Any]) -> str:
+    strategy = _strategy_type_label(item.get("strategy_type"))
+    kernel = item.get("strategy_kernel")
+    level = _position_level_label(item.get("position_level") or item.get("bucket"))
+    mode = _trade_mode_label(item.get("trade_mode"))
+    details = " / ".join(part for part in (kernel, level, mode) if part and part != "-")
+    if not details:
+        return _escape(strategy)
+    return f"{_escape(strategy)}<br><span class=\"muted\">{_escape(details)}</span>"
 
 
 def _position_title(positions: Any) -> str:

@@ -28,11 +28,19 @@ class PaperSignalContext:
 
     @property
     def open_buckets(self) -> tuple[str, ...]:
-        return tuple(position.bucket for position in self.open_positions)
+        return tuple(position.position_level or position.bucket for position in self.open_positions)
 
     @property
     def open_strategy_types(self) -> tuple[str, ...]:
-        return tuple(position.strategy_type for position in self.open_positions)
+        encoded: list[str] = []
+        for position in self.open_positions:
+            if position.strategy_kernel and position.position_level and position.trade_mode:
+                encoded.append(
+                    f"{position.strategy_kernel}|{position.position_level}|{position.side}|{position.trade_mode}"
+                )
+            else:
+                encoded.append(position.strategy_type)
+        return tuple(encoded)
 
 
 @dataclass(frozen=True)
@@ -169,6 +177,11 @@ def _signal_evaluation_from(
         },
         condition_statuses=tuple(getattr(signal, "condition_statuses", []) or []),
         nearest_strategy=getattr(signal, "nearest_strategy", {}) or {},
+        strategy_kernel=getattr(signal, "strategy_kernel", None),
+        position_level=getattr(signal, "position_level", None),
+        trade_mode=getattr(signal, "trade_mode", None),
+        market_regime=getattr(signal, "market_regime", None),
+        lifecycle_state=getattr(signal, "lifecycle_state", None),
     )
 
 

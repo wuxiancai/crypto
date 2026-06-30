@@ -19,7 +19,7 @@ from app.database.db import build_session_factory
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run persistent Paper Trading on Binance WebSocket klines.")
     parser.add_argument("--symbols", nargs="+", default=["BTCUSDT", "ETHUSDT"])
-    parser.add_argument("--intervals", nargs="+", default=["15m", "1h", "4h", "1d"])
+    parser.add_argument("--intervals", nargs="+", default=["1w", "1d", "4h"])
     parser.add_argument("--websocket-base-url", default="wss://fstream.binance.com/market")
     parser.add_argument("--state-path", type=Path, default=Path("runtime/paper-state.json"))
     parser.add_argument("--initial-equity", default="1000")
@@ -43,7 +43,6 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
     )
     parser.add_argument("--enable-reversal-probe", action="store_true")
-    parser.add_argument("--enable-layered-strategy", action="store_true")
     parser.add_argument("--trend-pullback-take-profit-mode", choices=["TRAILING", "FIXED"], default="TRAILING")
     return parser.parse_args()
 
@@ -78,7 +77,7 @@ def main() -> None:
                     pullback_zone_atr_multiplier=Decimal(args.pullback_zone_atr_multiplier),
                     require_pullback_close_beyond_fast_ma=args.require_pullback_close_beyond_fast_ma,
                     enable_reversal_probe=args.enable_reversal_probe,
-                    enable_layered_strategy=args.enable_layered_strategy,
+                    strategy_kernel="WEEKLY_DAILY_H4_V1",
                 ),
                 event_session_factory=session_factory,
                 kline_session_factory=session_factory,

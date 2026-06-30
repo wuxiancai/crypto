@@ -18,7 +18,7 @@ from app.database.repositories import upsert_klines
 from sqlalchemy.exc import SQLAlchemyError
 
 
-DEFAULT_SYNC_INTERVALS = ("1d", "4h", "1h", "15m")
+DEFAULT_SYNC_INTERVALS = ("1w", "1d", "4h")
 
 
 async def sync_klines(symbols: Sequence[str], intervals: Sequence[str], limit: int, dry_run: bool) -> None:

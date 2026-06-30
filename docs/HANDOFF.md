@@ -25,6 +25,8 @@
 - 2026-06-30 已将 `交易逻辑优化.md` 重写并继续完善为“大防线 / 仓位层级”设计草案：仓位分类收敛为 `WEEKLY / DAILY / H4` 三类；周线仓不再强制死扛到金叉/死叉，而是加入趋势破坏、结构破坏、动能破坏的分批减仓机制，金叉/死叉作为剩余仓位强制完全退出；日线反弹单和顺势单明确互斥；4H 增加 breakout / pullback / continuation 执行模式，后续落地前仍需继续量化死叉、反弹失败、BOLL 开口、结构突破、趋势/结构/动能破坏和 breakout 防追单。
 - 2026-06-30 `交易逻辑优化.md` 继续写入 5 个控制层：Regime Tagging、Throttle、Signal Score、Lifecycle、Equity Guard。这些控制层不新增仓位类型，只负责市场状态识别、交易节流、信号强弱过滤、仓位生命周期推进和账户资金曲线保护；Adaptive Layer 暂未写入，避免过早引入自适应参数复杂度。
 - 2026-06-30 已新增策略内核升级实施计划：`docs/superpowers/plans/2026-06-30-weekly-daily-h4-strategy-core-upgrade.md`。该计划明确 `交易逻辑优化.md` 是新版策略需求源，新内核命名为 `WEEKLY_DAILY_H4_V1`，必须在现有系统上增量升级，不从头开发；旧 `DAY_CORE / FOUR_HOUR_ADDON / FOUR_HOUR_HEDGE` 不得直接映射为新 `WEEKLY / DAILY / H4`；同一次 Paper/Backtest 只能运行一个策略内核。当前仅完成升级步骤文档，尚未开始代码内核改造；下一轮实现必须从计划 Task 0 的文档决策冻结开始。
+- 2026-06-30 已开始执行策略内核升级，工作分支为 `codex/weekly-daily-h4-kernel`。用户要求新版内核必须百分百作为系统执行主线，旧内核运行入口删除；实现时必须使用独立模块承载 `WEEKLY_DAILY_H4_V1`，避免后续升级和旧 `LAYERED_DAILY_V1` 混乱。
+- 2026-06-30 策略内核升级已进入代码落地：新增 `position_hierarchy.py`、`trade_controls.py`、`weekly_daily_h4_strategy.py`；`strategy_adapter.py` 已收敛为只调用 `WEEKLY_DAILY_H4_V1`；`scripts/start.sh`、`scripts/run_paper_realtime.py`、`scripts/sync_klines.py`、`strategy_backtest.py` 已切换到 `1w / 1d / 4h`；旧 `app/strategy/layered_strategy.py`、旧 pullback/reversal/trend detector 策略模块、旧 layered 验证脚本和旧策略恢复脚本已删除。旧 v0/v1 策略测试仍会因断言旧内核行为而失败，后续应归档或重写为 v2 测试，不可再用作当前策略内核验收。
 
 ## 本轮修复
 

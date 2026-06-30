@@ -4,9 +4,27 @@
 
 ## 当前阶段
 
-当前 V0.6 AI/Funding 过滤纯风控层已完成，真实行情驱动 Paper Trading 已跑通基础闭环。用户已确认下一阶段不再继续微调旧 `TREND_PULLBACK`，而是升级为独立的分层策略系统：日线主趋势、4h 子趋势、1h 确认、15m 入场，并支持 Paper/Backtest 多策略子仓和主仓/hedge 仓共存。
+当前 V0.6 AI/Funding 过滤纯风控层已完成，真实行情驱动 Paper Trading 已跑通基础闭环。2026-06-30 用户要求按 `交易逻辑优化.md` 执行策略内核升级：新版内核为 `WEEKLY_DAILY_H4_V1`，只保留 `WEEKLY / DAILY / H4` 三类仓位，并删除旧内核运行入口，确保 Paper/Backtest/Web 状态页按新内核执行。
 
 版本边界：第一版只开发 Backtest、Paper Trading、Web 状态/复盘和模拟风控闭环，不开发测试网下单、真实下单、API 下单适配器或小资金实盘。第二版才允许开发 Live Trading；第二版开发永久暂停，除非用户明确发出“开始开发第二版实盘交易”的指令。
+
+## 当前阶段：WEEKLY_DAILY_H4_V1 策略内核升级
+
+- [ ] 冻结升级决策：`交易逻辑优化.md` 是新版策略需求源，旧 `DAY_CORE / FOUR_HOUR_ADDON / FOUR_HOUR_HEDGE` 不得映射为新 `WEEKLY / DAILY / H4`。
+- [ ] 新增独立策略内核模块：`app.strategy.weekly_daily_h4_strategy`。
+- [ ] 新增 canonical 仓位层级、交易模式、生命周期和控制层合同。
+- [ ] Paper/Backtest/Web 状态页切换到 `WEEKLY_DAILY_H4_V1`，删除旧 `enable_layered_strategy` 运行开关。
+- [ ] 旧 `LAYERED_DAILY_V1` 只能作为历史代码或测试背景存在，不允许成为默认或 fallback 策略内核。
+- [ ] 新内核验证完成后更新 Handoff 并提交 git。
+
+2026-06-30 实施进度：
+
+- [x] 新增 `app/strategy/position_hierarchy.py`、`app/strategy/trade_controls.py`、`app/strategy/weekly_daily_h4_strategy.py`。
+- [x] Paper/Backtest/Realtime adapter 切换为 `WEEKLY_DAILY_H4_V1`。
+- [x] 删除旧 `enable_layered_strategy` 运行开关、旧 `app/strategy/layered_strategy.py`、旧 pullback/reversal/trend detector 策略模块和旧 layered 验证/恢复脚本。
+- [x] 启动同步、实时订阅、历史 warmup、策略回测改为当前内核周期 `1w / 1d / 4h`。
+- [x] 新增 v2 合同、策略、Paper、adapter 测试。
+- [ ] 旧 v0/v1 策略测试仍需后续归档或改写为 v2 口径；本次不再以旧内核断言作为验收标准。
 
 ## 下一阶段：分层策略系统
 

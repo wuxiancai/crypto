@@ -209,7 +209,7 @@ sync_required_klines() {
   echo "检查并补齐策略所需 K 线数据..."
   if DATABASE_URL="$DATABASE_URL" "$VENV_PYTHON" scripts/sync_klines.py \
     --symbols BTCUSDT ETHUSDT \
-    --intervals 1d 4h 1h 15m \
+    --intervals 1w 1d 4h \
     --limit "$KLINE_SYNC_LIMIT" \
     --write; then
     return
@@ -238,16 +238,14 @@ start_paper_realtime() {
   if [[ "$START_MODE" == "foreground" ]]; then
     "$VENV_PYTHON" scripts/run_paper_realtime.py \
       --symbols BTCUSDT ETHUSDT \
-      --intervals 5m 15m 1h 4h 1d \
-      --enable-layered-strategy \
+      --intervals 1w 1d 4h \
       --websocket-base-url "$BINANCE_WEBSOCKET_BASE_URL" \
       --state-path "$PAPER_STATE_PATH" \
       >> "$LOG_DIR/paper-realtime.log" 2>&1 &
   else
     nohup "$VENV_PYTHON" scripts/run_paper_realtime.py \
       --symbols BTCUSDT ETHUSDT \
-      --intervals 5m 15m 1h 4h 1d \
-      --enable-layered-strategy \
+      --intervals 1w 1d 4h \
       --websocket-base-url "$BINANCE_WEBSOCKET_BASE_URL" \
       --state-path "$PAPER_STATE_PATH" \
       > "$LOG_DIR/paper-realtime.log" 2>&1 &

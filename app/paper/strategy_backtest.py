@@ -15,6 +15,7 @@ from app.paper.persistence import _fill_to_payload
 from app.paper.stream import PaperSignalContext
 from app.paper.strategy_adapter import RealtimeStrategyConfig
 from app.paper.trading import PaperConfig, PaperSnapshot, PaperTradingEngine
+from app.strategy.position_hierarchy import StrategyKernel
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class StrategyBacktestConfig:
     pullback_zone_atr_multiplier: Decimal = Decimal("1")
     require_pullback_close_beyond_fast_ma: bool = False
     enable_reversal_probe: bool = False
+    strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
 
 
 @dataclass(frozen=True)
@@ -113,7 +115,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         pullback_zone_atr_multiplier=backtest_config.pullback_zone_atr_multiplier,
         require_pullback_close_beyond_fast_ma=backtest_config.require_pullback_close_beyond_fast_ma,
         enable_reversal_probe=backtest_config.enable_reversal_probe,
-        enable_layered_strategy=any(kline.interval == "1d" for kline in historical_klines),
+        strategy_kernel=StrategyKernel.WEEKLY_DAILY_H4_V1.value,
     )
     engine = PaperTradingEngine(
         PaperConfig(
@@ -182,7 +184,7 @@ def _call_backtest_signal_fn(signal_fn, kline: Kline, snapshot: PaperSnapshot):
 
 
 async def _fetch_backtest_klines(config: StrategyBacktestConfig) -> list[Kline]:
-    intervals = ("1d", "4h", "1h", "15m")
+    intervals = ("1w", "1d", "4h")
     end_time = config.history_end_time_ms or int(time.time() * 1000)
     start_time = config.history_start_time_ms
     if start_time is None:
@@ -217,11 +219,9 @@ def _sort_backtest_klines_for_event_replay(klines: list[Kline]) -> list[Kline]:
 
 def _interval_replay_rank(interval: str) -> int:
     ranks = {
-        "1d": 0,
-        "4h": 1,
-        "1h": 2,
-        "15m": 3,
-        "5m": 4,
+        "1w": 0,
+        "1d": 1,
+        "4h": 2,
     }
     return ranks.get(interval, 99)
 
