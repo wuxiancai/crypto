@@ -241,6 +241,9 @@ def strategy_backtest_config_payload(config: object) -> dict[str, str]:
         "history_period": str(getattr(config, "history_period")),
         "initial_equity": str(getattr(config, "initial_equity")),
         "risk_per_trade_pct": str(getattr(config, "risk_per_trade_pct")),
+        "weekly_risk_pct": str(getattr(config, "weekly_risk_pct", "0.008")),
+        "daily_risk_pct": str(getattr(config, "daily_risk_pct", "0.005")),
+        "h4_risk_pct": str(getattr(config, "h4_risk_pct", "0.002")),
         "maker_fee_rate": str(getattr(config, "maker_fee_rate")),
         "taker_fee_rate": str(getattr(config, "taker_fee_rate")),
         "leverage": str(getattr(config, "leverage")),
@@ -376,6 +379,9 @@ def _strategy_backtest_summary(
         max_drawdown_pct=max_drawdown_pct,
         profit_loss_ratio=_summary_profit_loss_ratio(trades or []),
         trend_pullback_take_profit_mode=str(payload.get("trend_pullback_take_profit_mode") or "TRAILING"),
+        weekly_risk_pct=str(payload.get("weekly_risk_pct") or "0.008"),
+        daily_risk_pct=str(payload.get("daily_risk_pct") or "0.005"),
+        h4_risk_pct=str(payload.get("h4_risk_pct") or "0.002"),
         bucket_metrics=_summary_bucket_metrics(trades or []),
     )
 

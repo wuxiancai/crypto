@@ -263,6 +263,27 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
             minimum=Decimal("0"),
             maximum=Decimal("2"),
         ),
+        weekly_risk_pct=_query_decimal(
+            query,
+            "weekly_risk_pct",
+            Decimal("0.008"),
+            minimum=Decimal("0"),
+            maximum=Decimal("0.05"),
+        ),
+        daily_risk_pct=_query_decimal(
+            query,
+            "daily_risk_pct",
+            Decimal("0.005"),
+            minimum=Decimal("0"),
+            maximum=Decimal("0.05"),
+        ),
+        h4_risk_pct=_query_decimal(
+            query,
+            "h4_risk_pct",
+            Decimal("0.002"),
+            minimum=Decimal("0"),
+            maximum=Decimal("0.05"),
+        ),
     )
 
 

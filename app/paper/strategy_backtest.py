@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass, replace
 from datetime import datetime
 from decimal import Decimal
 import inspect
@@ -35,6 +35,9 @@ class StrategyBacktestConfig:
     history_cache_dir: Path | None = Path("runtime/backtest-klines")
     initial_equity: Decimal = Decimal("1000")
     risk_per_trade_pct: Decimal = Decimal("0.005")
+    weekly_risk_pct: Decimal = Decimal("0.008")
+    daily_risk_pct: Decimal = Decimal("0.005")
+    h4_risk_pct: Decimal = Decimal("0.002")
     maker_fee_rate: Decimal = Decimal("0.0002")
     taker_fee_rate: Decimal = Decimal("0.0005")
     slippage_pct: Decimal = Decimal("0")
@@ -90,6 +93,9 @@ class StrategyBacktestRunSummary:
     trend_pullback_take_profit_mode: str = "TRAILING"
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
     timeframes: str = "1w,1d,4h"
+    weekly_risk_pct: str = "0.008"
+    daily_risk_pct: str = "0.005"
+    h4_risk_pct: str = "0.002"
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
 
 
@@ -132,6 +138,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
             continue
         snapshot = engine.snapshot()
         signal = _call_backtest_signal_fn(signal_fn, kline, snapshot)
+        signal = _apply_backtest_level_risk(signal, backtest_config)
         engine.on_signal(kline=kline, signal=signal)
 
     snapshot = engine.snapshot()
@@ -174,6 +181,27 @@ def _call_backtest_signal_fn(signal_fn, kline: Kline, snapshot: PaperSnapshot):
     if accepts_context:
         return signal_fn(kline, has_position, context)
     return signal_fn(kline, has_position)
+
+
+def _apply_backtest_level_risk(signal, config: StrategyBacktestConfig):
+    action = str(getattr(signal, "action", ""))
+    if action not in {"LONG_ENTRY", "SHORT_ENTRY"}:
+        return signal
+    level = str(getattr(signal, "position_level", "") or getattr(signal, "bucket", "") or "").upper()
+    risk_pct = {
+        "WEEKLY": config.weekly_risk_pct,
+        "DAILY": config.daily_risk_pct,
+        "H4": config.h4_risk_pct,
+    }.get(level)
+    if risk_pct is None:
+        return signal
+    if is_dataclass(signal):
+        return replace(signal, risk_pct=risk_pct)
+    try:
+        setattr(signal, "risk_pct", risk_pct)
+    except Exception:
+        return signal
+    return signal
 
 
 async def _fetch_backtest_klines(config: StrategyBacktestConfig) -> list[Kline]:
