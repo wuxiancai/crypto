@@ -24,6 +24,7 @@
 - 模拟交易看板当前策略详情已从统计卡右侧移到四个统计卡下方；统计卡行恢复为 4 列，策略详情内部按 BTCUSDT / ETHUSDT 上下两行紧凑展示，避免横向滚动条和统计卡行被撑高。
 - 2026-06-30 已将 `交易逻辑优化.md` 重写并继续完善为“大防线 / 仓位层级”设计草案：仓位分类收敛为 `WEEKLY / DAILY / H4` 三类；周线仓不再强制死扛到金叉/死叉，而是加入趋势破坏、结构破坏、动能破坏的分批减仓机制，金叉/死叉作为剩余仓位强制完全退出；日线反弹单和顺势单明确互斥；4H 增加 breakout / pullback / continuation 执行模式，后续落地前仍需继续量化死叉、反弹失败、BOLL 开口、结构突破、趋势/结构/动能破坏和 breakout 防追单。
 - 2026-06-30 `交易逻辑优化.md` 继续写入 5 个控制层：Regime Tagging、Throttle、Signal Score、Lifecycle、Equity Guard。这些控制层不新增仓位类型，只负责市场状态识别、交易节流、信号强弱过滤、仓位生命周期推进和账户资金曲线保护；Adaptive Layer 暂未写入，避免过早引入自适应参数复杂度。
+- 2026-06-30 已新增策略内核升级实施计划：`docs/superpowers/plans/2026-06-30-weekly-daily-h4-strategy-core-upgrade.md`。该计划明确 `交易逻辑优化.md` 是新版策略需求源，新内核命名为 `WEEKLY_DAILY_H4_V1`，必须在现有系统上增量升级，不从头开发；旧 `DAY_CORE / FOUR_HOUR_ADDON / FOUR_HOUR_HEDGE` 不得直接映射为新 `WEEKLY / DAILY / H4`；同一次 Paper/Backtest 只能运行一个策略内核。当前仅完成升级步骤文档，尚未开始代码内核改造；下一轮实现必须从计划 Task 0 的文档决策冻结开始。
 
 ## 本轮修复
 
