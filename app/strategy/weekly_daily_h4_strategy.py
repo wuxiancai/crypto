@@ -84,6 +84,13 @@ def build_weekly_daily_h4_decision(
         adx=strategy_input.weekly.adx,
         min_adx=effective_config.min_adx,
     )
+    daily_regime = tag_market_regime(
+        fast_ma=strategy_input.daily.fast_ma,
+        slow_ma=strategy_input.daily.slow_ma,
+        fast_slope=strategy_input.daily.fast_ma_slope,
+        adx=strategy_input.daily.adx,
+        min_adx=effective_config.min_adx,
+    )
     diagnostics = _base_diagnostics(strategy_input, weekly_regime)
 
     forced_exit = _weekly_forced_exit(strategy_input, weekly_regime)
@@ -112,7 +119,7 @@ def build_weekly_daily_h4_decision(
     if daily_signal is not None:
         return _decision(strategy_input, daily_signal, weekly_regime, control_state, diagnostics)
 
-    h4_signal = _h4_entry(strategy_input, weekly_regime, effective_config, control_state)
+    h4_signal = _h4_entry(strategy_input, daily_regime, weekly_regime, effective_config, control_state)
     if h4_signal is not None:
         return _decision(strategy_input, h4_signal, weekly_regime, control_state, diagnostics)
 
@@ -189,25 +196,25 @@ def _weekly_entry(
 ) -> StrategySignal | None:
     if _open_level(strategy_input, PositionLevel.WEEKLY) is not None:
         return None
-    if weekly_regime == MarketRegime.BEAR and _bearish(strategy_input.daily, config):
+    if weekly_regime == MarketRegime.BEAR and _bearish(strategy_input.weekly, config):
         return _entry_signal(
             side="SHORT",
             level=PositionLevel.WEEKLY,
             mode=TradeMode.TREND,
             frame=strategy_input.weekly,
             risk_pct=config.weekly_risk_pct,
-            reason=["weekly bear environment", "daily death-cross confirmation"],
+            reason=["weekly bear trend"],
             weekly_regime=weekly_regime,
             control_state=control_state,
         )
-    if weekly_regime == MarketRegime.BULL and _bullish(strategy_input.daily, config):
+    if weekly_regime == MarketRegime.BULL and _bullish(strategy_input.weekly, config):
         return _entry_signal(
             side="LONG",
             level=PositionLevel.WEEKLY,
             mode=TradeMode.TREND,
             frame=strategy_input.weekly,
             risk_pct=config.weekly_risk_pct,
-            reason=["weekly bull environment", "daily golden-cross confirmation"],
+            reason=["weekly bull trend"],
             weekly_regime=weekly_regime,
             control_state=control_state,
         )
@@ -222,21 +229,36 @@ def _daily_entry(
 ) -> StrategySignal | None:
     if _open_level(strategy_input, PositionLevel.DAILY) is not None:
         return None
-    if weekly_regime == MarketRegime.BEAR:
-        if _bullish(strategy_input.daily, config) and _bullish(strategy_input.h4, config):
-            return _entry_signal("LONG", PositionLevel.DAILY, TradeMode.REBOUND, strategy_input.h4, config.daily_risk_pct, ["daily rebound under weekly bear"], weekly_regime, control_state)
-        if _bearish(strategy_input.daily, config) and _bearish(strategy_input.h4, config):
-            return _entry_signal("SHORT", PositionLevel.DAILY, TradeMode.TREND, strategy_input.h4, config.daily_risk_pct, ["daily trend short under weekly bear"], weekly_regime, control_state)
-    if weekly_regime == MarketRegime.BULL:
-        if _bearish(strategy_input.daily, config) and _bearish(strategy_input.h4, config):
-            return _entry_signal("SHORT", PositionLevel.DAILY, TradeMode.REBOUND, strategy_input.h4, config.daily_risk_pct, ["daily pullback short under weekly bull"], weekly_regime, control_state)
-        if _bullish(strategy_input.daily, config) and _bullish(strategy_input.h4, config):
-            return _entry_signal("LONG", PositionLevel.DAILY, TradeMode.TREND, strategy_input.h4, config.daily_risk_pct, ["daily trend long under weekly bull"], weekly_regime, control_state)
+    if _bullish(strategy_input.daily, config):
+        mode = _relative_trade_mode("LONG", weekly_regime)
+        return _entry_signal(
+            "LONG",
+            PositionLevel.DAILY,
+            mode,
+            strategy_input.daily,
+            config.daily_risk_pct,
+            [_relative_reason("daily long", mode, weekly_regime)],
+            weekly_regime,
+            control_state,
+        )
+    if _bearish(strategy_input.daily, config):
+        mode = _relative_trade_mode("SHORT", weekly_regime)
+        return _entry_signal(
+            "SHORT",
+            PositionLevel.DAILY,
+            mode,
+            strategy_input.daily,
+            config.daily_risk_pct,
+            [_relative_reason("daily short", mode, weekly_regime)],
+            weekly_regime,
+            control_state,
+        )
     return None
 
 
 def _h4_entry(
     strategy_input: WeeklyDailyH4Input,
+    daily_regime: MarketRegime,
     weekly_regime: MarketRegime,
     config: WeeklyDailyH4Config,
     control_state: ControlState,
@@ -245,17 +267,41 @@ def _h4_entry(
         return None
     if not _h4_volatility_open(strategy_input.h4, config):
         return None
-    if weekly_regime == MarketRegime.BEAR:
-        if _h4_breakdown(strategy_input.h4) and _bearish(strategy_input.h4, config):
-            return _entry_signal("SHORT", PositionLevel.H4, TradeMode.BREAKOUT, strategy_input.h4, config.h4_risk_pct, ["h4 breakdown breakout under weekly bear"], weekly_regime, control_state)
-        if _bearish(strategy_input.h4, config):
-            return _entry_signal("SHORT", PositionLevel.H4, TradeMode.CONTINUATION, strategy_input.h4, config.h4_risk_pct, ["h4 continuation under weekly bear"], weekly_regime, control_state)
-    if weekly_regime == MarketRegime.BULL:
-        if _h4_breakout(strategy_input.h4) and _bullish(strategy_input.h4, config):
-            return _entry_signal("LONG", PositionLevel.H4, TradeMode.BREAKOUT, strategy_input.h4, config.h4_risk_pct, ["h4 breakout under weekly bull"], weekly_regime, control_state)
-        if _bullish(strategy_input.h4, config):
-            return _entry_signal("LONG", PositionLevel.H4, TradeMode.CONTINUATION, strategy_input.h4, config.h4_risk_pct, ["h4 continuation under weekly bull"], weekly_regime, control_state)
+    if _bullish(strategy_input.h4, config):
+        mode = _relative_trade_mode("LONG", daily_regime)
+        if mode == TradeMode.TREND and _h4_breakout(strategy_input.h4):
+            mode = TradeMode.BREAKOUT
+            reason = "h4 long breakout with daily bull"
+        else:
+            reason = _relative_reason("h4 long", mode, daily_regime).replace("weekly", "daily")
+        return _entry_signal("LONG", PositionLevel.H4, mode, strategy_input.h4, config.h4_risk_pct, [reason], weekly_regime, control_state)
+    if _bearish(strategy_input.h4, config):
+        mode = _relative_trade_mode("SHORT", daily_regime)
+        if mode == TradeMode.TREND and _h4_breakdown(strategy_input.h4):
+            mode = TradeMode.BREAKOUT
+            reason = "h4 short breakout with daily bear"
+        else:
+            reason = _relative_reason("h4 short", mode, daily_regime).replace("weekly", "daily")
+        return _entry_signal("SHORT", PositionLevel.H4, mode, strategy_input.h4, config.h4_risk_pct, [reason], weekly_regime, control_state)
     return None
+
+
+def _relative_trade_mode(side: str, upper_regime: MarketRegime) -> TradeMode:
+    if side == "LONG" and upper_regime == MarketRegime.BULL:
+        return TradeMode.TREND
+    if side == "SHORT" and upper_regime == MarketRegime.BEAR:
+        return TradeMode.TREND
+    if upper_regime in {MarketRegime.BULL, MarketRegime.BEAR}:
+        return TradeMode.REBOUND
+    return TradeMode.TREND
+
+
+def _relative_reason(prefix: str, mode: TradeMode, upper_regime: MarketRegime) -> str:
+    if mode == TradeMode.REBOUND:
+        return f"{prefix} rebound under weekly {upper_regime.value.lower()}"
+    if upper_regime in {MarketRegime.BULL, MarketRegime.BEAR}:
+        return f"{prefix} trend with weekly {upper_regime.value.lower()}"
+    return f"{prefix} neutral upper timeframe"
 
 
 def _entry_signal(
