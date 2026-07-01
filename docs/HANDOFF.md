@@ -45,7 +45,7 @@
   - 已新增 `trade_policy.md`，明确三条时间线的触发、止损、止盈、减仓和退出政策。日线参考周线方向、4H 参考日线方向只用于定义主方向 / 反弹 / 中性和风险预算，不用于阻断交易。顺上级方向统一表述为“结构风险较低、风险预算较高”，逆上级方向为“结构风险较高、风险预算较低”。
   - 已新增设计文档 `docs/superpowers/specs/2026-07-01-independent-timeline-strategy-design.md` 和实施计划 `docs/superpowers/plans/2026-07-01-independent-timeline-strategy.md`。下一步代码改造必须先改测试，再拆分 `weekly_daily_h4_strategy.py` 的周线/日线/4H 评估，调整 `PaperTradingEngine._has_conflicting_position()` 允许同时间线同方向追加。
   - 已完成代码改造：`app/strategy/weekly_daily_h4_strategy.py` 中周线只使用周线 frame，日线只使用日线 frame 并参考周线方向分类，4H 只使用 4H frame 并参考日线方向分类；`app/paper/trading.py` 允许同一时间线同方向追加仓位、拒绝同一时间线反向仓、允许不同时间线反向共存；`app/paper/live_runner.py` 将 `WEEKLY / DAILY / H4` 信号分别门控到 `1w / 1d / 4h` 收盘事件。
-  - 状态页已新增“结构/预算”口径展示：主方向单显示“结构风险较低 / 风险预算较高”，反弹单显示“结构风险较高 / 风险预算较低”。验证：`.venv/bin/python -m pytest -q` 为 `236 passed`；关键文件 `py_compile` 和 `git diff --check` 通过；`.venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 1w 1d 4h --limit 120` dry-run 成功拉取各 119 根已收盘 K 线。
+  - 状态页已新增“结构/预算”口径展示：主方向单显示“结构风险较低 / 风险预算较高”，反弹单显示“结构风险较高 / 风险预算较低”。验证：`.venv/bin/python -m pytest -q` 为 `239 passed`；关键文件 `py_compile` 和 `git diff --check` 通过；`.venv/bin/python scripts/sync_klines.py --symbols BTCUSDT --intervals 1w 1d 4h --limit 120` dry-run 成功拉取各 119 根已收盘 K 线。
 
 - 2026-07-01 状态页错误日志时间显示：
   - 根因：实时 Paper runner 通过 `print()` 写入 `runtime/logs/paper-realtime.log`，启动脚本只是重定向 stdout/stderr，日志行本身没有时间；状态页 `_read_error_logs()` 提取错误摘要时也只返回错误文本，导致“错误日志”区无法说明错误发生时间。

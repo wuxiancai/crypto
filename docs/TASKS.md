@@ -43,7 +43,7 @@
 - [x] 2026-07-01 已按 `trade_policy.md` 改造代码：周线只看周线；日线只看日线、按周线方向分类主方向/反弹；4H 只看 4H、按日线方向分类主方向/反弹；Paper/Backtest 允许不同时间线反向共存、同时间线同方向追加，拒绝同时间线反向仓。
 - [x] 2026-07-01 实时和回测执行已按时间线事件门控：周线信号只在 `1w` 收盘事件执行，日线信号只在 `1d` 收盘事件执行，4H 信号只在 `4h` 收盘事件执行。
 - [x] 2026-07-01 状态页新增“结构/预算”展示：主方向单显示“结构风险较低 / 风险预算较高”，反弹单显示“结构风险较高 / 风险预算较低”。
-- [x] 2026-07-01 验证通过：`.venv/bin/python -m pytest -q` 为 `236 passed`；关键文件 `py_compile` 和 `git diff --check` 通过；Binance dry-run 成功拉取 `BTCUSDT 1w/1d/4h` 各 119 根已收盘 K 线。
+- [x] 2026-07-01 验证通过：`.venv/bin/python -m pytest -q` 为 `239 passed`；关键文件 `py_compile` 和 `git diff --check` 通过；Binance dry-run 成功拉取 `BTCUSDT 1w/1d/4h` 各 119 根已收盘 K 线。
 
 ## 下一阶段：分层策略系统
 
