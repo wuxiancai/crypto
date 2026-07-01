@@ -93,6 +93,50 @@ def test_weekly_trend_damage_reduces_weekly_position_before_forced_exit():
     assert decision.signal.action == "REDUCE_POSITION"
     assert decision.signal.position_level == "WEEKLY"
     assert decision.signal.reduce_pct == Decimal("0.5")
+    assert decision.signal.lifecycle_state == "REDUCED_TREND"
+
+
+def test_weekly_reduction_stage_is_not_repeated_once_recorded():
+    from app.strategy.position_hierarchy import PositionLevel, TradeMode
+    from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision
+
+    decision = build_weekly_daily_h4_decision(
+        WeeklyDailyH4Input(
+            symbol="BTCUSDT",
+            weekly=_frame(close="103", fast="90", slow="100", previous_high="110", di_plus="10", di_minus="30"),
+            daily=_frame(),
+            h4=_frame(),
+            open_positions=(
+                OpenPositionState("BTCUSDT", "SHORT", PositionLevel.WEEKLY, TradeMode.TREND, "REDUCED_TREND"),
+                OpenPositionState("BTCUSDT", "SHORT", PositionLevel.DAILY, TradeMode.TREND),
+                OpenPositionState("BTCUSDT", "SHORT", PositionLevel.H4, TradeMode.CONTINUATION),
+            ),
+        )
+    )
+
+    assert decision.signal.action == "WAIT"
+    assert "weekly reduction stages already handled" in decision.signal.reason
+
+
+def test_weekly_reduction_allows_new_stage_after_prior_stage():
+    from app.strategy.position_hierarchy import PositionLevel, TradeMode
+    from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision
+
+    decision = build_weekly_daily_h4_decision(
+        WeeklyDailyH4Input(
+            symbol="BTCUSDT",
+            weekly=_frame(close="96", fast="90", slow="100", previous_high="110", di_plus="35", di_minus="20"),
+            daily=_frame(),
+            h4=_frame(),
+            open_positions=(
+                OpenPositionState("BTCUSDT", "SHORT", PositionLevel.WEEKLY, TradeMode.TREND, "REDUCED_TREND"),
+            ),
+        )
+    )
+
+    assert decision.signal.action == "REDUCE_POSITION"
+    assert decision.signal.reason == ["weekly momentum broken"]
+    assert decision.signal.lifecycle_state == "REDUCED_TREND|REDUCED_MOMENTUM"
 
 
 def test_daily_position_is_mutually_exclusive():

@@ -184,7 +184,17 @@ def _open_position_states(
             level = normalise_position_level(parts[1])
             mode = normalise_trade_mode(parts[3])
             if level is not None and mode is not None:
-                states.append(OpenPositionState(symbol="", side=parts[2], position_level=level, trade_mode=mode))
+                lifecycle_state = "|".join(part for part in parts[4:] if part) if len(parts) >= 5 else "OPEN"
+                lifecycle_state = lifecycle_state or "OPEN"
+                states.append(
+                    OpenPositionState(
+                        symbol="",
+                        side=parts[2],
+                        position_level=level,
+                        trade_mode=mode,
+                        lifecycle_state=lifecycle_state,
+                    )
+                )
     for bucket in open_buckets:
         level = normalise_position_level(bucket)
         if level is not None and all(state.position_level != level for state in states):

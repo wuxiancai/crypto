@@ -36,7 +36,8 @@ class PaperSignalContext:
         for position in self.open_positions:
             if position.strategy_kernel and position.position_level and position.trade_mode:
                 encoded.append(
-                    f"{position.strategy_kernel}|{position.position_level}|{position.side}|{position.trade_mode}"
+                    f"{position.strategy_kernel}|{position.position_level}|{position.side}|"
+                    f"{position.trade_mode}|{position.lifecycle_state or ''}"
                 )
             else:
                 encoded.append(position.strategy_type)

@@ -48,7 +48,7 @@ class OpenPositionState:
     side: str
     position_level: PositionLevel
     trade_mode: TradeMode
-    lifecycle_state: LifecycleState = LifecycleState.OPEN
+    lifecycle_state: LifecycleState | str = LifecycleState.OPEN
 
 
 @dataclass(frozen=True)
@@ -91,7 +91,7 @@ def build_weekly_daily_h4_decision(
     if forced_exit is not None:
         return _decision(strategy_input, forced_exit, weekly_regime, control_state, diagnostics)
 
-    staged_reduction = _weekly_staged_reduction(strategy_input, weekly_regime, effective_config)
+    staged_reduction = _weekly_staged_reduction(strategy_input, weekly_regime, effective_config, control_state)
     if staged_reduction is not None:
         return _decision(strategy_input, staged_reduction, weekly_regime, control_state, diagnostics)
 
@@ -140,6 +140,7 @@ def _weekly_staged_reduction(
     strategy_input: WeeklyDailyH4Input,
     weekly_regime: MarketRegime,
     config: WeeklyDailyH4Config,
+    control_state: ControlState,
 ) -> StrategySignal | None:
     weekly_position = _open_level(strategy_input, PositionLevel.WEEKLY)
     if weekly_position is None:
@@ -153,15 +154,30 @@ def _weekly_staged_reduction(
         trend_broken = weekly.close < weekly.slow_ma
         structure_broken = weekly.previous_low is not None and weekly.close < weekly.previous_low
         momentum_broken = weekly.di_plus <= weekly.di_minus or weekly.adx < config.min_adx
-    if trend_broken or structure_broken or momentum_broken:
-        reasons = []
-        if trend_broken:
-            reasons.append("weekly trend defense broken")
-        if structure_broken:
-            reasons.append("weekly structure broken")
-        if momentum_broken:
-            reasons.append("weekly momentum broken")
-        return _management_signal("REDUCE_POSITION", weekly_position.side, PositionLevel.WEEKLY, TradeMode.TREND, config.weekly_reduction_pct, reasons, weekly_regime)
+    broken_stages: list[tuple[str, str]] = []
+    if trend_broken:
+        broken_stages.append(("REDUCED_TREND", "weekly trend defense broken"))
+    if structure_broken:
+        broken_stages.append(("REDUCED_STRUCTURE", "weekly structure broken"))
+    if momentum_broken:
+        broken_stages.append(("REDUCED_MOMENTUM", "weekly momentum broken"))
+    if not broken_stages:
+        return None
+    handled_stages = _lifecycle_stage_set(weekly_position.lifecycle_state)
+    new_stages = [(stage, reason) for stage, reason in broken_stages if stage not in handled_stages]
+    if not new_stages:
+        return _wait(["weekly reduction stages already handled"], weekly_regime, control_state)
+    next_lifecycle = _join_lifecycle_stages([*handled_stages, *(stage for stage, _reason in new_stages)])
+    return _management_signal(
+        "REDUCE_POSITION",
+        weekly_position.side,
+        PositionLevel.WEEKLY,
+        TradeMode.TREND,
+        config.weekly_reduction_pct,
+        [reason for _stage, reason in new_stages],
+        weekly_regime,
+        lifecycle_state=next_lifecycle,
+    )
     return None
 
 
@@ -296,6 +312,7 @@ def _management_signal(
     reduce_pct: Decimal,
     reason: list[str],
     weekly_regime: MarketRegime,
+    lifecycle_state: str | None = None,
 ) -> StrategySignal:
     return StrategySignal(
         action=action,
@@ -306,7 +323,8 @@ def _management_signal(
         position_level=level.value,
         trade_mode=mode.value,
         market_regime=weekly_regime.value,
-        lifecycle_state=LifecycleState.EXITING.value if action == "EXIT_POSITION" else LifecycleState.REDUCING.value,
+        lifecycle_state=lifecycle_state
+        or (LifecycleState.EXITING.value if action == "EXIT_POSITION" else LifecycleState.REDUCING.value),
         reduce_pct=reduce_pct,
     )
 
@@ -374,6 +392,21 @@ def _open_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel) -> Ope
         if position.position_level == level:
             return position
     return None
+
+
+def _lifecycle_stage_set(lifecycle_state: LifecycleState | str | None) -> tuple[str, ...]:
+    if lifecycle_state is None:
+        return ()
+    value = lifecycle_state.value if isinstance(lifecycle_state, LifecycleState) else str(lifecycle_state)
+    return tuple(part for part in value.split("|") if part.startswith("REDUCED_"))
+
+
+def _join_lifecycle_stages(stages: list[str] | tuple[str, ...]) -> str:
+    ordered = []
+    for stage in ("REDUCED_TREND", "REDUCED_STRUCTURE", "REDUCED_MOMENTUM"):
+        if stage in stages:
+            ordered.append(stage)
+    return "|".join(ordered) if ordered else LifecycleState.REDUCING.value
 
 
 def _bullish(frame: TrendFrame, config: WeeklyDailyH4Config) -> bool:

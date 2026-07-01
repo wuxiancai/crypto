@@ -150,3 +150,16 @@ def test_default_realtime_signal_fn_allows_weekly_management_on_weekly_events(mo
 
     assert signal.action == "REDUCE_POSITION"
     assert signal.position_level == "WEEKLY"
+
+
+def test_adapter_preserves_multi_stage_weekly_lifecycle_state():
+    from app.paper.strategy_adapter import _open_position_states
+
+    states = _open_position_states(
+        open_buckets=(),
+        open_strategy_types=(
+            "WEEKLY_DAILY_H4_V1|WEEKLY|SHORT|TREND|REDUCED_TREND|REDUCED_MOMENTUM",
+        ),
+    )
+
+    assert states[0].lifecycle_state == "REDUCED_TREND|REDUCED_MOMENTUM"

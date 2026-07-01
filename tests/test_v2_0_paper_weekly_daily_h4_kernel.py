@@ -99,6 +99,43 @@ def test_paper_weekly_reduce_position_partially():
     assert engine.snapshot().fills[-1].exit_reason == "KERNEL_STAGED_REDUCTION"
 
 
+def test_paper_weekly_reduce_position_records_next_lifecycle_stage():
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.signal_router import StrategySignal
+
+    engine = PaperTradingEngine(
+        PaperConfig(initial_equity=Decimal("1000"), risk_per_trade_pct=Decimal("0.01"), slippage_pct=Decimal("0"))
+    )
+    entry = StrategySignal(
+        action="SHORT_ENTRY",
+        strategy_type="WEEKLY_SHORT_TREND",
+        bucket="WEEKLY",
+        reason=["weekly"],
+        entry_price=Decimal("100"),
+        stop_loss=Decimal("105"),
+        take_profit=Decimal("90"),
+        strategy_kernel="WEEKLY_DAILY_H4_V1",
+        position_level="WEEKLY",
+        trade_mode="TREND",
+    )
+    engine.on_signal(_kline(), entry)
+    reduce = StrategySignal(
+        action="REDUCE_POSITION",
+        strategy_type="WEEKLY_SHORT_TREND",
+        bucket="WEEKLY",
+        reason=["weekly trend damage"],
+        strategy_kernel="WEEKLY_DAILY_H4_V1",
+        position_level="WEEKLY",
+        trade_mode="TREND",
+        reduce_pct=Decimal("0.5"),
+        lifecycle_state="REDUCED_TREND",
+    )
+
+    engine.on_signal(_kline("98"), reduce)
+
+    assert engine.snapshot().open_positions[0].lifecycle_state == "REDUCED_TREND"
+
+
 def test_weekly_position_ignores_regular_stop_and_take_profit_until_kernel_management_signal():
     from app.paper.trading import PaperConfig, PaperTradingEngine
     from app.strategy.signal_router import StrategySignal

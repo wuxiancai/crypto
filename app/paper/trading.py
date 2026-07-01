@@ -339,13 +339,13 @@ class PaperTradingEngine:
             target,
             quantity=target.quantity - reduced_quantity,
             entry_fee=target.entry_fee * (Decimal("1") - reduce_pct),
-            lifecycle_state="REDUCING",
+            lifecycle_state=getattr(signal, "lifecycle_state", None) or "REDUCING",
         )
         partial = replace(
             target,
             quantity=reduced_quantity,
             entry_fee=target.entry_fee * reduce_pct,
-            lifecycle_state="REDUCING",
+            lifecycle_state=getattr(signal, "lifecycle_state", None) or "REDUCING",
         )
         fill = self._close_position(
             position=partial,
