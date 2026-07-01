@@ -734,15 +734,15 @@ def render_strategy_backtest_html(
           <input id="max_fee_to_risk_ratio" name="max_fee_to_risk_ratio" type="number" min="0" max="2" step="0.05" value="{_escape(config.max_fee_to_risk_ratio)}">
         </div>
         <div class="form-field">
-          <label for="weekly_risk_pct">周线风险</label>
+          <label for="weekly_risk_pct">周线风险预算</label>
           <input id="weekly_risk_pct" name="weekly_risk_pct" type="number" min="0" max="0.05" step="0.001" value="{_escape(getattr(config, "weekly_risk_pct", "0.008"))}">
         </div>
         <div class="form-field">
-          <label for="daily_risk_pct">日线风险</label>
+          <label for="daily_risk_pct">日线风险预算</label>
           <input id="daily_risk_pct" name="daily_risk_pct" type="number" min="0" max="0.05" step="0.001" value="{_escape(getattr(config, "daily_risk_pct", "0.005"))}">
         </div>
         <div class="form-field">
-          <label for="h4_risk_pct">4H风险</label>
+          <label for="h4_risk_pct">4H风险预算</label>
           <input id="h4_risk_pct" name="h4_risk_pct" type="number" min="0" max="0.05" step="0.0005" value="{_escape(getattr(config, "h4_risk_pct", "0.002"))}">
         </div>
         <div class="form-field">
@@ -784,7 +784,7 @@ def render_strategy_backtest_html(
       {_render_parameter_comparison_table(recent)}
     </section>
     <section style="margin-top: 16px;">
-      <h2>策略 / 层级 / 交易对统计</h2>
+      <h2>策略 / 独立时间线 / 交易对统计</h2>
       {_render_backtest_metric_tables(result)}
     </section>
     <section style="margin-top: 16px;">
@@ -893,9 +893,9 @@ def render_strategy_backtest_batch_html(
       <h2>批量回测参数</h2>
       <div class="batch-summary">
         <div class="summary-item"><div class="summary-label">策略内核</div><div class="summary-value">WEEKLY_DAILY_H4_V1</div></div>
-        <div class="summary-item"><div class="summary-label">策略框架</div><div class="summary-value">1w 周线 + 1d 日线 + 4h 执行</div></div>
+        <div class="summary-item"><div class="summary-label">策略框架</div><div class="summary-value">三条独立时间线：1w 周线 / 1d 日线 / 4h</div></div>
         <div class="summary-item"><div class="summary-label">默认均线</div><div class="summary-value">EMA15 / MA60</div></div>
-        <div class="summary-item"><div class="summary-label">输出统计</div><div class="summary-value">按策略、层级、交易对聚合</div></div>
+        <div class="summary-item"><div class="summary-label">输出统计</div><div class="summary-value">按策略、独立时间线、交易对聚合</div></div>
       </div>
       <form class="batch-form" method="get" action="/backtest/batch">
         <fieldset class="form-section">
@@ -931,8 +931,8 @@ def render_strategy_backtest_batch_html(
           </div>
         </fieldset>
         <fieldset class="form-section">
-          <legend>WEEKLY_DAILY_H4_V1 参数</legend>
-          <p class="section-note">这些参数进入周线、日线、4H 三层策略内核；多个值用英文逗号分隔。</p>
+          <legend>独立时间线策略参数</legend>
+          <p class="section-note">这些参数分别进入周线、日线、4H 三条独立时间线策略；多个值用英文逗号分隔。</p>
           <div class="form-grid compact">
             <div class="form-field">{_render_batch_field_label("atr_periods", "ATR 周期")}<input id="atr_periods" name="atr_periods" value="{_escape(_join_values(getattr(config, "atr_periods", (12, 14))))}"></div>
             <div class="form-field">{_render_batch_field_label("dmi_periods", "DMI 周期")}<input id="dmi_periods" name="dmi_periods" value="{_escape(_join_values(getattr(config, "dmi_periods", (12, 14))))}"></div>
@@ -1729,7 +1729,7 @@ def _render_recent_backtest_results(results: list[Any]) -> str:
 <table>
   <thead>
     <tr>
-      <th>回测时间 UTC+8</th><th>交易对</th><th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>层级风险</th><th>层级杠杆</th><th>止盈</th><th>周期</th>
+      <th>回测时间 UTC+8</th><th>交易对</th><th>策略内核</th><th>独立时间线</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>风险预算</th><th>层级杠杆</th><th>止盈</th><th>周期</th>
       <th>初始权益</th><th>账户权益</th><th>总交易次数</th><th>胜 / 负 / 胜率</th><th>净盈亏</th>
     </tr>
   </thead>
@@ -1749,7 +1749,7 @@ def _render_parameter_comparison_table(results: list[Any]) -> str:
 <table>
   <thead>
     <tr>
-      <th>排名</th><th>交易对</th><th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>层级风险</th><th>层级杠杆</th><th>止盈</th><th>周期</th>
+      <th>排名</th><th>交易对</th><th>策略内核</th><th>独立时间线</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>风险预算</th><th>层级杠杆</th><th>止盈</th><th>周期</th>
       <th>账户权益</th><th>净盈亏</th><th>胜率</th><th>盈亏比</th><th>最大回撤</th><th>层级净盈亏</th><th>交易次数</th>
     </tr>
   </thead>
@@ -2074,7 +2074,7 @@ def _render_strategy_detail_rows(detail: dict[str, Any]) -> str:
         ("费险", "max_fee_to_risk_ratio"),
         ("止盈", "trend_pullback_take_profit_mode"),
         ("策略内核", "strategy_kernel"),
-        ("时间层级", "timeframes"),
+        ("独立时间线", "timeframes"),
     )
     return "".join(
         f'<div class="strategy-detail-row"><span class="strategy-detail-key">{_escape(label)}</span><span class="strategy-detail-value">{_escape(_strategy_detail_value(detail.get(key)))}</span></div>'

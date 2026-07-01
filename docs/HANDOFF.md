@@ -29,7 +29,7 @@
 - 2026-06-30 策略内核升级已进入代码落地：新增 `position_hierarchy.py`、`trade_controls.py`、`weekly_daily_h4_strategy.py`；`strategy_adapter.py` 已收敛为只调用 `WEEKLY_DAILY_H4_V1`；`scripts/start.sh`、`scripts/run_paper_realtime.py`、`scripts/sync_klines.py`、`strategy_backtest.py` 已切换到 `1w / 1d / 4h`；旧 `app/strategy/layered_strategy.py`、旧 pullback/reversal/trend detector 策略模块、旧 layered 验证脚本和旧策略恢复脚本已删除。旧 v0/v1 策略测试仍会因断言旧内核行为而失败，后续应归档或重写为 v2 测试，不可再用作当前策略内核验收。
 - 2026-06-30 已完成新内核周边模块适配：回测归档 payload 写入 `strategy_kernel=WEEKLY_DAILY_H4_V1` 和 `timeframes=1w,1d,4h`；批量回测网格改为 `1w / 1d / 4h` 并移除旧 Reversal/Zone/CloseBeyond 参数；`/backtest`、`/backtest/batch`、Paper 事件 CLI、实时启动脚本和策略详情展示均不再暴露旧内核参数，对外统一使用“层级”而非 Bucket。新增 v2 适配测试 `tests/test_v2_0_backtest_weekly_daily_h4_adaptation.py`，当前 v2 测试全部通过。
 - 2026-07-01 已完成剩余收口：旧 v0/v1 策略测试已归档到 `docs/archived-tests/2026-07-01-legacy-strategy-tests/` 或改写为新内核断言；全量 pytest 为 `209 passed`。真实运行态 smoke 已验证 Binance Futures `BTCUSDT 1w/1d/4h` dry-run、真实 K 线回测、SQLite 回测归档摘要、本地 HTTP `/backtest` 与 `/backtest/batch` 均输出 `WEEKLY_DAILY_H4_V1`，且页面不再出现旧 Reversal/Bucket/分层策略文案。
-- 2026-07-01 已完成回测分层风险参数：`StrategyBacktestConfig` 新增 `weekly_risk_pct=0.008`、`daily_risk_pct=0.005`、`h4_risk_pct=0.002`；回测执行会按信号 `position_level/bucket` 注入对应风险比例；`/backtest` 页面新增“周线风险 / 日线风险 / 4H风险”输入，归档 payload 和历史结果表会显示风险口径。
+- 2026-07-01 已完成回测分层风险参数：`StrategyBacktestConfig` 新增 `weekly_risk_pct=0.008`、`daily_risk_pct=0.005`、`h4_risk_pct=0.002`；回测执行会按信号 `position_level/bucket` 注入对应风险比例；`/backtest` 页面新增“周线 / 日线 / 4H 风险预算”输入，归档 payload 和历史结果表会显示风险预算口径。
 - 2026-07-01 启动前 K 线同步已把周线窗口单独限制为 `KLINE_SYNC_WEEKLY_LIMIT=159`，约 3 年；`KLINE_SYNC_LIMIT=800` 继续用于 `1d / 4h`。实时订阅周期仍是 `1w / 1d / 4h`，只是启动补齐时不再为周线拉取 800 根。
 - 2026-07-01 周线仓止损止盈已独立于日线/4H：`WEEKLY` 开仓信号使用周线 frame 生成入场、防线和生命周期目标；`PaperTradingEngine` 对 `WEEKLY_DAILY_H4_V1 + position_level=WEEKLY` 跳过普通 stop/take-profit/trailing，只保留强平保护，并通过策略层 `REDUCE_POSITION` / `EXIT_POSITION` 管理周线 MA60、结构、动能和金叉/死叉退出。
 - 2026-07-01 已修正周线初始防线：`WEEKLY_SHORT_TREND` 默认使用周线 MA60 作为初始趋势防线，周线结构高点只用于后续结构破坏判断，不再作为默认硬止损来源。2025-12-22 BTCUSDT 回放中 stop 从错误的结构高点约 `126208.50` 降为 MA60 约 `100403.26`。
@@ -39,6 +39,12 @@
 - 2026-07-01 已给 `/backtest` 和 `/backtest/batch` 统一增加“清除回测结果”入口。普通策略回测页可直接 `clear=1` 清除所有策略回测归档；批量页清除不再依赖 `PAPER_ENABLE_BATCH_BACKTEST=1`，但批量任务运行中仍会拒绝清除。普通回测页会清理 URL 中的 `run/clear` 参数，避免刷新重复执行。
 
 ## 本轮修复
+
+- 2026-07-01 回测 / 批量回测独立时间线一致性修复：
+  - 用户截图指出 `/backtest` 和 `/backtest/batch` 仍显示旧口径：批量页写着 `1w 周线 + 1d 日线 + 4h 执行`，普通回测页仍用“时间层级 / 层级风险”等旧表述，且批量日志出现 `[skip]`，说明同参数仍可能复用独立时间线政策改造前的归档结果。
+  - 修复：回测页面风险输入改为“周线 / 日线 / 4H 风险预算”，最近结果和参数对比表改为“独立时间线 / 风险预算”；批量页策略框架改为“三条独立时间线：1w 周线 / 1d 日线 / 4h”，策略参数区改为“独立时间线策略参数”，输出统计改为按策略、独立时间线、交易对聚合。
+  - 修复：`StrategyBacktestConfig`、回测归档 payload 和批量回测参数 key/log label 新增 `trade_policy_version=INDEPENDENT_TIMELINES_V1`。这会改变 `strategy_backtest_config_hash()` 和批量 checkpoint `run_key`，后续默认批量回测不会把旧政策下的同均线/同周期结果当成可跳过的已完成结果。
+  - 覆盖测试：`tests/test_v2_0_backtest_weekly_daily_h4_adaptation.py` 和 `tests/test_v1_0_strategy_backtest_page.py` 已覆盖政策版本、批量 key、页面新文案以及旧 `4h 执行` 文案消失。
 
 - 2026-07-01 独立时间线策略政策设计：
   - 用户补充新版核心口径：项目只开 `WEEKLY / DAILY / H4` 三种时间线单；三条时间线独立决策、独立开平仓；不同时间线允许反向共存；同一时间线只能有一种方向，但允许同方向追加仓位。

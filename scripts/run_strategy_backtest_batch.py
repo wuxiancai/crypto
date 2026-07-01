@@ -27,6 +27,7 @@ from app.database.db import build_session_factory
 from app.database.models import KlineRecord
 from app.database.repositories import archive_strategy_backtest_result, find_archived_strategy_backtest_run, upsert_klines
 from app.paper.strategy_backtest import StrategyBacktestConfig, run_strategy_backtest
+from app.strategy.position_hierarchy import TRADE_POLICY_VERSION
 
 SUPPORTED_INTERVALS = ("1w", "1d", "4h")
 HISTORY_PERIOD = "1y"
@@ -69,11 +70,13 @@ class ParameterSet:
             f"-swing{self.swing_lookback}"
             f"-feerisk{self.max_fee_to_risk_ratio}"
             f"-tp{self.trend_pullback_take_profit_mode.lower()}"
+            f"-policy{TRADE_POLICY_VERSION.lower()}"
         )
 
     def label(self) -> str:
         return (
             "WEEKLY_DAILY_H4_V1"
+            f" | {TRADE_POLICY_VERSION}"
             f" | 1w/1d/4h | "
             f"{self.fast_ma_type}{self.fast_period}/{self.slow_ma_type}{self.slow_period}"
             f" | ATR {self.atr_period}"

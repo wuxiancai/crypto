@@ -98,7 +98,7 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     assert "12.50 / 1.25%" in html
     assert "盈亏比" in html
     assert "2.40" in html
-    assert "策略 / 层级 / 交易对统计" in html
+    assert "策略 / 独立时间线 / 交易对统计" in html
     assert "DAILY_SHORT_TREND" in html
     assert "DAILY" in html
     assert "按交易对统计" in html
@@ -379,7 +379,7 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
     assert "参数组合对比" in html
     assert "recent-results-scroll" in html
     assert "EMA50 / MA200" in html
-    assert "<th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>层级风险</th><th>层级杠杆</th><th>止盈</th><th>周期</th>" in html
+    assert "<th>策略内核</th><th>独立时间线</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>风险预算</th><th>层级杠杆</th><th>止盈</th><th>周期</th>" in html
     assert "层级杠杆" in html
     assert "W 2 / D 5 / H4 10" in html
     assert "WEEKLY_DAILY_H4_V1" in html
@@ -500,11 +500,12 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     assert "批量参数回测" in html
     assert "WEEKLY_DAILY_H4_V1" in html
     assert "策略框架" in html
-    assert "1w 周线 + 1d 日线 + 4h 执行" in html
+    assert "三条独立时间线：1w 周线 / 1d 日线 / 4h" in html
+    assert "4h 执行" not in html
     assert "默认均线" in html
     assert "EMA15 / MA60" in html
     assert "基础范围" in html
-    assert "WEEKLY_DAILY_H4_V1 参数" in html
+    assert "独立时间线策略参数" in html
     assert "执行控制" in html
     assert 'name="fast_start"' in html
     assert 'value="15"' in html

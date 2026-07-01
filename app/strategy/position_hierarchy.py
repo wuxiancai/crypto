@@ -7,6 +7,9 @@ class StrategyKernel(str, Enum):
     WEEKLY_DAILY_H4_V1 = "WEEKLY_DAILY_H4_V1"
 
 
+TRADE_POLICY_VERSION = "INDEPENDENT_TIMELINES_V1"
+
+
 class PositionLevel(str, Enum):
     WEEKLY = "WEEKLY"
     DAILY = "DAILY"

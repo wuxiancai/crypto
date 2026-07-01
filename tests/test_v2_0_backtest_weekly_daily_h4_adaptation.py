@@ -5,6 +5,7 @@ def test_strategy_backtest_config_payload_uses_weekly_daily_h4_kernel():
     payload = strategy_backtest_config_payload(StrategyBacktestConfig())
 
     assert payload["strategy_kernel"] == "WEEKLY_DAILY_H4_V1"
+    assert payload["trade_policy_version"] == "INDEPENDENT_TIMELINES_V1"
     assert payload["timeframes"] == "1w,1d,4h"
     assert payload["weekly_risk_pct"] == "0.008"
     assert payload["daily_risk_pct"] == "0.005"
@@ -21,6 +22,8 @@ def test_batch_backtest_script_uses_weekly_daily_h4_terms_only():
 
     assert batch.SUPPORTED_INTERVALS == ("1w", "1d", "4h")
     assert "WEEKLY_DAILY_H4_V1" in parameter_set.label()
+    assert "INDEPENDENT_TIMELINES_V1" in parameter_set.label()
+    assert "independent_timelines_v1" in parameter_set.key()
     assert "Reversal" not in parameter_set.label()
     assert "ZoneATR" not in parameter_set.label()
     assert "CloseBeyondMA" not in parameter_set.label()
@@ -34,14 +37,16 @@ def test_backtest_pages_show_new_kernel_not_old_layered_bucket_terms():
     combined = backtest_html + batch_html
 
     assert "WEEKLY_DAILY_H4_V1" in combined
-    assert "1w 周线 + 1d 日线 + 4h 执行" in combined
+    assert "三条独立时间线：1w 周线 / 1d 日线 / 4h" in combined
+    assert "独立时间线策略参数" in combined
+    assert "4h 执行" not in combined
     assert "Bucket" not in combined
     assert "分层策略" not in combined
     assert "Reversal" not in combined
     assert "趋势转换试仓" not in combined
 
 
-def test_backtest_page_exposes_layered_risk_pct_inputs():
+def test_backtest_page_exposes_timeline_risk_budget_inputs():
     from app.paper.web_status import render_strategy_backtest_html
 
     html = render_strategy_backtest_html()
@@ -52,9 +57,10 @@ def test_backtest_page_exposes_layered_risk_pct_inputs():
     assert 'value="0.005"' in html
     assert 'name="h4_risk_pct"' in html
     assert 'value="0.002"' in html
-    assert "周线风险" in html
-    assert "日线风险" in html
-    assert "4H风险" in html
+    assert "周线风险预算" in html
+    assert "日线风险预算" in html
+    assert "4H风险预算" in html
+    assert "周线风险</label>" not in html
 
 
 def test_backtest_query_parses_layered_risk_pct_inputs():

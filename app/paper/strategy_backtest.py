@@ -15,7 +15,7 @@ from app.paper.persistence import _fill_to_payload
 from app.paper.stream import PaperSignalContext
 from app.paper.strategy_adapter import RealtimeStrategyConfig
 from app.paper.trading import PaperConfig, PaperSnapshot, PaperTradingEngine
-from app.strategy.position_hierarchy import StrategyKernel
+from app.strategy.position_hierarchy import TRADE_POLICY_VERSION, StrategyKernel
 
 
 @dataclass(frozen=True)
@@ -50,6 +50,7 @@ class StrategyBacktestConfig:
     trend_pullback_take_profit_mode: str = "TRAILING"
     max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
+    trade_policy_version: str = TRADE_POLICY_VERSION
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,7 @@ class StrategyBacktestRunSummary:
     profit_loss_ratio: str = "0.00"
     trend_pullback_take_profit_mode: str = "TRAILING"
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
+    trade_policy_version: str = TRADE_POLICY_VERSION
     timeframes: str = "1w,1d,4h"
     weekly_risk_pct: str = "0.008"
     daily_risk_pct: str = "0.005"

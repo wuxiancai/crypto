@@ -10,6 +10,7 @@ from app.backtest.engine import BacktestResult
 from app.data.quality import Kline
 from app.database.models import BacktestRun, BacktestTradeRecord, ConfigSnapshot, KlineRecord, PaperRuntimeEvent
 from app.paper.strategy_backtest import StrategyBacktestResult, StrategyBacktestRunSummary
+from app.strategy.position_hierarchy import TRADE_POLICY_VERSION
 
 
 @dataclass(frozen=True)
@@ -228,6 +229,7 @@ def strategy_backtest_config_hash(config: object) -> str:
 def strategy_backtest_config_payload(config: object) -> dict[str, str]:
     return {
         "strategy_kernel": str(getattr(config, "strategy_kernel", "WEEKLY_DAILY_H4_V1")),
+        "trade_policy_version": str(getattr(config, "trade_policy_version", TRADE_POLICY_VERSION)),
         "timeframes": "1w,1d,4h",
         "symbols": ",".join(getattr(config, "symbols")),
         "fast_ma_type": str(getattr(config, "fast_ma_type")),
