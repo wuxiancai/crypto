@@ -114,6 +114,185 @@ def test_backtest_applies_risk_pct_by_position_level():
     assert wait.risk_pct is None
 
 
+def test_strategy_backtest_fetches_warmup_before_selected_window(monkeypatch):
+    import asyncio
+
+    from app.data.quality import INTERVAL_MS
+    from app.paper import strategy_backtest
+    from app.paper.strategy_backtest import StrategyBacktestConfig
+
+    calls = []
+
+    async def fake_fetch_interval_pages(symbol, interval, limit, start_time, end_time, cache_dir):
+        calls.append((symbol, interval, start_time, end_time))
+        return []
+
+    monkeypatch.setattr(strategy_backtest, "_fetch_interval_pages", fake_fetch_interval_pages)
+
+    trading_start = INTERVAL_MS["1w"] * 100
+    trading_end = trading_start + INTERVAL_MS["1w"] * 52
+    asyncio.run(
+        strategy_backtest._fetch_backtest_kline_sets(
+            StrategyBacktestConfig(
+                history_start_time_ms=trading_start,
+                history_end_time_ms=trading_end,
+                ema_slow_period=60,
+                history_cache_dir=None,
+            )
+        )
+    )
+
+    weekly_call = next(call for call in calls if call[1] == "1w")
+    assert weekly_call[2] <= trading_start - INTERVAL_MS["1w"] * 60
+    assert weekly_call[3] == trading_end
+
+
+def test_strategy_backtest_splits_warmup_from_replay_window():
+    from decimal import Decimal
+
+    from app.data.quality import INTERVAL_MS, Kline
+    from app.paper.strategy_backtest import _split_warmup_and_replay_klines
+
+    trading_start = INTERVAL_MS["1d"] * 10
+
+    def row(index: int) -> Kline:
+        open_time = INTERVAL_MS["1d"] * index
+        return Kline(
+            symbol="BTCUSDT",
+            interval="1d",
+            open_time=open_time,
+            close_time=open_time + INTERVAL_MS["1d"] - 1,
+            open=Decimal("100"),
+            high=Decimal("102"),
+            low=Decimal("99"),
+            close=Decimal("101"),
+            volume=Decimal("1"),
+        )
+
+    warmup, replay = _split_warmup_and_replay_klines(
+        [row(8), row(9), row(10), row(11)],
+        trading_start_time_ms=trading_start,
+    )
+
+    assert [kline.open_time for kline in warmup] == [INTERVAL_MS["1d"] * 8, INTERVAL_MS["1d"] * 9]
+    assert [kline.open_time for kline in replay] == [INTERVAL_MS["1d"] * 10, INTERVAL_MS["1d"] * 11]
+
+
+def test_batch_backtest_window_tracks_warmup_for_database_and_cache():
+    from app.data.quality import INTERVAL_MS
+    import scripts.run_strategy_backtest_batch as batch
+
+    trading_start = INTERVAL_MS["1w"] * 100
+    window = batch.BacktestWindow(
+        start_time_ms=trading_start,
+        end_time_ms=trading_start + INTERVAL_MS["1w"] * 52,
+        latest_close_time_by_interval={"1w": 1, "1d": 1, "4h": 1},
+    )
+
+    warmed = batch._with_warmup_window(
+        window,
+        batch.StrategyBacktestBatchConfig(
+            fast_periods=(15,),
+            slow_periods=(60,),
+            atr_periods=(14,),
+            dmi_periods=(12,),
+            swing_lookbacks=(20,),
+        ),
+    )
+
+    assert warmed.start_time_ms == trading_start
+    assert warmed.warmup_start_time_ms <= trading_start - INTERVAL_MS["1w"] * 60
+    checkpoint = batch._initial_checkpoint(symbol="BTCUSDT", workspace=batch.ROOT, window=warmed)
+    assert checkpoint["window"]["warmup_start_time_ms"] == warmed.warmup_start_time_ms
+
+
+def test_recent_backtest_summaries_hide_legacy_policy_archives():
+    from decimal import Decimal
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.database.models import BacktestRun, Base, ConfigSnapshot
+    from app.database.repositories import list_strategy_backtest_summaries
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        legacy_config = ConfigSnapshot(
+            name="strategy_backtest",
+            version="v1",
+            content_hash="legacy",
+            content='{"strategy_kernel":"WEEKLY_DAILY_H4_V1","timeframes":"1w,1d,4h","symbols":"BTCUSDT"}',
+        )
+        session.add(legacy_config)
+        session.flush()
+        session.add(
+            BacktestRun(
+                name="web_strategy_backtest",
+                config_snapshot_id=legacy_config.id,
+                initial_equity=Decimal("1000"),
+                final_equity=Decimal("1000"),
+                total_trades=0,
+                wins=0,
+                losses=0,
+                net_pnl=Decimal("0"),
+            )
+        )
+        session.commit()
+
+        summaries = list_strategy_backtest_summaries(session)
+
+    assert summaries == []
+
+
+def test_batch_window_validation_accepts_exchange_aligned_weekly_klines():
+    from decimal import Decimal
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.data.quality import INTERVAL_MS, Kline
+    from app.database.models import Base
+    from app.database.repositories import upsert_klines
+    import scripts.run_strategy_backtest_batch as batch
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+
+    def rows(interval: str, count: int, offset: int = 0) -> list[Kline]:
+        interval_ms = INTERVAL_MS[interval]
+        output = []
+        for index in range(count):
+            open_time = offset + index * interval_ms
+            output.append(
+                Kline(
+                    symbol="BTCUSDT",
+                    interval=interval,
+                    open_time=open_time,
+                    close_time=open_time + interval_ms - 1,
+                    open=Decimal("100"),
+                    high=Decimal("102"),
+                    low=Decimal("99"),
+                    close=Decimal("101"),
+                    volume=Decimal("1"),
+                )
+            )
+        return output
+
+    monday_offset = 3 * 24 * 60 * 60 * 1000
+    with Session(engine) as session:
+        upsert_klines(session, rows("1w", 80, offset=monday_offset))
+        upsert_klines(session, rows("1d", 600))
+        upsert_klines(session, rows("4h", 3600))
+        window = batch._resolve_backtest_window(
+            session,
+            "BTCUSDT",
+            history_window_ms=52 * INTERVAL_MS["1w"],
+        )
+
+    assert window.start_time_ms < window.end_time_ms
+
+
 def test_runtime_events_cli_labels_bucket_as_position_level():
     from scripts.show_paper_runtime_events import format_paper_runtime_events
 

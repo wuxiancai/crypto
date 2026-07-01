@@ -46,6 +46,13 @@
   - 修复：`StrategyBacktestConfig`、回测归档 payload 和批量回测参数 key/log label 新增 `trade_policy_version=INDEPENDENT_TIMELINES_V1`。这会改变 `strategy_backtest_config_hash()` 和批量 checkpoint `run_key`，后续默认批量回测不会把旧政策下的同均线/同周期结果当成可跳过的已完成结果。
   - 覆盖测试：`tests/test_v2_0_backtest_weekly_daily_h4_adaptation.py` 和 `tests/test_v1_0_strategy_backtest_page.py` 已覆盖政策版本、批量 key、页面新文案以及旧 `4h 执行` 文案消失。
 
+- 2026-07-01 回测 0 交易根因与回测重写：
+  - 根因：普通回测和批量回测把用户选择的“1年”同时当作策略指标窗口和交易统计窗口。`EMA15/MA60` 在周线上至少需要 60 根周线，但 1 年只有约 51-52 根周线，`build_realtime_strategy_signal()` 因历史不足持续返回 `WAIT`，所以普通回测和批量回测结果全是 0。
+  - 修复：`run_strategy_backtest()` 改为先构建 `BacktestKlineSet`，把交易窗口之前的 K 线作为 `warmup_klines` 传入 `build_default_realtime_signal_fn()`，交易循环只 replay 用户选择的统计窗口。这样 Backtest 与实时 Paper 的 warmup 机制一致，用户选择的 3个月 / 6个月 / 1年 / 2年只限制统计期，不限制策略可见的指标预热数据。
+  - 修复：批量回测的数据库同步、checkpoint 和 cache metadata 记录 `warmup_start_time_ms`，旧 workspace 中只含交易窗口的 cache 会自动重建；批量窗口完整性验证改为验证真实交易所 K 线序列连续性，不再用 Unix epoch 对齐误判 Binance 周线缺失。
+  - 修复：`list_strategy_backtest_summaries()` 只返回 `trade_policy_version=INDEPENDENT_TIMELINES_V1` 的当前政策归档，缺少政策版本的旧 0 交易归档不再混入“最近回测结果 / 参数组合对比”。
+  - 真实验证：`BTCUSDT / 1年 / EMA15 MA60 / ATR14 DMI12 Swing20 / 手续费过滤关闭` 普通回测预热 `1w=139`、交易窗口 `1w=51`，结果 `82` 笔，final `1048.79`；最小批量 smoke 同配置完成，归档 `run_id=25`，`90` 笔，final `1036.75`。
+
 - 2026-07-01 独立时间线策略政策设计：
   - 用户补充新版核心口径：项目只开 `WEEKLY / DAILY / H4` 三种时间线单；三条时间线独立决策、独立开平仓；不同时间线允许反向共存；同一时间线只能有一种方向，但允许同方向追加仓位。
   - 已新增 `trade_policy.md`，明确三条时间线的触发、止损、止盈、减仓和退出政策。日线参考周线方向、4H 参考日线方向只用于定义主方向 / 反弹 / 中性和风险预算，不用于阻断交易。顺上级方向统一表述为“结构风险较低、风险预算较高”，逆上级方向为“结构风险较高、风险预算较低”。

@@ -10,7 +10,7 @@ import time
 
 from app.data.binance import BinanceDataError, fetch_klines
 from app.data.quality import INTERVAL_MS, Kline
-from app.paper.live_runner import build_default_realtime_signal_fn
+from app.paper.live_runner import build_default_realtime_signal_fn, _required_history_limit
 from app.paper.persistence import _fill_to_payload
 from app.paper.stream import PaperSignalContext
 from app.paper.strategy_adapter import RealtimeStrategyConfig
@@ -107,10 +107,18 @@ class StrategyBacktestRunSummary:
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class BacktestKlineSet:
+    warmup_klines: list[Kline]
+    replay_klines: list[Kline]
+    trading_start_time_ms: int
+    trading_end_time_ms: int
+
+
 async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) -> StrategyBacktestResult:
     backtest_config = config or StrategyBacktestConfig()
     try:
-        historical_klines = await _fetch_backtest_klines(backtest_config)
+        kline_set = await _fetch_backtest_kline_sets(backtest_config)
     except BinanceDataError as exc:
         return _empty_result(backtest_config, error=str(exc))
 
@@ -141,9 +149,9 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
             max_fee_to_risk_ratio=backtest_config.max_fee_to_risk_ratio,
         )
     )
-    signal_fn = build_default_realtime_signal_fn(strategy_config, warmup_klines=())
+    signal_fn = build_default_realtime_signal_fn(strategy_config, warmup_klines=kline_set.warmup_klines)
 
-    for kline in historical_klines:
+    for kline in kline_set.replay_klines:
         closed_fills = engine.on_kline_all(kline)
         if closed_fills:
             continue
@@ -216,11 +224,14 @@ def _apply_backtest_level_risk(signal, config: StrategyBacktestConfig):
 
 
 async def _fetch_backtest_klines(config: StrategyBacktestConfig) -> list[Kline]:
+    kline_set = await _fetch_backtest_kline_sets(config)
+    return [*kline_set.warmup_klines, *kline_set.replay_klines]
+
+
+async def _fetch_backtest_kline_sets(config: StrategyBacktestConfig) -> BacktestKlineSet:
     intervals = ("1w", "1d", "4h")
-    end_time = config.history_end_time_ms or int(time.time() * 1000)
-    start_time = config.history_start_time_ms
-    if start_time is None:
-        start_time = end_time - _history_window_ms(config.history_period)
+    start_time, end_time = _resolve_backtest_window(config)
+    fetch_start_time = max(0, start_time - _indicator_warmup_window_ms(config))
     historical: list[Kline] = []
     for symbol in config.symbols:
         for interval in intervals:
@@ -229,12 +240,57 @@ async def _fetch_backtest_klines(config: StrategyBacktestConfig) -> list[Kline]:
                     symbol,
                     interval,
                     config.limit,
-                    start_time,
+                    fetch_start_time,
                     end_time,
                     config.history_cache_dir,
                 )
             )
-    return _sort_backtest_klines_for_event_replay(historical)
+    warmup_klines, replay_klines = _split_warmup_and_replay_klines(
+        _sort_backtest_klines_for_event_replay(historical),
+        trading_start_time_ms=start_time,
+    )
+    return BacktestKlineSet(
+        warmup_klines=warmup_klines,
+        replay_klines=replay_klines,
+        trading_start_time_ms=start_time,
+        trading_end_time_ms=end_time,
+    )
+
+
+def _resolve_backtest_window(config: StrategyBacktestConfig) -> tuple[int, int]:
+    end_time = config.history_end_time_ms or int(time.time() * 1000)
+    start_time = config.history_start_time_ms
+    if start_time is None:
+        start_time = end_time - _history_window_ms(config.history_period)
+    return start_time, end_time
+
+
+def _indicator_warmup_window_ms(config: StrategyBacktestConfig) -> int:
+    strategy_config = RealtimeStrategyConfig(
+        fast_ma_type=config.fast_ma_type,
+        slow_ma_type=config.slow_ma_type,
+        ema_fast_period=config.ema_fast_period,
+        ema_slow_period=config.ema_slow_period,
+        atr_period=config.atr_period,
+        dmi_period=config.dmi_period,
+        swing_lookback=config.swing_lookback,
+    )
+    warmup_bars = max(_required_history_limit(strategy_config), config.ema_slow_period)
+    return warmup_bars * INTERVAL_MS["1w"]
+
+
+def _split_warmup_and_replay_klines(
+    klines: list[Kline],
+    trading_start_time_ms: int,
+) -> tuple[list[Kline], list[Kline]]:
+    warmup: list[Kline] = []
+    replay: list[Kline] = []
+    for kline in klines:
+        if kline.open_time < trading_start_time_ms:
+            warmup.append(kline)
+        else:
+            replay.append(kline)
+    return warmup, replay
 
 
 def _sort_backtest_klines_for_event_replay(klines: list[Kline]) -> list[Kline]:

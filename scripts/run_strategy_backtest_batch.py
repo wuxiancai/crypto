@@ -26,7 +26,7 @@ from app.data.quality import INTERVAL_MS, Kline, validate_kline_sequence
 from app.database.db import build_session_factory
 from app.database.models import KlineRecord
 from app.database.repositories import archive_strategy_backtest_result, find_archived_strategy_backtest_run, upsert_klines
-from app.paper.strategy_backtest import StrategyBacktestConfig, run_strategy_backtest
+from app.paper.strategy_backtest import StrategyBacktestConfig, _indicator_warmup_window_ms, run_strategy_backtest
 from app.strategy.position_hierarchy import TRADE_POLICY_VERSION
 
 SUPPORTED_INTERVALS = ("1w", "1d", "4h")
@@ -47,6 +47,7 @@ class BacktestWindow:
     start_time_ms: int
     end_time_ms: int
     latest_close_time_by_interval: dict[str, int]
+    warmup_start_time_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -243,7 +244,7 @@ def run_strategy_backtest_batch(
     requested_window: BacktestWindow | None = None
     if checkpoint is not None:
         _validate_checkpoint_symbol(checkpoint, config.symbol)
-        requested_window = _window_from_checkpoint(checkpoint)
+        requested_window = _with_warmup_window(_window_from_checkpoint(checkpoint), config)
 
     _ensure_database_history(
         session_factory=session_factory,
@@ -251,19 +252,23 @@ def run_strategy_backtest_batch(
         symbol=config.symbol,
         requested_window=requested_window,
         history_window_ms=config.history_window_ms,
+        warmup_window_ms=_batch_warmup_window_ms(config),
         log_callback=log_callback,
     )
 
     if checkpoint is None:
         with session_factory() as session:
             window = _resolve_backtest_window(session, config.symbol, config.history_window_ms)
+        window = _with_warmup_window(window, config)
         checkpoint = _initial_checkpoint(symbol=config.symbol, workspace=workspace, window=window)
         _save_checkpoint(workspace, checkpoint)
     else:
         window = requested_window
+        checkpoint["window"]["warmup_start_time_ms"] = window.warmup_start_time_ms
+        _save_checkpoint(workspace, checkpoint)
 
     cache_dir = workspace / "cache"
-    if config.refresh_cache or not _cache_complete(cache_dir, config.symbol):
+    if config.refresh_cache or not _cache_complete(cache_dir, config.symbol, window):
         with session_factory() as session:
             _hydrate_cache_from_database(
                 session=session,
@@ -433,19 +438,24 @@ def _ensure_database_history(
     symbol: str,
     requested_window: BacktestWindow | None,
     history_window_ms: int,
+    warmup_window_ms: int,
     log_callback: Any | None = None,
 ) -> None:
     if requested_window is None:
         target_end_time_ms = _latest_closed_end_time(int(time.time() * 1000))
         target_start_time_ms = target_end_time_ms - history_window_ms
+        sync_start_time_ms = max(0, target_start_time_ms - warmup_window_ms)
     else:
         target_start_time_ms = requested_window.start_time_ms
         target_end_time_ms = requested_window.end_time_ms
+        sync_start_time_ms = requested_window.warmup_start_time_ms
+        if sync_start_time_ms is None:
+            sync_start_time_ms = max(0, target_start_time_ms - warmup_window_ms)
 
     _emit(
         log_callback,
         f"Checking database K-lines for {symbol} "
-        f"({target_start_time_ms} -> {target_end_time_ms})"
+        f"({target_start_time_ms} -> {target_end_time_ms}; warmup from {sync_start_time_ms})"
     )
     for interval in SUPPORTED_INTERVALS:
         written = asyncio.run(
@@ -454,7 +464,7 @@ def _ensure_database_history(
                 settings=settings,
                 symbol=symbol,
                 interval=interval,
-                start_time_ms=target_start_time_ms,
+                start_time_ms=sync_start_time_ms,
                 end_time_ms=target_end_time_ms,
             )
         )
@@ -602,6 +612,7 @@ def _initial_checkpoint(symbol: str, workspace: Path, window: BacktestWindow) ->
         "window": {
             "start_time_ms": window.start_time_ms,
             "end_time_ms": window.end_time_ms,
+            "warmup_start_time_ms": window.warmup_start_time_ms,
             "latest_close_time_by_interval": window.latest_close_time_by_interval,
         },
         "records": {},
@@ -632,6 +643,7 @@ def _window_from_checkpoint(checkpoint: dict[str, Any]) -> BacktestWindow:
     return BacktestWindow(
         start_time_ms=int(payload["start_time_ms"]),
         end_time_ms=int(payload["end_time_ms"]),
+        warmup_start_time_ms=int(payload["warmup_start_time_ms"]) if payload.get("warmup_start_time_ms") is not None else None,
         latest_close_time_by_interval={
             str(key): int(value)
             for key, value in dict(payload.get("latest_close_time_by_interval") or {}).items()
@@ -639,8 +651,22 @@ def _window_from_checkpoint(checkpoint: dict[str, Any]) -> BacktestWindow:
     )
 
 
-def _cache_complete(cache_dir: Path, symbol: str) -> bool:
-    return all((cache_dir / f"{symbol}-{interval}.jsonl").exists() for interval in SUPPORTED_INTERVALS)
+def _cache_complete(cache_dir: Path, symbol: str, window: BacktestWindow | None = None) -> bool:
+    if not all((cache_dir / f"{symbol}-{interval}.jsonl").exists() for interval in SUPPORTED_INTERVALS):
+        return False
+    if window is None:
+        return True
+    metadata_path = cache_dir / "metadata.json"
+    if not metadata_path.exists():
+        return False
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    cache_start = int(metadata.get("start_time_ms", window.start_time_ms))
+    cache_end = int(metadata.get("end_time_ms", 0))
+    required_start = window.warmup_start_time_ms or window.start_time_ms
+    return cache_start <= required_start and cache_end >= window.end_time_ms
 
 
 def _resolve_backtest_window(session: Any, symbol: str, history_window_ms: int = HISTORY_WINDOW_MS) -> BacktestWindow:
@@ -660,25 +686,51 @@ def _resolve_backtest_window(session: Any, symbol: str, history_window_ms: int =
     end_time_ms = min(latest_close_time_by_interval.values())
     start_time_ms = end_time_ms - history_window_ms
     for interval in SUPPORTED_INTERVALS:
-        interval_ms = INTERVAL_MS[interval]
-        first_open = _ceil_to_interval(start_time_ms, interval_ms)
-        last_open = (end_time_ms // interval_ms) * interval_ms
-        expected_count = max(0, ((last_open - first_open) // interval_ms) + 1)
-        row_count = session.execute(
-            select(func.count()).select_from(KlineRecord).where(
+        rows = session.execute(
+            select(KlineRecord).where(
                 KlineRecord.symbol == symbol,
                 KlineRecord.interval == interval,
                 KlineRecord.is_closed.is_(True),
-                KlineRecord.open_time >= first_open,
+                KlineRecord.close_time >= start_time_ms,
                 KlineRecord.open_time <= end_time_ms,
-            )
-        ).scalar_one()
-        if int(row_count or 0) < expected_count:
+            ).order_by(KlineRecord.open_time.asc())
+        ).scalars().all()
+        if not rows:
             raise SystemExit(f"Database does not contain a complete requested window for {symbol} {interval}.")
+        errors = validate_kline_sequence([_kline_from_record(row) for row in rows])
+        if errors:
+            preview = "; ".join(errors[:5])
+            raise SystemExit(f"Database requested window is not continuous for {symbol} {interval}: {preview}")
     return BacktestWindow(
         start_time_ms=start_time_ms,
         end_time_ms=end_time_ms,
         latest_close_time_by_interval=latest_close_time_by_interval,
+    )
+
+
+def _batch_warmup_window_ms(config: StrategyBacktestBatchConfig) -> int:
+    strategy_config = StrategyBacktestConfig(
+        fast_ma_type=config.fast_ma_type,
+        slow_ma_type=config.slow_ma_type,
+        ema_fast_period=max(config.fast_periods),
+        ema_slow_period=max(config.slow_periods),
+        atr_period=max(config.atr_periods),
+        dmi_period=max(config.dmi_periods),
+        swing_lookback=max(config.swing_lookbacks),
+    )
+    return _indicator_warmup_window_ms(strategy_config)
+
+
+def _with_warmup_window(window: BacktestWindow, config: StrategyBacktestBatchConfig) -> BacktestWindow:
+    warmup_start = max(0, window.start_time_ms - _batch_warmup_window_ms(config))
+    current_warmup = window.warmup_start_time_ms
+    if current_warmup is not None:
+        warmup_start = min(warmup_start, current_warmup)
+    return BacktestWindow(
+        start_time_ms=window.start_time_ms,
+        end_time_ms=window.end_time_ms,
+        latest_close_time_by_interval=window.latest_close_time_by_interval,
+        warmup_start_time_ms=warmup_start,
     )
 
 
@@ -689,9 +741,11 @@ def _hydrate_cache_from_database(
     window: BacktestWindow,
 ) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_start_time_ms = window.warmup_start_time_ms or window.start_time_ms
     metadata = {
         "symbol": symbol,
-        "start_time_ms": window.start_time_ms,
+        "start_time_ms": cache_start_time_ms,
+        "trading_start_time_ms": window.start_time_ms,
         "end_time_ms": window.end_time_ms,
         "intervals": {},
     }
@@ -701,7 +755,7 @@ def _hydrate_cache_from_database(
                 KlineRecord.symbol == symbol,
                 KlineRecord.interval == interval,
                 KlineRecord.is_closed.is_(True),
-                KlineRecord.open_time >= _ceil_to_interval(window.start_time_ms, INTERVAL_MS[interval]),
+                KlineRecord.open_time >= _ceil_to_interval(cache_start_time_ms, INTERVAL_MS[interval]),
                 KlineRecord.open_time <= window.end_time_ms,
             ).order_by(KlineRecord.open_time.asc())
         ).scalars().all()

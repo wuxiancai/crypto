@@ -279,9 +279,14 @@ def list_strategy_backtest_summaries(
         ).scalars().all()
         for trade in trades:
             trades_by_run.setdefault(int(trade.backtest_run_id), []).append(trade)
-    return [
+    summaries = [
         _strategy_backtest_summary(run, snapshot, trades_by_run.get(int(run.id), []))
         for run, snapshot in rows
+    ]
+    return [
+        summary
+        for summary in summaries
+        if summary.trade_policy_version == TRADE_POLICY_VERSION
     ]
 
 
@@ -364,6 +369,7 @@ def _strategy_backtest_summary(
         created_at=run.created_at,
         symbol=symbol,
         strategy_kernel=str(payload.get("strategy_kernel") or "WEEKLY_DAILY_H4_V1"),
+        trade_policy_version=str(payload.get("trade_policy_version") or "LEGACY"),
         timeframes=str(payload.get("timeframes") or "1w,1d,4h"),
         fast_ma_type=_average_type_from_payload(payload, "fast_ma_type"),
         fast_period=_int_from_payload(payload, "ema_fast_period", 50),
