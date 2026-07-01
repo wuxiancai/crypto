@@ -222,12 +222,14 @@ class PaperTradingEngine:
     def _has_conflicting_position(self, symbol: str, signal: SignalLike) -> bool:
         signal_level = getattr(signal, "position_level", None)
         if signal_level:
+            signal_side = _side_from_action(signal.action)
+            signal_kernel = getattr(signal, "strategy_kernel", None)
             for position in self._positions:
                 if position.symbol != symbol:
                     continue
-                if position.strategy_kernel and position.strategy_kernel != getattr(signal, "strategy_kernel", None):
+                if position.strategy_kernel and signal_kernel and position.strategy_kernel != signal_kernel:
                     return True
-                if position.position_level == signal_level:
+                if position.position_level == signal_level and position.side != signal_side:
                     return True
             return False
         bucket = _bucket_from_signal(signal)
