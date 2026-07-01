@@ -316,19 +316,19 @@ def build_default_realtime_signal_fn(
                 reason=["waiting for required realtime timeframes"],
                 strategy_kernel=config.strategy_kernel,
             )
-        if kline.interval != config.entry_interval:
-            return StrategySignal(
-                action="WAIT",
-                strategy_type="SYSTEM",
-                reason=["non-entry interval observed"],
-                strategy_kernel=config.strategy_kernel,
-            )
         signal = build_realtime_strategy_signal(
             frame,
             config=config,
             open_buckets=context.open_buckets if context is not None else (),
             open_strategy_types=context.open_strategy_types if context is not None else (),
         )
+        if not _signal_allowed_on_interval(signal, kline.interval, config):
+            return StrategySignal(
+                action="WAIT",
+                strategy_type="SYSTEM",
+                reason=[_interval_gate_reason(signal, kline.interval, config)],
+                strategy_kernel=config.strategy_kernel,
+            )
         return _apply_funding_filter(
             signal=signal,
             kline=kline,
@@ -336,6 +336,32 @@ def build_default_realtime_signal_fn(
         )
 
     return signal_fn
+
+
+def _signal_allowed_on_interval(
+    signal: StrategySignal,
+    interval: str,
+    config: RealtimeStrategyConfig,
+) -> bool:
+    level = str(getattr(signal, "position_level", "") or getattr(signal, "bucket", "") or "").upper()
+    if level == "WEEKLY":
+        return interval == config.weekly_interval
+    if interval == config.weekly_interval:
+        return False
+    return interval == config.entry_interval
+
+
+def _interval_gate_reason(
+    signal: StrategySignal,
+    interval: str,
+    config: RealtimeStrategyConfig,
+) -> str:
+    level = str(getattr(signal, "position_level", "") or getattr(signal, "bucket", "") or "").upper()
+    if level == "WEEKLY" and interval != config.weekly_interval:
+        return "weekly management waits for weekly close"
+    if interval == config.weekly_interval:
+        return "weekly interval only manages weekly positions"
+    return "non-entry interval observed"
 
 
 def _apply_funding_filter(
