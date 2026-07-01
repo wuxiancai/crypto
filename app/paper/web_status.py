@@ -733,6 +733,18 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
           <label for="h4_risk_pct">4H风险</label>
           <input id="h4_risk_pct" name="h4_risk_pct" type="number" min="0" max="0.05" step="0.0005" value="{_escape(getattr(config, "h4_risk_pct", "0.002"))}">
         </div>
+        <div class="form-field">
+          <label for="weekly_leverage">周线杠杆</label>
+          <input id="weekly_leverage" name="weekly_leverage" type="number" min="1" max="20" step="0.5" value="{_escape(getattr(config, "weekly_leverage", "2"))}">
+        </div>
+        <div class="form-field">
+          <label for="daily_leverage">日线杠杆</label>
+          <input id="daily_leverage" name="daily_leverage" type="number" min="1" max="20" step="0.5" value="{_escape(getattr(config, "daily_leverage", "5"))}">
+        </div>
+        <div class="form-field">
+          <label for="h4_leverage">4H杠杆</label>
+          <input id="h4_leverage" name="h4_leverage" type="number" min="1" max="20" step="0.5" value="{_escape(getattr(config, "h4_leverage", "10"))}">
+        </div>
         <button class="primary-button" type="submit" name="run" value="1">开始回测</button>
       </form>
     </section>
@@ -1679,7 +1691,7 @@ def _render_recent_backtest_results(results: list[Any]) -> str:
 <table>
   <thead>
     <tr>
-      <th>回测时间 UTC+8</th><th>交易对</th><th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>止盈</th><th>周期</th>
+      <th>回测时间 UTC+8</th><th>交易对</th><th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>层级风险</th><th>层级杠杆</th><th>止盈</th><th>周期</th>
       <th>初始权益</th><th>账户权益</th><th>总交易次数</th><th>胜 / 负 / 胜率</th><th>净盈亏</th>
     </tr>
   </thead>
@@ -1699,7 +1711,7 @@ def _render_parameter_comparison_table(results: list[Any]) -> str:
 <table>
   <thead>
     <tr>
-      <th>排名</th><th>交易对</th><th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>层级风险</th><th>止盈</th><th>周期</th>
+      <th>排名</th><th>交易对</th><th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>层级风险</th><th>层级杠杆</th><th>止盈</th><th>周期</th>
       <th>账户权益</th><th>净盈亏</th><th>胜率</th><th>盈亏比</th><th>最大回撤</th><th>层级净盈亏</th><th>交易次数</th>
     </tr>
   </thead>
@@ -1721,6 +1733,7 @@ def _render_parameter_comparison_row(index: int, result: Any) -> str:
   <td>{_escape(getattr(result, "swing_lookback", "-"))}</td>
   <td>{_escape(_fee_to_risk_label(getattr(result, "max_fee_to_risk_ratio", "-")))}</td>
   <td>{_escape(_level_risk_label(result))}</td>
+  <td>{_escape(_level_leverage_label(result))}</td>
   <td>{_escape(getattr(result, "trend_pullback_take_profit_mode", "TRAILING"))}</td>
   <td>{_escape(_history_period_label(getattr(result, "history_period", "")))}</td>
   <td>{_format_decimal(getattr(result, "final_equity", "0"), 2)}</td>
@@ -1818,6 +1831,7 @@ def _render_recent_backtest_result_row(result: Any) -> str:
   <td>{_escape(getattr(result, "swing_lookback", "-"))}</td>
   <td>{_escape(_fee_to_risk_label(getattr(result, "max_fee_to_risk_ratio", "-")))}</td>
   <td>{_escape(_level_risk_label(result))}</td>
+  <td>{_escape(_level_leverage_label(result))}</td>
   <td>{_escape(getattr(result, "trend_pullback_take_profit_mode", "TRAILING"))}</td>
   <td>{_escape(_history_period_label(getattr(result, "history_period", "")))}</td>
   <td>{_format_decimal(getattr(result, "initial_equity", "0"), 2)}</td>
@@ -1845,6 +1859,13 @@ def _level_risk_label(result: Any) -> str:
     weekly = getattr(result, "weekly_risk_pct", "0.008")
     daily = getattr(result, "daily_risk_pct", "0.005")
     h4 = getattr(result, "h4_risk_pct", "0.002")
+    return f"W {weekly} / D {daily} / H4 {h4}"
+
+
+def _level_leverage_label(result: Any) -> str:
+    weekly = getattr(result, "weekly_leverage", "2")
+    daily = getattr(result, "daily_leverage", "5")
+    h4 = getattr(result, "h4_leverage", "10")
     return f"W {weekly} / D {daily} / H4 {h4}"
 
 

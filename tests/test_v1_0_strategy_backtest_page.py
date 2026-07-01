@@ -85,6 +85,10 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     assert "手续费占风险过滤" in html
     assert 'name="max_fee_to_risk_ratio"' in html
     assert 'value="0.25"' in html
+    assert "周线杠杆" in html
+    assert 'name="weekly_leverage"' in html
+    assert 'name="daily_leverage"' in html
+    assert 'name="h4_leverage"' in html
     assert "账户权益 USDT" in html
     assert "1030.25" in html
     assert "总交易次数" in html
@@ -375,7 +379,9 @@ def test_strategy_backtest_page_shows_recent_results_newest_first():
     assert "参数组合对比" in html
     assert "recent-results-scroll" in html
     assert "EMA50 / MA200" in html
-    assert "<th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>止盈</th><th>周期</th>" in html
+    assert "<th>策略内核</th><th>时间层级</th><th>均线组合</th><th>ATR</th><th>DMI</th><th>Swing</th><th>手续费过滤</th><th>层级风险</th><th>层级杠杆</th><th>止盈</th><th>周期</th>" in html
+    assert "层级杠杆" in html
+    assert "W 2 / D 5 / H4 10" in html
     assert "WEEKLY_DAILY_H4_V1" in html
     assert "1w,1d,4h" in html
     assert "<td>14</td>" in html

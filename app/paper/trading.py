@@ -19,6 +19,9 @@ class PaperConfig:
     maker_fee_rate: Decimal = Decimal("0.0002")
     taker_fee_rate: Decimal = Decimal("0.0005")
     leverage: Decimal = Decimal("10")
+    weekly_leverage: Decimal = Decimal("2")
+    daily_leverage: Decimal = Decimal("5")
+    h4_leverage: Decimal = Decimal("10")
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     default_stop_distance_pct: Decimal = Decimal("0.02")
@@ -260,7 +263,8 @@ class PaperTradingEngine:
         if risk_pct <= 0:
             return None
         risk_quantity = self._equity * risk_pct / stop_distance
-        max_notional_quantity = self._max_single_position_quantity(entry_price)
+        effective_leverage = _leverage_for_signal(signal, self._config)
+        max_notional_quantity = self._max_single_position_quantity(entry_price, effective_leverage)
         quantity = min(risk_quantity, max_notional_quantity)
         if quantity <= 0:
             return None
@@ -287,7 +291,7 @@ class PaperTradingEngine:
             take_profit=take_profit,
             quantity=quantity,
             entry_fee=entry_fee,
-            leverage=self._config.leverage,
+            leverage=effective_leverage,
             initial_stop_loss=stop_loss,
             interval=kline.interval,
             trailing_atr=getattr(signal, "trailing_atr", None) or getattr(signal, "atr", None),
@@ -425,8 +429,8 @@ class PaperTradingEngine:
         )
         return result.is_protected
 
-    def _max_single_position_quantity(self, entry_price: Decimal) -> Decimal:
-        max_notional = self._equity * self._config.leverage
+    def _max_single_position_quantity(self, entry_price: Decimal, leverage: Decimal) -> Decimal:
+        max_notional = self._equity * leverage
         max_single_leverage = self._config.max_single_position_notional_leverage
         if max_single_leverage is not None and max_single_leverage > 0:
             max_notional = min(max_notional, self._equity * max_single_leverage)
@@ -659,6 +663,17 @@ def _bucket_from_signal(signal: SignalLike) -> str:
     if explicit_bucket:
         return str(explicit_bucket)
     return "LEGACY"
+
+
+def _leverage_for_signal(signal: SignalLike, config: PaperConfig) -> Decimal:
+    level = str(getattr(signal, "position_level", "") or getattr(signal, "bucket", "") or "").upper()
+    if level == "WEEKLY":
+        return config.weekly_leverage
+    if level == "DAILY":
+        return config.daily_leverage
+    if level == "H4":
+        return config.h4_leverage
+    return config.leverage
 
 
 def _uses_trailing_take_profit(position: PaperPosition, config: PaperConfig) -> bool:

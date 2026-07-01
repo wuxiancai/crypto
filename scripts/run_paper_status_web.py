@@ -284,6 +284,27 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
             minimum=Decimal("0"),
             maximum=Decimal("0.05"),
         ),
+        weekly_leverage=_query_decimal(
+            query,
+            "weekly_leverage",
+            Decimal("2"),
+            minimum=Decimal("1"),
+            maximum=Decimal("20"),
+        ),
+        daily_leverage=_query_decimal(
+            query,
+            "daily_leverage",
+            Decimal("5"),
+            minimum=Decimal("1"),
+            maximum=Decimal("20"),
+        ),
+        h4_leverage=_query_decimal(
+            query,
+            "h4_leverage",
+            Decimal("10"),
+            minimum=Decimal("1"),
+            maximum=Decimal("20"),
+        ),
     )
 
 

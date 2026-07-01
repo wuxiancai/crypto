@@ -42,6 +42,9 @@ class StrategyBacktestConfig:
     taker_fee_rate: Decimal = Decimal("0.0005")
     slippage_pct: Decimal = Decimal("0")
     leverage: Decimal = Decimal("10")
+    weekly_leverage: Decimal = Decimal("2")
+    daily_leverage: Decimal = Decimal("5")
+    h4_leverage: Decimal = Decimal("10")
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     trend_pullback_take_profit_mode: str = "TRAILING"
@@ -96,6 +99,9 @@ class StrategyBacktestRunSummary:
     weekly_risk_pct: str = "0.008"
     daily_risk_pct: str = "0.005"
     h4_risk_pct: str = "0.002"
+    weekly_leverage: str = "2"
+    daily_leverage: str = "5"
+    h4_leverage: str = "10"
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
 
 
@@ -124,6 +130,9 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
             taker_fee_rate=backtest_config.taker_fee_rate,
             slippage_pct=backtest_config.slippage_pct,
             leverage=backtest_config.leverage,
+            weekly_leverage=backtest_config.weekly_leverage,
+            daily_leverage=backtest_config.daily_leverage,
+            h4_leverage=backtest_config.h4_leverage,
             funding_rate=backtest_config.funding_rate,
             funding_interval_ms=backtest_config.funding_interval_ms,
             trend_pullback_take_profit_mode=backtest_config.trend_pullback_take_profit_mode,

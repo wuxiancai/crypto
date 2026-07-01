@@ -244,6 +244,9 @@ def strategy_backtest_config_payload(config: object) -> dict[str, str]:
         "weekly_risk_pct": str(getattr(config, "weekly_risk_pct", "0.008")),
         "daily_risk_pct": str(getattr(config, "daily_risk_pct", "0.005")),
         "h4_risk_pct": str(getattr(config, "h4_risk_pct", "0.002")),
+        "weekly_leverage": str(getattr(config, "weekly_leverage", "2")),
+        "daily_leverage": str(getattr(config, "daily_leverage", "5")),
+        "h4_leverage": str(getattr(config, "h4_leverage", "10")),
         "maker_fee_rate": str(getattr(config, "maker_fee_rate")),
         "taker_fee_rate": str(getattr(config, "taker_fee_rate")),
         "leverage": str(getattr(config, "leverage")),
@@ -382,6 +385,9 @@ def _strategy_backtest_summary(
         weekly_risk_pct=str(payload.get("weekly_risk_pct") or "0.008"),
         daily_risk_pct=str(payload.get("daily_risk_pct") or "0.005"),
         h4_risk_pct=str(payload.get("h4_risk_pct") or "0.002"),
+        weekly_leverage=str(payload.get("weekly_leverage") or "2"),
+        daily_leverage=str(payload.get("daily_leverage") or "5"),
+        h4_leverage=str(payload.get("h4_leverage") or "10"),
         bucket_metrics=_summary_bucket_metrics(trades or []),
     )
 
