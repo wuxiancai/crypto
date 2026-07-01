@@ -40,6 +40,11 @@
 
 ## 本轮修复
 
+- 2026-07-01 状态页错误日志时间显示：
+  - 根因：实时 Paper runner 通过 `print()` 写入 `runtime/logs/paper-realtime.log`，启动脚本只是重定向 stdout/stderr，日志行本身没有时间；状态页 `_read_error_logs()` 提取错误摘要时也只返回错误文本，导致“错误日志”区无法说明错误发生时间。
+  - 修复：`scripts/run_paper_realtime.py` 启动时为 stdout/stderr 加 UTC+8 行级时间戳；`app/paper/web_status.py` 读取错误日志时识别已有时间戳并保留，旧的无时间戳日志按日志文件修改时间补一个 UTC+8 时间，恢复标记和错误摘要继续按去掉时间戳后的消息判断。
+  - 覆盖测试：`tests/test_paper_status_error_log_time.py`。
+
 - 2026-06-28 继续交易链路体检后的补强：
   - 策略回测入口现在会像实时 Paper 一样把 `PaperSignalContext` 传给实时信号函数；回测中的 ADDON / bucket 去重 / 已开仓策略判断不再因为缺少持仓上下文而和实时运行不一致。
   - Paper 交易引擎与通用回测引擎都改为显式区分 `risk_pct=None` 和 `risk_pct=0`；上游风控明确给出 0 风险时会拒绝开仓，不再回退到默认风险比例。

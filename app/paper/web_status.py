@@ -1,6 +1,7 @@
 import html
 import json
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -8,6 +9,9 @@ import time
 from typing import Any
 
 _SYSTEM_METRICS_LAST_SAMPLE: dict[str, Any] | None = None
+_LOG_TIMESTAMP_PATTERN = re.compile(
+    r"^\[?(?P<timestamp>\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})\]?\s+"
+)
 
 
 def build_paper_status_payload(
@@ -3058,18 +3062,29 @@ def _read_error_logs(
 ) -> list[str]:
     if path is None or not path.exists():
         return []
-    if active_after_ms is not None and int(path.stat().st_mtime * 1000) <= active_after_ms:
+    stat = path.stat()
+    if active_after_ms is not None and int(stat.st_mtime * 1000) <= active_after_ms:
         return []
+    fallback_timestamp = _format_event_time_ms(int(stat.st_mtime * 1000))
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     matched = []
     for line in lines:
-        if _is_error_recovery_log_line(line):
+        timestamp, message = _split_log_timestamp(line, fallback_timestamp)
+        if _is_error_recovery_log_line(message):
             matched.clear()
             continue
-        summary = _summarize_error_log_line(line)
-        if summary and summary not in matched:
-            matched.append(summary)
+        summary = _summarize_error_log_line(message)
+        rendered = f"{timestamp} {summary}" if summary else None
+        if rendered and rendered not in matched:
+            matched.append(rendered)
     return matched[-max_lines:]
+
+
+def _split_log_timestamp(line: str, fallback_timestamp: str) -> tuple[str, str]:
+    match = _LOG_TIMESTAMP_PATTERN.match(line)
+    if match is None:
+        return fallback_timestamp, line
+    return match.group("timestamp").replace("T", " "), line[match.end():]
 
 
 def _summarize_error_log_line(line: str) -> str | None:

@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
+from typing import Callable, TextIO
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -14,6 +16,46 @@ from app.paper.live_runner import RealMarketPaperConfig, run_real_market_paper
 from app.paper.strategy_adapter import RealtimeStrategyConfig
 from app.paper.status import format_paper_status
 from app.database.db import build_session_factory
+
+
+class _TimestampedLineWriter:
+    def __init__(
+        self,
+        wrapped: TextIO,
+        now: Callable[[], str] | None = None,
+    ) -> None:
+        self._wrapped = wrapped
+        self._now = now or _current_log_time
+        self._line_start = True
+
+    def write(self, text: str) -> int:
+        if not text:
+            return 0
+        for chunk in text.splitlines(keepends=True):
+            if self._line_start and chunk not in {"\n", "\r\n"}:
+                self._wrapped.write(f"{self._now()} ")
+            self._wrapped.write(chunk)
+            self._line_start = chunk.endswith("\n")
+        return len(text)
+
+    def flush(self) -> None:
+        self._wrapped.flush()
+
+    def isatty(self) -> bool:
+        return self._wrapped.isatty()
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._wrapped, name)
+
+
+def _current_log_time() -> str:
+    utc_plus_8 = timezone(timedelta(hours=8))
+    return datetime.now(tz=utc_plus_8).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _enable_timestamped_stdio() -> None:
+    sys.stdout = _TimestampedLineWriter(sys.stdout)
+    sys.stderr = _TimestampedLineWriter(sys.stderr)
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,6 +84,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    _enable_timestamped_stdio()
     args = parse_args()
     session_factory = build_session_factory()
     snapshot = asyncio.run(
