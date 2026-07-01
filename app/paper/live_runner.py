@@ -346,6 +346,10 @@ def _signal_allowed_on_interval(
     level = str(getattr(signal, "position_level", "") or getattr(signal, "bucket", "") or "").upper()
     if level == "WEEKLY":
         return interval == config.weekly_interval
+    if level == "DAILY":
+        return interval == config.daily_interval
+    if level == "H4":
+        return interval == config.h4_interval
     if interval == config.weekly_interval:
         return False
     return interval == config.entry_interval
@@ -359,6 +363,10 @@ def _interval_gate_reason(
     level = str(getattr(signal, "position_level", "") or getattr(signal, "bucket", "") or "").upper()
     if level == "WEEKLY" and interval != config.weekly_interval:
         return "weekly management waits for weekly close"
+    if level == "DAILY" and interval != config.daily_interval:
+        return "daily signal waits for daily close"
+    if level == "H4" and interval != config.h4_interval:
+        return "h4 signal waits for h4 close"
     if interval == config.weekly_interval:
         return "weekly interval only manages weekly positions"
     return "non-entry interval observed"

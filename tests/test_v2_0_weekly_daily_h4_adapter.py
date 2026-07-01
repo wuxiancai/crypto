@@ -152,6 +152,74 @@ def test_default_realtime_signal_fn_allows_weekly_management_on_weekly_events(mo
     assert signal.position_level == "WEEKLY"
 
 
+def test_default_realtime_signal_fn_allows_daily_signal_only_on_daily_events(monkeypatch):
+    from app.paper import live_runner
+    from app.strategy.signal_router import StrategySignal
+
+    def daily_short(*args, **kwargs):
+        return StrategySignal(
+            action="SHORT_ENTRY",
+            strategy_type="DAILY_SHORT_TREND",
+            bucket="DAILY",
+            reason=["daily short"],
+            strategy_kernel="WEEKLY_DAILY_H4_V1",
+            position_level="DAILY",
+            trade_mode="TREND",
+        )
+
+    monkeypatch.setattr(live_runner, "build_realtime_strategy_signal", daily_short)
+    signal_fn = live_runner.build_default_realtime_signal_fn(
+        live_runner.default_paper_strategy_config(),
+        warmup_klines=[
+            *_series("BTCUSDT", "1w", Decimal("200"), Decimal("-1")),
+            *_series("BTCUSDT", "1d", Decimal("190"), Decimal("-1")),
+            *_series("BTCUSDT", "4h", Decimal("180"), Decimal("-1")),
+        ],
+    )
+
+    h4_signal = signal_fn(_series("BTCUSDT", "4h", Decimal("90"), Decimal("-1"), count=1)[0], True)
+    daily_signal = signal_fn(_series("BTCUSDT", "1d", Decimal("90"), Decimal("-1"), count=1)[0], True)
+
+    assert h4_signal.action == "WAIT"
+    assert h4_signal.reason == ["daily signal waits for daily close"]
+    assert daily_signal.action == "SHORT_ENTRY"
+    assert daily_signal.position_level == "DAILY"
+
+
+def test_default_realtime_signal_fn_allows_h4_signal_only_on_h4_events(monkeypatch):
+    from app.paper import live_runner
+    from app.strategy.signal_router import StrategySignal
+
+    def h4_long(*args, **kwargs):
+        return StrategySignal(
+            action="LONG_ENTRY",
+            strategy_type="H4_LONG_REBOUND",
+            bucket="H4",
+            reason=["h4 long"],
+            strategy_kernel="WEEKLY_DAILY_H4_V1",
+            position_level="H4",
+            trade_mode="REBOUND",
+        )
+
+    monkeypatch.setattr(live_runner, "build_realtime_strategy_signal", h4_long)
+    signal_fn = live_runner.build_default_realtime_signal_fn(
+        live_runner.default_paper_strategy_config(),
+        warmup_klines=[
+            *_series("BTCUSDT", "1w", Decimal("200"), Decimal("-1")),
+            *_series("BTCUSDT", "1d", Decimal("190"), Decimal("-1")),
+            *_series("BTCUSDT", "4h", Decimal("180"), Decimal("-1")),
+        ],
+    )
+
+    daily_signal = signal_fn(_series("BTCUSDT", "1d", Decimal("90"), Decimal("-1"), count=1)[0], True)
+    h4_signal = signal_fn(_series("BTCUSDT", "4h", Decimal("90"), Decimal("-1"), count=1)[0], True)
+
+    assert daily_signal.action == "WAIT"
+    assert daily_signal.reason == ["h4 signal waits for h4 close"]
+    assert h4_signal.action == "LONG_ENTRY"
+    assert h4_signal.position_level == "H4"
+
+
 def test_adapter_preserves_multi_stage_weekly_lifecycle_state():
     from app.paper.strategy_adapter import _open_position_states
 
