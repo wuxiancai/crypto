@@ -1354,6 +1354,15 @@ def _trade_mode_label(mode: Any) -> str:
     return labels.get(key, key or "-")
 
 
+def _trade_policy_budget_label(mode: Any) -> str:
+    key = str(mode or "").upper()
+    if key == "REBOUND":
+        return "反弹单：结构风险较高 / 风险预算较低"
+    if key in {"TREND", "BREAKOUT", "PULLBACK", "CONTINUATION"}:
+        return "主方向单：结构风险较低 / 风险预算较高"
+    return "-"
+
+
 def _format_reason_list(reasons: Any) -> str:
     if isinstance(reasons, list):
         values = [str(reason) for reason in reasons if str(reason)]
@@ -1426,6 +1435,7 @@ def _render_positions(positions: list[dict[str, Any]]) -> str:
             f"<td>{_escape(position.get('strategy_kernel') or '-')}</td>"
             f"<td>{_position_level_label(position.get('position_level') or position.get('bucket'))}</td>"
             f"<td>{_trade_mode_label(position.get('trade_mode'))}</td>"
+            f"<td>{_trade_policy_budget_label(position.get('trade_mode'))}</td>"
             f"<td>{_format_decimal(position.get('entry_price'), 2)}</td>"
             f"<td class=\"price-cell price-stop\">{_format_decimal(_initial_stop_loss_value(position), 2)}</td>"
             f"<td>{_format_decimal(position.get('stop_loss'), 2)}</td>"
@@ -1438,7 +1448,7 @@ def _render_positions(positions: list[dict[str, Any]]) -> str:
     return (
         '<div class="table-wrap"><table class="compact-position">'
         "<thead><tr><th>交易对</th><th>方向</th><th>使用策略</th><th>内核</th><th>层级</th><th>模式</th>"
-        "<th>入场</th><th class=\"price-cell price-stop\">初始止损</th><th>当前保护线</th><th class=\"price-cell price-target\">止盈激活价</th><th>止盈逻辑</th><th>杠杆</th><th class=\"money-cell\">USDT</th></tr></thead>"
+        "<th>结构/预算</th><th>入场</th><th class=\"price-cell price-stop\">初始止损</th><th>当前保护线</th><th class=\"price-cell price-target\">止盈激活价</th><th>止盈逻辑</th><th>杠杆</th><th class=\"money-cell\">USDT</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
 
@@ -2755,7 +2765,8 @@ def _trade_identity_label(item: dict[str, Any]) -> str:
     kernel = item.get("strategy_kernel")
     level = _position_level_label(item.get("position_level") or item.get("bucket"))
     mode = _trade_mode_label(item.get("trade_mode"))
-    details = " / ".join(part for part in (kernel, level, mode) if part and part != "-")
+    budget = _trade_policy_budget_label(item.get("trade_mode"))
+    details = " / ".join(part for part in (kernel, level, mode, budget) if part and part != "-")
     if not details:
         return _escape(strategy)
     return f"{_escape(strategy)}<br><span class=\"muted\">{_escape(details)}</span>"
