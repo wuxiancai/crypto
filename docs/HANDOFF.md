@@ -40,6 +40,11 @@
 
 ## 本轮修复
 
+- 2026-07-01 独立时间线策略政策设计：
+  - 用户补充新版核心口径：项目只开 `WEEKLY / DAILY / H4` 三种时间线单；三条时间线独立决策、独立开平仓；不同时间线允许反向共存；同一时间线只能有一种方向，但允许同方向追加仓位。
+  - 已新增 `trade_policy.md`，明确三条时间线的触发、止损、止盈、减仓和退出政策。日线参考周线方向、4H 参考日线方向只用于定义主方向 / 反弹 / 中性和风险预算，不用于阻断交易。顺上级方向统一表述为“结构风险较低、风险预算较高”，逆上级方向为“结构风险较高、风险预算较低”。
+  - 已新增设计文档 `docs/superpowers/specs/2026-07-01-independent-timeline-strategy-design.md` 和实施计划 `docs/superpowers/plans/2026-07-01-independent-timeline-strategy.md`。下一步代码改造必须先改测试，再拆分 `weekly_daily_h4_strategy.py` 的周线/日线/4H 评估，调整 `PaperTradingEngine._has_conflicting_position()` 允许同时间线同方向追加。
+
 - 2026-07-01 状态页错误日志时间显示：
   - 根因：实时 Paper runner 通过 `print()` 写入 `runtime/logs/paper-realtime.log`，启动脚本只是重定向 stdout/stderr，日志行本身没有时间；状态页 `_read_error_logs()` 提取错误摘要时也只返回错误文本，导致“错误日志”区无法说明错误发生时间。
   - 修复：`scripts/run_paper_realtime.py` 启动时为 stdout/stderr 加 UTC+8 行级时间戳；`app/paper/web_status.py` 读取错误日志时识别已有时间戳并保留，旧的无时间戳日志按日志文件修改时间补一个 UTC+8 时间，恢复标记和错误摘要继续按去掉时间戳后的消息判断。
