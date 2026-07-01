@@ -41,6 +41,7 @@ def build_realtime_strategy_signal(
     config: RealtimeStrategyConfig | None = None,
     open_buckets: tuple[str, ...] = (),
     open_strategy_types: tuple[str, ...] = (),
+    current_interval: str | None = None,
 ) -> StrategySignal:
     strategy_config = config or RealtimeStrategyConfig()
     if strategy_config.strategy_kernel != StrategyKernel.WEEKLY_DAILY_H4_V1.value:
@@ -74,6 +75,7 @@ def build_realtime_strategy_signal(
             daily=daily,
             h4=h4,
             open_positions=_open_position_states(open_buckets, open_strategy_types),
+            focus_level=_focus_level_for_interval(current_interval, strategy_config),
         ),
         WeeklyDailyH4Config(
             min_adx=strategy_config.min_adx,
@@ -117,6 +119,16 @@ def _has_required_history(frame: MultiTimeframeFrame, config: RealtimeStrategyCo
         interval in frame.klines_by_interval and len(frame.history(interval)) >= min_bars
         for interval in (config.weekly_interval, config.daily_interval, config.h4_interval)
     )
+
+
+def _focus_level_for_interval(interval: str | None, config: RealtimeStrategyConfig):
+    if interval == config.weekly_interval:
+        return normalise_position_level("WEEKLY")
+    if interval == config.daily_interval:
+        return normalise_position_level("DAILY")
+    if interval == config.h4_interval:
+        return normalise_position_level("H4")
+    return None
 
 
 def _build_trend_frame(

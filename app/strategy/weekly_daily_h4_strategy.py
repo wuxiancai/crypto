@@ -58,6 +58,7 @@ class WeeklyDailyH4Input:
     daily: TrendFrame
     h4: TrendFrame
     open_positions: tuple[OpenPositionState, ...] = ()
+    focus_level: PositionLevel | None = None
     bars_since_last_trade: int | None = None
     current_equity: Decimal | None = None
     peak_equity: Decimal | None = None
@@ -93,14 +94,15 @@ def build_weekly_daily_h4_decision(
     )
     diagnostics = _base_diagnostics(strategy_input, weekly_regime)
 
-    forced_exit = _weekly_forced_exit(strategy_input, weekly_regime)
     control_state = _control_state(strategy_input, weekly_regime, effective_config)
-    if forced_exit is not None:
-        return _decision(strategy_input, forced_exit, weekly_regime, control_state, diagnostics)
+    if _should_evaluate_level(strategy_input, PositionLevel.WEEKLY):
+        forced_exit = _weekly_forced_exit(strategy_input, weekly_regime)
+        if forced_exit is not None:
+            return _decision(strategy_input, forced_exit, weekly_regime, control_state, diagnostics)
 
-    staged_reduction = _weekly_staged_reduction(strategy_input, weekly_regime, effective_config, control_state)
-    if staged_reduction is not None:
-        return _decision(strategy_input, staged_reduction, weekly_regime, control_state, diagnostics)
+        staged_reduction = _weekly_staged_reduction(strategy_input, weekly_regime, effective_config, control_state)
+        if staged_reduction is not None:
+            return _decision(strategy_input, staged_reduction, weekly_regime, control_state, diagnostics)
 
     if not control_state.allows_entry:
         return _decision(
@@ -111,17 +113,20 @@ def build_weekly_daily_h4_decision(
             diagnostics,
         )
 
-    weekly_signal = _weekly_entry(strategy_input, weekly_regime, effective_config, control_state)
-    if weekly_signal is not None:
-        return _decision(strategy_input, weekly_signal, weekly_regime, control_state, diagnostics)
+    if _should_evaluate_level(strategy_input, PositionLevel.WEEKLY):
+        weekly_signal = _weekly_entry(strategy_input, weekly_regime, effective_config, control_state)
+        if weekly_signal is not None:
+            return _decision(strategy_input, weekly_signal, weekly_regime, control_state, diagnostics)
 
-    daily_signal = _daily_entry(strategy_input, weekly_regime, effective_config, control_state)
-    if daily_signal is not None:
-        return _decision(strategy_input, daily_signal, weekly_regime, control_state, diagnostics)
+    if _should_evaluate_level(strategy_input, PositionLevel.DAILY):
+        daily_signal = _daily_entry(strategy_input, weekly_regime, effective_config, control_state)
+        if daily_signal is not None:
+            return _decision(strategy_input, daily_signal, weekly_regime, control_state, diagnostics)
 
-    h4_signal = _h4_entry(strategy_input, daily_regime, weekly_regime, effective_config, control_state)
-    if h4_signal is not None:
-        return _decision(strategy_input, h4_signal, weekly_regime, control_state, diagnostics)
+    if _should_evaluate_level(strategy_input, PositionLevel.H4):
+        h4_signal = _h4_entry(strategy_input, daily_regime, weekly_regime, effective_config, control_state)
+        if h4_signal is not None:
+            return _decision(strategy_input, h4_signal, weekly_regime, control_state, diagnostics)
 
     return _decision(
         strategy_input,
@@ -194,9 +199,9 @@ def _weekly_entry(
     config: WeeklyDailyH4Config,
     control_state: ControlState,
 ) -> StrategySignal | None:
-    if _open_level(strategy_input, PositionLevel.WEEKLY) is not None:
-        return None
     if weekly_regime == MarketRegime.BEAR and _bearish(strategy_input.weekly, config):
+        if _has_opposite_level(strategy_input, PositionLevel.WEEKLY, "SHORT"):
+            return None
         return _entry_signal(
             side="SHORT",
             level=PositionLevel.WEEKLY,
@@ -208,6 +213,8 @@ def _weekly_entry(
             control_state=control_state,
         )
     if weekly_regime == MarketRegime.BULL and _bullish(strategy_input.weekly, config):
+        if _has_opposite_level(strategy_input, PositionLevel.WEEKLY, "LONG"):
+            return None
         return _entry_signal(
             side="LONG",
             level=PositionLevel.WEEKLY,
@@ -227,9 +234,9 @@ def _daily_entry(
     config: WeeklyDailyH4Config,
     control_state: ControlState,
 ) -> StrategySignal | None:
-    if _open_level(strategy_input, PositionLevel.DAILY) is not None:
-        return None
     if _bullish(strategy_input.daily, config):
+        if _has_opposite_level(strategy_input, PositionLevel.DAILY, "LONG"):
+            return None
         mode = _relative_trade_mode("LONG", weekly_regime)
         return _entry_signal(
             "LONG",
@@ -242,6 +249,8 @@ def _daily_entry(
             control_state,
         )
     if _bearish(strategy_input.daily, config):
+        if _has_opposite_level(strategy_input, PositionLevel.DAILY, "SHORT"):
+            return None
         mode = _relative_trade_mode("SHORT", weekly_regime)
         return _entry_signal(
             "SHORT",
@@ -263,11 +272,11 @@ def _h4_entry(
     config: WeeklyDailyH4Config,
     control_state: ControlState,
 ) -> StrategySignal | None:
-    if _open_level(strategy_input, PositionLevel.H4) is not None:
-        return None
     if not _h4_volatility_open(strategy_input.h4, config):
         return None
     if _bullish(strategy_input.h4, config):
+        if _has_opposite_level(strategy_input, PositionLevel.H4, "LONG"):
+            return None
         mode = _relative_trade_mode("LONG", daily_regime)
         if mode == TradeMode.TREND and _h4_breakout(strategy_input.h4):
             mode = TradeMode.BREAKOUT
@@ -276,6 +285,8 @@ def _h4_entry(
             reason = _relative_reason("h4 long", mode, daily_regime).replace("weekly", "daily")
         return _entry_signal("LONG", PositionLevel.H4, mode, strategy_input.h4, config.h4_risk_pct, [reason], weekly_regime, control_state)
     if _bearish(strategy_input.h4, config):
+        if _has_opposite_level(strategy_input, PositionLevel.H4, "SHORT"):
+            return None
         mode = _relative_trade_mode("SHORT", daily_regime)
         if mode == TradeMode.TREND and _h4_breakdown(strategy_input.h4):
             mode = TradeMode.BREAKOUT
@@ -438,6 +449,14 @@ def _open_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel) -> Ope
         if position.position_level == level:
             return position
     return None
+
+
+def _has_opposite_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel, side: str) -> bool:
+    return any(position.position_level == level and position.side != side for position in strategy_input.open_positions)
+
+
+def _should_evaluate_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel) -> bool:
+    return strategy_input.focus_level is None or strategy_input.focus_level == level
 
 
 def _lifecycle_stage_set(lifecycle_state: LifecycleState | str | None) -> tuple[str, ...]:

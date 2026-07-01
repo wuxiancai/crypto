@@ -321,6 +321,7 @@ def build_default_realtime_signal_fn(
             config=config,
             open_buckets=context.open_buckets if context is not None else (),
             open_strategy_types=context.open_strategy_types if context is not None else (),
+            current_interval=kline.interval,
         )
         if not _signal_allowed_on_interval(signal, kline.interval, config):
             return StrategySignal(
