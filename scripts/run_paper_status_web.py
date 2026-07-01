@@ -152,20 +152,39 @@ def make_handler(state_path: Path, error_log_path: Path, enable_batch_backtest: 
             if parsed.path == "/backtest":
                 result = None
                 query = parse_qs(parsed.query)
-                if query.get("run") == ["1"]:
+                info = None
+                error = None
+                if query.get("clear") == ["1"]:
+                    clear_message = _clear_strategy_backtest_records()
+                    if clear_message.startswith("清空回测记录失败"):
+                        error = clear_message
+                    else:
+                        info = clear_message
+                elif query.get("run") == ["1"]:
                     result = _run_strategy_backtest_from_query(query)
                     result = _archive_strategy_backtest_result(result)
-                else:
+                if result is None:
                     result = run_strategy_backtest_default_result()
+                    if error is not None:
+                        result = replace(result, error=error)
                 recent_results = _load_recent_strategy_backtest_results()
-                self._send_html(render_strategy_backtest_html(result=result, recent_results=recent_results))
+                self._send_html(render_strategy_backtest_html(result=result, recent_results=recent_results, info=info))
                 return
             if parsed.path == "/backtest/batch":
                 query = parse_qs(parsed.query)
                 config = _batch_config_from_query(query)
                 error = None
                 info = None
-                if not enable_batch_backtest:
+                if query.get("clear") == ["1"]:
+                    if _BATCH_BACKTEST_JOBS.status().get("running"):
+                        error = "批量回测正在运行，请先停止或等待完成后再清空记录。"
+                    else:
+                        clear_message = _clear_strategy_backtest_records()
+                        if clear_message.startswith("清空回测记录失败"):
+                            error = clear_message
+                        else:
+                            info = clear_message
+                if not enable_batch_backtest and query.get("clear") != ["1"]:
                     error = (
                         "批量回测在 Web 进程中默认禁用，避免云服务器被公网请求触发重计算或清空记录。"
                         "如需本机临时研究，请设置 PAPER_ENABLE_BATCH_BACKTEST=1 后重启状态页。"
@@ -177,15 +196,6 @@ def make_handler(state_path: Path, error_log_path: Path, enable_batch_backtest: 
                     if query.get("stop") == ["1"]:
                         if not _BATCH_BACKTEST_JOBS.stop():
                             error = "当前没有正在运行的批量回测。"
-                    if query.get("clear") == ["1"]:
-                        if _BATCH_BACKTEST_JOBS.status().get("running"):
-                            error = "批量回测正在运行，请先停止或等待完成后再清空记录。"
-                        else:
-                            clear_message = _clear_strategy_backtest_records()
-                            if clear_message.startswith("清空回测记录失败"):
-                                error = clear_message
-                            else:
-                                info = clear_message
                 self._send_html(
                     render_strategy_backtest_batch_html(
                         config=config,

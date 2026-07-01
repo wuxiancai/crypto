@@ -613,7 +613,11 @@ def render_paper_status_html(payload: dict[str, Any]) -> str:
 </html>"""
 
 
-def render_strategy_backtest_html(result: Any | None = None, recent_results: list[Any] | None = None) -> str:
+def render_strategy_backtest_html(
+    result: Any | None = None,
+    recent_results: list[Any] | None = None,
+    info: Any = None,
+) -> str:
     from app.paper.strategy_backtest import StrategyBacktestConfig
 
     config = result.config if result is not None else StrategyBacktestConfig()
@@ -648,6 +652,10 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
     .form-field input, .form-field select {{ width: 100%; box-sizing: border-box; border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
     .primary-button {{ border: 1px solid #172033; background: #172033; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; }}
+    .secondary-button {{ border: 1px solid #b8c2d6; background: #fff; color: #344055; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; text-decoration: none; }}
+    .danger-button {{ border: 1px solid #b42318; background: #b42318; color: #fff; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-weight: 700; text-decoration: none; }}
+    .button-row {{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }}
+    .info-box {{ color: #0a7c52; padding: 12px 14px; background: #f0fdf8; border: 1px solid #a7f3d0; border-radius: 6px; margin-top: 16px; }}
     table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e0ec; border-radius: 6px; overflow: hidden; }}
     th, td {{ border-bottom: 1px solid #e6ebf2; padding: 9px 10px; text-align: left; font-size: 13px; white-space: nowrap; }}
     th {{ background: #eef3f9; color: #344055; }}
@@ -747,7 +755,13 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
         </div>
         <button class="primary-button" type="submit" name="run" value="1">开始回测</button>
       </form>
+      <div class="button-row">
+        <form method="get" action="/backtest">
+          <button class="danger-button" type="submit" name="clear" value="1">清除回测结果</button>
+        </form>
+      </div>
     </section>
+    {_render_info_box(info)}
     {_render_backtest_error(error)}
     <section class="grid" style="margin-top: 16px;">
       <div class="panel"><div class="label">初始权益 USDT</div><div class="value">{_format_decimal(getattr(result, "initial_equity", config.initial_equity), 2)}</div></div>
@@ -774,6 +788,16 @@ def render_strategy_backtest_html(result: Any | None = None, recent_results: lis
       {_render_backtest_trades(trades)}
     </section>
   </main>
+  <script>
+    const cleanBacktestUrl = () => {{
+      const url = new URL(window.location.href);
+      ["run", "clear"].forEach((key) => url.searchParams.delete(key));
+      return `${{url.pathname}}${{url.search}}`;
+    }};
+    if (["run", "clear"].some((key) => new URL(window.location.href).searchParams.has(key))) {{
+      window.history.replaceState(null, "", cleanBacktestUrl());
+    }}
+  </script>
 </body>
 </html>"""
 
@@ -922,7 +946,7 @@ def render_strategy_backtest_batch_html(
           <div class="button-row batch-actions">
             <button class="primary-button" type="submit" name="run" value="1">开始批量回测</button>
             <button class="danger-button" type="submit" name="stop" value="1">停止回测</button>
-            <button class="secondary-button" type="submit" name="clear" value="1">清空回测记录</button>
+            <button class="secondary-button" type="submit" name="clear" value="1">清除回测结果</button>
             <span class="job-badge" id="batch-job-status">{_escape(_batch_job_status_label(job))}</span>
           </div>
         </fieldset>

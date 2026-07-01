@@ -565,7 +565,7 @@ def test_strategy_backtest_batch_page_shows_stop_button_and_terminal_logs():
 
     assert "停止回测" in html
     assert 'name="stop"' in html
-    assert "清空回测记录" in html
+    assert "清除回测结果" in html
     assert 'name="clear"' in html
     assert "secondary-button" in html
     assert 'class="button-row batch-actions"' in html
@@ -588,6 +588,81 @@ def test_strategy_backtest_batch_page_shows_clear_history_info():
 
     assert "info-box" in html
     assert "已清空回测记录：回测 1 条，交易 2 条，配置 1 条。" in html
+
+
+def test_strategy_backtest_page_shows_clear_results_button_and_info():
+    from app.paper.web_status import render_strategy_backtest_html
+
+    html = render_strategy_backtest_html(
+        info="已清空回测记录：回测 1 条，交易 2 条，配置 1 条。"
+    )
+
+    assert "清除回测结果" in html
+    assert 'name="clear"' in html
+    assert 'value="1"' in html
+    assert "已清空回测记录：回测 1 条，交易 2 条，配置 1 条。" in html
+    assert '["run", "clear"].forEach((key) => url.searchParams.delete(key));' in html
+
+
+def test_strategy_backtest_clear_is_not_blocked_by_batch_backtest_switch(monkeypatch, tmp_path):
+    import scripts.run_paper_status_web as web
+
+    calls = []
+
+    def fake_clear():
+        calls.append("clear")
+        return "已清空回测记录：回测 1 条，交易 2 条，配置 1 条。"
+
+    captured = {}
+
+    def fake_render_strategy_backtest_html(*, result=None, recent_results=None, info=None):
+        captured["info"] = info
+        return "ok"
+
+    monkeypatch.setattr(web, "_clear_strategy_backtest_records", fake_clear)
+    monkeypatch.setattr(web, "_load_recent_strategy_backtest_results", lambda: [])
+    monkeypatch.setattr(web, "render_strategy_backtest_html", fake_render_strategy_backtest_html)
+
+    handler_cls = web.make_handler(tmp_path / "state.json", tmp_path / "error.log", enable_batch_backtest=False)
+    handler = object.__new__(handler_cls)
+    handler.path = "/backtest?clear=1"
+    handler._send_html = lambda body: captured.setdefault("body", body)
+
+    handler.do_GET()
+
+    assert calls == ["clear"]
+    assert captured["info"] == "已清空回测记录：回测 1 条，交易 2 条，配置 1 条。"
+
+
+def test_strategy_backtest_batch_clear_is_not_blocked_by_batch_backtest_switch(monkeypatch, tmp_path):
+    import scripts.run_paper_status_web as web
+
+    calls = []
+
+    def fake_clear():
+        calls.append("clear")
+        return "已清空回测记录：回测 1 条，交易 2 条，配置 1 条。"
+
+    captured = {}
+
+    def fake_render_strategy_backtest_batch_html(*, config=None, job_status=None, error=None, info=None):
+        captured["error"] = error
+        captured["info"] = info
+        return "ok"
+
+    monkeypatch.setattr(web, "_clear_strategy_backtest_records", fake_clear)
+    monkeypatch.setattr(web, "render_strategy_backtest_batch_html", fake_render_strategy_backtest_batch_html)
+
+    handler_cls = web.make_handler(tmp_path / "state.json", tmp_path / "error.log", enable_batch_backtest=False)
+    handler = object.__new__(handler_cls)
+    handler.path = "/backtest/batch?clear=1"
+    handler._send_html = lambda body: captured.setdefault("body", body)
+
+    handler.do_GET()
+
+    assert calls == ["clear"]
+    assert captured["error"] is None
+    assert captured["info"] == "已清空回测记录：回测 1 条，交易 2 条，配置 1 条。"
 
 
 def test_strategy_backtest_web_helper_clears_archived_results():

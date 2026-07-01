@@ -36,6 +36,7 @@
 - 2026-07-01 已完成周线仓杠杆/保证金独立化：`PaperConfig` 与 `StrategyBacktestConfig` 新增 `weekly_leverage=2`、`daily_leverage=5`、`h4_leverage=10`；开仓时按 `position_level` 解析有效杠杆，并用于名义价值上限、强平价、Liquidation Guard 和持仓/成交展示。`/backtest` 页面新增三层杠杆输入，归档 payload 写入三层杠杆，避免不同杠杆结果复用同一 config hash。
 - 2026-07-01 已修正周线仓被 4H 回放节奏反复减仓的问题：`build_default_realtime_signal_fn()` 现在按当前 K 线周期硬门控信号层级，`WEEKLY` 信号只允许在 `1w` 周线收盘事件执行；4H 或日线事件若算出周线 `REDUCE_POSITION` / `EXIT_POSITION` 会返回 `WAIT`。同配置 BTCUSDT 2 年回测中周线记录从 336 条 4H 重复减仓收敛为 9 条周线事件记录；后续如需进一步优化，应继续补周线 Lifecycle 阶段去重，避免同一周线破坏类型连续多周重复减仓。
 - 2026-07-01 已补周线 Lifecycle 阶段去重：`REDUCED_TREND`、`REDUCED_STRUCTURE`、`REDUCED_MOMENTUM` 会写入 `PaperPosition.lifecycle_state` 并通过 `PaperSignalContext` 回传策略；同一周线仓内同一破坏类型最多触发一次减仓，新的破坏类型才允许继续分批减仓。同配置 BTCUSDT 2 年回测中周线事件进一步收敛为 4 条：周线多仓 2 次阶段减仓 + 1 次强制退出，周线空仓 1 次阶段减仓。
+- 2026-07-01 已给 `/backtest` 和 `/backtest/batch` 统一增加“清除回测结果”入口。普通策略回测页可直接 `clear=1` 清除所有策略回测归档；批量页清除不再依赖 `PAPER_ENABLE_BATCH_BACKTEST=1`，但批量任务运行中仍会拒绝清除。普通回测页会清理 URL 中的 `run/clear` 参数，避免刷新重复执行。
 
 ## 本轮修复
 
