@@ -770,6 +770,10 @@ def render_strategy_backtest_html(
           <input id="stop_atr_multiplier" name="stop_atr_multiplier" type="number" min="0.5" max="10" step="0.25" value="{_escape(getattr(config, "stop_atr_multiplier", "1.5"))}">
         </div>
         <div class="form-field">
+          <label for="weekly_bear_daily_short_stop_atr_multiplier">周线空日线空止损ATR</label>
+          <input id="weekly_bear_daily_short_stop_atr_multiplier" name="weekly_bear_daily_short_stop_atr_multiplier" type="number" min="0.5" max="10" step="0.25" value="{_escape(getattr(config, "weekly_bear_daily_short_stop_atr_multiplier", "2"))}">
+        </div>
+        <div class="form-field">
           <label for="h4_rebound_adx_block_threshold">4H反弹ADX过滤</label>
           <input id="h4_rebound_adx_block_threshold" name="h4_rebound_adx_block_threshold" type="number" min="0" max="80" step="1" value="{_escape(getattr(config, "h4_rebound_adx_block_threshold", "20"))}">
         </div>

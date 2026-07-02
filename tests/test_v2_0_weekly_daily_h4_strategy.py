@@ -191,6 +191,25 @@ def test_entry_signal_uses_configured_risk_reward_and_atr_stop_cap():
     assert decision.signal.take_profit == Decimal("109.0")
 
 
+def test_daily_short_under_weekly_bear_uses_wider_default_stop_atr_cap():
+    from app.strategy.position_hierarchy import PositionLevel
+    from app.strategy.weekly_daily_h4_strategy import WeeklyDailyH4Input, build_weekly_daily_h4_decision
+
+    decision = build_weekly_daily_h4_decision(
+        WeeklyDailyH4Input(
+            symbol="BTCUSDT",
+            weekly=_frame(),
+            daily=_frame(close="100", previous_high="105", atr="2"),
+            h4=_frame(),
+            focus_level=PositionLevel.DAILY,
+        )
+    )
+
+    assert decision.signal.action == "SHORT_ENTRY"
+    assert decision.signal.position_level == "DAILY"
+    assert decision.signal.stop_loss == Decimal("104")
+
+
 def test_weekly_same_direction_open_position_can_add():
     from app.strategy.position_hierarchy import PositionLevel, TradeMode
     from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision

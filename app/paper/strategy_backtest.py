@@ -54,6 +54,7 @@ class StrategyBacktestConfig:
     daily_exit_policy: str = "FULL_REVERSAL"
     h4_rebound_adx_block_threshold: Decimal | None = Decimal("20")
     stop_atr_multiplier: Decimal = Decimal("1.5")
+    weekly_bear_daily_short_stop_atr_multiplier: Decimal | None = Decimal("2")
     max_same_direction_positions_per_level: int = 2
     weekly_max_same_direction_positions: int = 2
     daily_max_same_direction_positions: int = 1
@@ -119,6 +120,7 @@ class StrategyBacktestRunSummary:
     daily_exit_policy: str = "FULL_REVERSAL"
     h4_rebound_adx_block_threshold: str = "20"
     stop_atr_multiplier: str = "1.5"
+    weekly_bear_daily_short_stop_atr_multiplier: str = "2"
     max_same_direction_positions_per_level: str = "2"
     weekly_max_same_direction_positions: str = "2"
     daily_max_same_direction_positions: str = "1"
@@ -154,6 +156,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         daily_exit_policy=backtest_config.daily_exit_policy,
         h4_rebound_adx_block_threshold=backtest_config.h4_rebound_adx_block_threshold,
         stop_atr_multiplier=backtest_config.stop_atr_multiplier,
+        weekly_bear_daily_short_stop_atr_multiplier=backtest_config.weekly_bear_daily_short_stop_atr_multiplier,
         max_same_direction_positions_per_level=backtest_config.max_same_direction_positions_per_level,
         weekly_max_same_direction_positions=backtest_config.weekly_max_same_direction_positions,
         daily_max_same_direction_positions=backtest_config.daily_max_same_direction_positions,

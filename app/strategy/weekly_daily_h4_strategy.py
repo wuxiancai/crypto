@@ -48,6 +48,7 @@ class WeeklyDailyH4Config:
     daily_max_same_direction_positions: int | None = 1
     h4_max_same_direction_positions: int | None = 2
     allow_same_direction_add_positions: bool = True
+    weekly_bear_daily_short_stop_atr_multiplier: Decimal | None = Decimal("2")
 
 
 @dataclass(frozen=True)
@@ -416,7 +417,8 @@ def _entry_signal(
 ) -> StrategySignal:
     entry_price = frame.close
     atr_value = frame.atr or abs(frame.fast_ma - frame.slow_ma) or entry_price * Decimal("0.02")
-    stop_atr_distance = atr_value * config.stop_atr_multiplier
+    stop_atr_multiplier = _stop_atr_multiplier_for_entry(side, level, weekly_regime, config)
+    stop_atr_distance = atr_value * stop_atr_multiplier
     if side == "LONG":
         if level == PositionLevel.WEEKLY:
             stop_loss = frame.slow_ma if frame.slow_ma < entry_price else entry_price - atr_value
@@ -476,6 +478,22 @@ def _management_signal(
         or (LifecycleState.EXITING.value if action == "EXIT_POSITION" else LifecycleState.REDUCING.value),
         reduce_pct=reduce_pct,
     )
+
+
+def _stop_atr_multiplier_for_entry(
+    side: str,
+    level: PositionLevel,
+    weekly_regime: MarketRegime,
+    config: WeeklyDailyH4Config,
+) -> Decimal:
+    if (
+        level == PositionLevel.DAILY
+        and side == "SHORT"
+        and weekly_regime == MarketRegime.BEAR
+        and config.weekly_bear_daily_short_stop_atr_multiplier is not None
+    ):
+        return config.weekly_bear_daily_short_stop_atr_multiplier
+    return config.stop_atr_multiplier
 
 
 def _wait(reason: list[str], weekly_regime: MarketRegime, control_state: ControlState) -> StrategySignal:

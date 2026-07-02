@@ -349,6 +349,13 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
             minimum=Decimal("0.5"),
             maximum=Decimal("10"),
         ),
+        weekly_bear_daily_short_stop_atr_multiplier=_query_decimal(
+            query,
+            "weekly_bear_daily_short_stop_atr_multiplier",
+            Decimal("2"),
+            minimum=Decimal("0.5"),
+            maximum=Decimal("10"),
+        ),
         max_same_direction_positions_per_level=_query_int(
             query,
             "max_same_direction_positions_per_level",

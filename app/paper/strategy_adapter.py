@@ -30,6 +30,7 @@ class RealtimeStrategyConfig:
     daily_exit_policy: str = "FULL_REVERSAL"
     h4_rebound_adx_block_threshold: Decimal | None = Decimal("20")
     stop_atr_multiplier: Decimal = Decimal("1.5")
+    weekly_bear_daily_short_stop_atr_multiplier: Decimal | None = Decimal("2")
     max_same_direction_positions_per_level: int = 2
     weekly_max_same_direction_positions: int = 2
     daily_max_same_direction_positions: int = 1
@@ -91,6 +92,9 @@ def build_realtime_strategy_signal(
             daily_exit_policy=strategy_config.daily_exit_policy,
             h4_rebound_adx_block_threshold=strategy_config.h4_rebound_adx_block_threshold,
             stop_atr_multiplier=strategy_config.stop_atr_multiplier,
+            weekly_bear_daily_short_stop_atr_multiplier=(
+                strategy_config.weekly_bear_daily_short_stop_atr_multiplier
+            ),
             max_same_direction_positions_per_level=strategy_config.max_same_direction_positions_per_level,
             weekly_max_same_direction_positions=strategy_config.weekly_max_same_direction_positions,
             daily_max_same_direction_positions=strategy_config.daily_max_same_direction_positions,

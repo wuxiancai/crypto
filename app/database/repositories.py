@@ -259,6 +259,9 @@ def strategy_backtest_config_payload(config: object) -> dict[str, str]:
         "daily_exit_policy": str(getattr(config, "daily_exit_policy", "FULL_REVERSAL")),
         "h4_rebound_adx_block_threshold": str(getattr(config, "h4_rebound_adx_block_threshold", "20")),
         "stop_atr_multiplier": str(getattr(config, "stop_atr_multiplier", "1.5")),
+        "weekly_bear_daily_short_stop_atr_multiplier": str(
+            getattr(config, "weekly_bear_daily_short_stop_atr_multiplier", "2")
+        ),
         "max_same_direction_positions_per_level": str(
             getattr(config, "max_same_direction_positions_per_level", "2")
         ),
@@ -415,6 +418,9 @@ def _strategy_backtest_summary(
         daily_exit_policy=str(payload.get("daily_exit_policy") or "FULL_REVERSAL"),
         h4_rebound_adx_block_threshold=str(payload.get("h4_rebound_adx_block_threshold") or "20"),
         stop_atr_multiplier=str(payload.get("stop_atr_multiplier") or "1.5"),
+        weekly_bear_daily_short_stop_atr_multiplier=str(
+            payload.get("weekly_bear_daily_short_stop_atr_multiplier") or "2"
+        ),
         max_same_direction_positions_per_level=str(payload.get("max_same_direction_positions_per_level") or "2"),
         weekly_max_same_direction_positions=str(payload.get("weekly_max_same_direction_positions") or "2"),
         daily_max_same_direction_positions=str(payload.get("daily_max_same_direction_positions") or "1"),

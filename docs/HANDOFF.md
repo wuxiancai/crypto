@@ -40,6 +40,15 @@
 
 ## 本轮修复
 
+- 2026-07-02 周线空头下日线空单止损参数修复：
+  - 用户继续指出日线收益偏低，要求重点分析是否应在周线趋势空下让日线空单不轻易止损止盈、允许更大浮亏，以及杠杆是否可以放大。已用本地缓存 K 线做 2 年 BTCUSDT 参数对照，结论是收益低的关键不是日线杠杆过小，也不是固定止盈过早，而是周线空头背景下日线空单的 ATR 止损上限偏紧。
+  - 策略新增 `weekly_bear_daily_short_stop_atr_multiplier=2`，只作用于 `DAILY + SHORT + weekly_regime=BEAR` 的入场止损 ATR 上限；其他周线、日线多单、4H 默认仍使用全局 `stop_atr_multiplier=1.5`，保持周线 / 日线 / 4H 独立参数语义。策略政策版本升级为 `INDEPENDENT_TIMELINES_V6`，避免复用 V5 归档结果。
+  - 普通回测页新增“周线空日线空止损ATR”输入；`RealtimeStrategyConfig`、`StrategyBacktestConfig`、URL query、归档 payload 和历史摘要均已接线该参数，默认值为 `2`，可在页面继续细调。
+  - 2 年 BTCUSDT 默认回测验证：新默认 `weekly_bear_daily_short_stop_atr_multiplier=2` 结果为 `net_pnl=212.04`、`final_equity=1212.04`、`total_trades=408`、`max_drawdown=68.28 / 5.61%`；按层级：`DAILY=12.14`、`H4=111.42`、`WEEKLY=88.48`；日线内部为 `DAILY_SHORT_TREND=18.68`、`DAILY_LONG_TREND=-6.54`。
+  - 对照结论：旧口径 `weekly_bear_daily_short_stop_atr_multiplier=1.5` 约为 `net_pnl=206.05`、`DAILY=6.38`、`DAILY_SHORT_TREND=12.89`；放宽到 `3` 或 `5` 反而走弱，说明“允许更大浮亏”只应有限放宽，不宜无限放大。`target_risk_reward=3/4` 对该条件日线空单没有改善，说明当前不是止盈过早导致的低收益。
+  - 杠杆结论：新默认下把日线杠杆从 `5x` 提到 `10x`，结果变为 `net_pnl=188.63`、`DAILY=-10.56`、`DAILY_SHORT_TREND=5.37`、`DAILY_LONG_TREND=-15.93`、`max_drawdown_pct=5.72%`。当前不建议放大日线杠杆；若后续要提高收益，应先继续优化日线多单过滤或日线方向切换，而不是直接加杠杆。
+  - 验证：新增/更新 v2 策略和回测参数测试；本轮已跑受影响测试 `33 passed`，并用本地缓存 K 线跑 2 年默认回测和日线杠杆对照。
+
 - 2026-07-02 禁止追加仓位实验：
   - 用户确认合并追加仓不能增加收益，要求删除合并实验，并新增“不允许追加仓位”作为回测参数开关。已删除 `merge_same_direction_positions`、合并持仓加权成本逻辑和 `entry_count` 状态；同向追加恢复为独立仓位语义。
   - 策略新增 `allow_same_direction_add_positions`，默认 `true`。当设为 `false` 时，同一交易对、同一时间线、同一方向已有持仓后，周线 / 日线 / 4H 都不再允许追加仓位；普通回测页新增“允许追加仓位”开关，URL query 和归档 payload 均记录该值。
