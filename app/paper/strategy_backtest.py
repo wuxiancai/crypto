@@ -58,6 +58,7 @@ class StrategyBacktestConfig:
     weekly_max_same_direction_positions: int = 2
     daily_max_same_direction_positions: int = 1
     h4_max_same_direction_positions: int = 2
+    merge_same_direction_positions: bool = False
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
     trade_policy_version: str = TRADE_POLICY_VERSION
 
@@ -122,6 +123,7 @@ class StrategyBacktestRunSummary:
     weekly_max_same_direction_positions: str = "2"
     daily_max_same_direction_positions: str = "1"
     h4_max_same_direction_positions: str = "2"
+    merge_same_direction_positions: str = "false"
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
 
 
@@ -174,6 +176,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
             funding_interval_ms=backtest_config.funding_interval_ms,
             trend_pullback_take_profit_mode=backtest_config.trend_pullback_take_profit_mode,
             max_fee_to_risk_ratio=backtest_config.max_fee_to_risk_ratio,
+            merge_same_direction_positions=backtest_config.merge_same_direction_positions,
         )
     )
     signal_fn = build_default_realtime_signal_fn(strategy_config, warmup_klines=kline_set.warmup_klines)

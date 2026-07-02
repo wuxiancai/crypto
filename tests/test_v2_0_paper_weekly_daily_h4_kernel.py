@@ -28,7 +28,12 @@ def test_paper_position_uses_new_level_for_conflict_not_legacy_bucket():
     from app.strategy.signal_router import StrategySignal
 
     engine = PaperTradingEngine(
-        PaperConfig(initial_equity=Decimal("1000"), risk_per_trade_pct=Decimal("0.01"), slippage_pct=Decimal("0"))
+        PaperConfig(
+            initial_equity=Decimal("1000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            slippage_pct=Decimal("0"),
+            merge_same_direction_positions=True,
+        )
     )
     first = StrategySignal(
         action="SHORT_ENTRY",
@@ -60,12 +65,17 @@ def test_paper_position_uses_new_level_for_conflict_not_legacy_bucket():
     assert engine.snapshot().rejected_signals == 1
 
 
-def test_paper_allows_same_level_same_direction_add_position():
+def test_paper_merges_same_level_same_direction_add_position():
     from app.paper.trading import PaperConfig, PaperTradingEngine
     from app.strategy.signal_router import StrategySignal
 
     engine = PaperTradingEngine(
-        PaperConfig(initial_equity=Decimal("1000"), risk_per_trade_pct=Decimal("0.01"), slippage_pct=Decimal("0"))
+        PaperConfig(
+            initial_equity=Decimal("1000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            slippage_pct=Decimal("0"),
+            merge_same_direction_positions=True,
+        )
     )
     first = StrategySignal(
         action="SHORT_ENTRY",
@@ -96,9 +106,16 @@ def test_paper_allows_same_level_same_direction_add_position():
     assert engine.on_signal(_kline("99"), add) is not None
 
     snapshot = engine.snapshot()
-    assert len(snapshot.open_positions) == 2
-    assert {position.position_level for position in snapshot.open_positions} == {"DAILY"}
-    assert {position.side for position in snapshot.open_positions} == {"SHORT"}
+    assert len(snapshot.open_positions) == 1
+    merged = snapshot.open_positions[0]
+    assert merged.position_level == "DAILY"
+    assert merged.side == "SHORT"
+    assert merged.quantity == Decimal("4")
+    assert merged.entry_price == Decimal("99.5")
+    assert merged.stop_loss == Decimal("104.5")
+    assert merged.initial_stop_loss == Decimal("104.5")
+    assert merged.take_profit == Decimal("89.5")
+    assert merged.entry_count == 2
     assert snapshot.rejected_signals == 0
 
 

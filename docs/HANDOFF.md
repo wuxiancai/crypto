@@ -40,6 +40,14 @@
 
 ## 本轮修复
 
+- 2026-07-02 同向追加仓合并实验：
+  - 用户提出“同向追加仓位不应作为独立开仓，而应与第一仓合并，持仓成本和止盈止损随之变化”，并要求测试是否收益更大。已在 `PaperTradingEngine` 增加实验开关 `merge_same_direction_positions`：开启时，同一 symbol / strategy_kernel / position_level / side 的新增仓会与既有仓合并，`entry_price`、`stop_loss`、`initial_stop_loss`、`take_profit` 按数量加权，`entry_fee` 累加。
+  - 为避免合并后绕过同向上限，合并持仓新增 `entry_count`；策略侧 `_same_direction_count()` 按 `entry_count` 统计仓位层数，而不是按持仓对象数统计。Paper 持久化和策略上下文编码也会保留该字段。
+  - 2 年 BTCUSDT A/B 回测结论：合并追加仓没有让收益更大。旧语义 `merge_same_direction_positions=False`：`total_trades=410`、`net_pnl=206.05`、`final_equity=1206.05`、`max_drawdown=68.28 / 5.61%`；开启合并：`total_trades=240`、`net_pnl=129.23`、`final_equity=1129.23`、`max_drawdown=68.83 / 6.04%`。
+  - 分层结果：不合并为 `DAILY=6.38`、`H4=111.19`、`WEEKLY=88.48`；合并后为 `DAILY=5.51`、`H4=68.23`、`WEEKLY=55.50`。合并会减少交易记录数量，但降低 H4 和周线收益，当前默认保持 `merge_same_direction_positions=False`。
+  - 策略政策版本升级为 `INDEPENDENT_TIMELINES_V4`，回测配置 payload 记录 `merge_same_direction_positions`，普通回测页可手动切换“同向追加合并”做后续实验。
+  - 验证：`.venv/bin/python -m pytest -q` 为 `250 passed`；默认 2 年回测确认 `merge_same_direction_positions=False` 且 `net_pnl=206.05`。
+
 - 2026-07-02 周线 / 日线 / 4H 独立开仓和止盈止损策略修复：
   - 用户指出周线、日线、4H 都必须作为独立时间线开仓、止盈止损；截图中的日线空头趋势明显，但旧回测日线仍亏损。复盘交易明细确认：日线仍用周线方向把信号分类为 `REBOUND`，4H 仍用日线方向分类/过滤，实际没有做到三条时间线完全独立；同时日线默认允许同方向 2 仓，会在震荡区产生同向成对止损。
   - 修复：`DAILY` 入场只按日线自身 frame 生成 `DAILY_LONG_TREND` / `DAILY_SHORT_TREND`；`H4` 入场只按 4H 自身 frame 生成 `H4_*_TREND` / `H4_*_BREAKOUT`，不再被日线强趋势 ADX 阻断；周线继续只按周线自身 frame 管理。策略政策版本升级为 `INDEPENDENT_TIMELINES_V3`，避免复用旧归档/旧批量 checkpoint。

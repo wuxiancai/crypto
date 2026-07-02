@@ -37,7 +37,7 @@ class PaperSignalContext:
             if position.strategy_kernel and position.position_level and position.trade_mode:
                 encoded.append(
                     f"{position.strategy_kernel}|{position.position_level}|{position.side}|"
-                    f"{position.trade_mode}|{position.lifecycle_state or ''}"
+                    f"{position.trade_mode}|{position.lifecycle_state or ''}|entries={position.entry_count}"
                 )
             else:
                 encoded.append(position.strategy_type)

@@ -5,7 +5,7 @@ def test_strategy_backtest_config_payload_uses_weekly_daily_h4_kernel():
     payload = strategy_backtest_config_payload(StrategyBacktestConfig())
 
     assert payload["strategy_kernel"] == "WEEKLY_DAILY_H4_V1"
-    assert payload["trade_policy_version"] == "INDEPENDENT_TIMELINES_V3"
+    assert payload["trade_policy_version"] == "INDEPENDENT_TIMELINES_V4"
     assert payload["timeframes"] == "1w,1d,4h"
     assert payload["weekly_risk_pct"] == "0.008"
     assert payload["daily_risk_pct"] == "0.005"
@@ -19,6 +19,7 @@ def test_strategy_backtest_config_payload_uses_weekly_daily_h4_kernel():
     assert payload["weekly_max_same_direction_positions"] == "2"
     assert payload["daily_max_same_direction_positions"] == "1"
     assert payload["h4_max_same_direction_positions"] == "2"
+    assert payload["merge_same_direction_positions"] == "false"
     assert "enable_reversal_probe" not in payload
     assert "pullback_zone_atr_multiplier" not in payload
     assert "require_pullback_close_beyond_fast_ma" not in payload
@@ -31,13 +32,13 @@ def test_batch_backtest_script_uses_weekly_daily_h4_terms_only():
 
     assert batch.SUPPORTED_INTERVALS == ("1w", "1d", "4h")
     assert "WEEKLY_DAILY_H4_V1" in parameter_set.label()
-    assert "INDEPENDENT_TIMELINES_V3" in parameter_set.label()
+    assert "INDEPENDENT_TIMELINES_V4" in parameter_set.label()
     assert "RR 2" in parameter_set.label()
     assert "DailyExit FULL_REVERSAL" in parameter_set.label()
     assert "H4ADX 20" in parameter_set.label()
     assert "StopATR 1.5" in parameter_set.label()
     assert "Same W/D/H4 2/1/2" in parameter_set.label()
-    assert "independent_timelines_v3" in parameter_set.key()
+    assert "independent_timelines_v4" in parameter_set.key()
     assert "rr2" in parameter_set.key()
     assert "dailyexitfull_reversal" in parameter_set.key()
     assert "h4adx20" in parameter_set.key()
@@ -119,6 +120,7 @@ def test_backtest_query_parses_strategy_tuning_inputs():
             "weekly_max_same_direction_positions": ["2"],
             "daily_max_same_direction_positions": ["1"],
             "h4_max_same_direction_positions": ["4"],
+            "merge_same_direction_positions": ["1"],
         }
     )
 
@@ -130,6 +132,7 @@ def test_backtest_query_parses_strategy_tuning_inputs():
     assert config.weekly_max_same_direction_positions == 2
     assert config.daily_max_same_direction_positions == 1
     assert config.h4_max_same_direction_positions == 4
+    assert config.merge_same_direction_positions is True
 
 
 def test_batch_query_parses_strategy_tuning_grids():

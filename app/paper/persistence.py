@@ -126,6 +126,7 @@ def _position_to_payload(position: PaperPosition | None) -> dict[str, Any] | Non
         "trade_mode": position.trade_mode,
         "market_regime": position.market_regime,
         "lifecycle_state": position.lifecycle_state,
+        "entry_count": position.entry_count,
     }
 
 
@@ -154,6 +155,7 @@ def _position_from_payload(payload: dict[str, Any] | None) -> PaperPosition | No
         trade_mode=payload.get("trade_mode"),
         market_regime=payload.get("market_regime"),
         lifecycle_state=payload.get("lifecycle_state"),
+        entry_count=int(payload.get("entry_count", 1)),
     )
 
 

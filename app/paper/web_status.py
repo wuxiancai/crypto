@@ -791,6 +791,12 @@ def render_strategy_backtest_html(
           <label for="h4_max_same_direction_positions">4H同向上限</label>
           <input id="h4_max_same_direction_positions" name="h4_max_same_direction_positions" type="number" min="1" max="10" step="1" value="{_escape(getattr(config, "h4_max_same_direction_positions", "2"))}">
         </div>
+        <div class="form-field">
+          <label for="merge_same_direction_positions">同向追加合并</label>
+          <select id="merge_same_direction_positions" name="merge_same_direction_positions">
+            {_render_bool_options(getattr(config, "merge_same_direction_positions", False))}
+          </select>
+        </div>
         <button class="primary-button" type="submit" name="run" value="1">开始回测</button>
       </form>
       <div class="button-row">

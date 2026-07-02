@@ -210,7 +210,9 @@ def _open_position_states(
             level = normalise_position_level(parts[1])
             mode = normalise_trade_mode(parts[3])
             if level is not None and mode is not None:
-                lifecycle_state = "|".join(part for part in parts[4:] if part) if len(parts) >= 5 else "OPEN"
+                entry_count = _entry_count_from_encoded_parts(parts)
+                lifecycle_parts = parts[4:-1] if parts and parts[-1].startswith("entries=") else parts[4:]
+                lifecycle_state = "|".join(part for part in lifecycle_parts if part) if lifecycle_parts else "OPEN"
                 lifecycle_state = lifecycle_state or "OPEN"
                 states.append(
                     OpenPositionState(
@@ -219,6 +221,7 @@ def _open_position_states(
                         position_level=level,
                         trade_mode=mode,
                         lifecycle_state=lifecycle_state,
+                        entry_count=entry_count,
                     )
                 )
     for bucket in open_buckets:
@@ -226,6 +229,15 @@ def _open_position_states(
         if level is not None and all(state.position_level != level for state in states):
             states.append(OpenPositionState(symbol="", side="UNKNOWN", position_level=level, trade_mode=TradeMode.TREND))
     return tuple(states)
+
+
+def _entry_count_from_encoded_parts(parts: list[str]) -> int:
+    if not parts or not parts[-1].startswith("entries="):
+        return 1
+    try:
+        return max(1, int(parts[-1].split("=", 1)[1]))
+    except ValueError:
+        return 1
 
 
 def _core_rules(frame: MultiTimeframeFrame, config: RealtimeStrategyConfig) -> list[str]:

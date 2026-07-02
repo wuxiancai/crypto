@@ -56,6 +56,7 @@ class OpenPositionState:
     position_level: PositionLevel
     trade_mode: TradeMode
     lifecycle_state: LifecycleState | str = LifecycleState.OPEN
+    entry_count: int = 1
 
 
 @dataclass(frozen=True)
@@ -547,7 +548,11 @@ def _has_opposite_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel
 
 
 def _same_direction_count(strategy_input: WeeklyDailyH4Input, level: PositionLevel, side: str) -> int:
-    return sum(1 for position in strategy_input.open_positions if position.position_level == level and position.side == side)
+    return sum(
+        max(1, position.entry_count)
+        for position in strategy_input.open_positions
+        if position.position_level == level and position.side == side
+    )
 
 
 def _same_direction_limit_reached(
