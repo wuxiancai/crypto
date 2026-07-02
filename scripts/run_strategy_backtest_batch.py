@@ -66,6 +66,9 @@ class ParameterSet:
     h4_rebound_adx_block_threshold: str = "20"
     stop_atr_multiplier: str = "1.5"
     max_same_direction_positions_per_level: int = 2
+    weekly_max_same_direction_positions: int = 2
+    daily_max_same_direction_positions: int = 1
+    h4_max_same_direction_positions: int = 2
 
     def key(self) -> str:
         return (
@@ -81,6 +84,9 @@ class ParameterSet:
             f"-h4adx{self.h4_rebound_adx_block_threshold}"
             f"-stopatr{self.stop_atr_multiplier}"
             f"-same{self.max_same_direction_positions_per_level}"
+            f"-wsame{self.weekly_max_same_direction_positions}"
+            f"-dsame{self.daily_max_same_direction_positions}"
+            f"-h4same{self.h4_max_same_direction_positions}"
             f"-policy{TRADE_POLICY_VERSION.lower()}"
         )
 
@@ -99,7 +105,7 @@ class ParameterSet:
             f" | DailyExit {self.daily_exit_policy}"
             f" | H4ADX {self.h4_rebound_adx_block_threshold}"
             f" | StopATR {self.stop_atr_multiplier}"
-            f" | Same {self.max_same_direction_positions_per_level}"
+            f" | Same W/D/H4 {self.weekly_max_same_direction_positions}/{self.daily_max_same_direction_positions}/{self.h4_max_same_direction_positions}"
         )
 
     def to_config(
@@ -130,6 +136,9 @@ class ParameterSet:
             h4_rebound_adx_block_threshold=Decimal(self.h4_rebound_adx_block_threshold),
             stop_atr_multiplier=Decimal(self.stop_atr_multiplier),
             max_same_direction_positions_per_level=self.max_same_direction_positions_per_level,
+            weekly_max_same_direction_positions=self.weekly_max_same_direction_positions,
+            daily_max_same_direction_positions=self.daily_max_same_direction_positions,
+            h4_max_same_direction_positions=self.h4_max_same_direction_positions,
         )
 
 
@@ -151,6 +160,9 @@ class StrategyBacktestBatchConfig:
     h4_rebound_adx_block_thresholds: tuple[str, ...] = ("20",)
     stop_atr_multipliers: tuple[str, ...] = ("1.5",)
     max_same_direction_positions_per_levels: tuple[int, ...] = (2,)
+    weekly_max_same_direction_positions: tuple[int, ...] = (2,)
+    daily_max_same_direction_positions: tuple[int, ...] = (1,)
+    h4_max_same_direction_positions: tuple[int, ...] = (2,)
     history_period: str = HISTORY_PERIOD
     history_window_ms: int = HISTORY_WINDOW_MS
     skip_fast_gte_slow: bool = True
@@ -187,6 +199,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--h4-rebound-adx-block-thresholds", default="25")
     parser.add_argument("--stop-atr-multipliers", default="1.5")
     parser.add_argument("--max-same-direction-positions-per-levels", default="2")
+    parser.add_argument("--weekly-max-same-direction-positions", default="2")
+    parser.add_argument("--daily-max-same-direction-positions", default="1")
+    parser.add_argument("--h4-max-same-direction-positions", default="2")
     parser.add_argument("--history-period", default=HISTORY_PERIOD, choices=tuple(HISTORY_WINDOWS_MS))
     parser.add_argument(
         "--workspace",
@@ -253,6 +268,9 @@ def _batch_config_from_args(args: argparse.Namespace) -> StrategyBacktestBatchCo
         h4_rebound_adx_block_thresholds=_parse_decimal_series(args.h4_rebound_adx_block_thresholds),
         stop_atr_multipliers=_parse_decimal_series(args.stop_atr_multipliers),
         max_same_direction_positions_per_levels=_parse_int_series(args.max_same_direction_positions_per_levels),
+        weekly_max_same_direction_positions=_parse_int_series(args.weekly_max_same_direction_positions),
+        daily_max_same_direction_positions=_parse_int_series(args.daily_max_same_direction_positions),
+        h4_max_same_direction_positions=_parse_int_series(args.h4_max_same_direction_positions),
         history_period=args.history_period,
         history_window_ms=HISTORY_WINDOWS_MS[args.history_period],
         skip_fast_gte_slow=args.skip_fast_gte_slow,
@@ -857,22 +875,28 @@ def _build_primary_candidates(config: StrategyBacktestBatchConfig | bool) -> Ite
                                         for h4_rebound_adx_block_threshold in config.h4_rebound_adx_block_thresholds:
                                             for stop_atr_multiplier in config.stop_atr_multipliers:
                                                 for max_same_direction in config.max_same_direction_positions_per_levels:
-                                                    yield ParameterSet(
-                                                        fast_period=fast_period,
-                                                        slow_period=slow_period,
-                                                        fast_ma_type=config.fast_ma_type,
-                                                        slow_ma_type=config.slow_ma_type,
-                                                        atr_period=atr_period,
-                                                        dmi_period=dmi_period,
-                                                        swing_lookback=swing_lookback,
-                                                        max_fee_to_risk_ratio=max_fee_to_risk_ratio,
-                                                        trend_pullback_take_profit_mode=take_profit_mode,
-                                                        target_risk_reward=target_risk_reward,
-                                                        daily_exit_policy=daily_exit_policy,
-                                                        h4_rebound_adx_block_threshold=h4_rebound_adx_block_threshold,
-                                                        stop_atr_multiplier=stop_atr_multiplier,
-                                                        max_same_direction_positions_per_level=max_same_direction,
-                                                    )
+                                                    for weekly_same in config.weekly_max_same_direction_positions:
+                                                        for daily_same in config.daily_max_same_direction_positions:
+                                                            for h4_same in config.h4_max_same_direction_positions:
+                                                                yield ParameterSet(
+                                                                    fast_period=fast_period,
+                                                                    slow_period=slow_period,
+                                                                    fast_ma_type=config.fast_ma_type,
+                                                                    slow_ma_type=config.slow_ma_type,
+                                                                    atr_period=atr_period,
+                                                                    dmi_period=dmi_period,
+                                                                    swing_lookback=swing_lookback,
+                                                                    max_fee_to_risk_ratio=max_fee_to_risk_ratio,
+                                                                    trend_pullback_take_profit_mode=take_profit_mode,
+                                                                    target_risk_reward=target_risk_reward,
+                                                                    daily_exit_policy=daily_exit_policy,
+                                                                    h4_rebound_adx_block_threshold=h4_rebound_adx_block_threshold,
+                                                                    stop_atr_multiplier=stop_atr_multiplier,
+                                                                    max_same_direction_positions_per_level=max_same_direction,
+                                                                    weekly_max_same_direction_positions=weekly_same,
+                                                                    daily_max_same_direction_positions=daily_same,
+                                                                    h4_max_same_direction_positions=h4_same,
+                                                                )
 
 
 def _build_refinement_candidates(
@@ -1193,6 +1217,9 @@ def _params_from_record(record: dict[str, Any]) -> ParameterSet:
         h4_rebound_adx_block_threshold=str(params.get("h4_rebound_adx_block_threshold") or "20"),
         stop_atr_multiplier=str(params.get("stop_atr_multiplier") or "1.5"),
         max_same_direction_positions_per_level=int(params.get("max_same_direction_positions_per_level") or 2),
+        weekly_max_same_direction_positions=int(params.get("weekly_max_same_direction_positions") or 2),
+        daily_max_same_direction_positions=int(params.get("daily_max_same_direction_positions") or 1),
+        h4_max_same_direction_positions=int(params.get("h4_max_same_direction_positions") or 2),
     )
 
 
@@ -1341,7 +1368,7 @@ def _record_params_label(record: dict[str, Any]) -> str:
         f", DailyExit {params.get('daily_exit_policy', '-')}"
         f", H4ADX {params.get('h4_rebound_adx_block_threshold', '-')}"
         f", StopATR {params.get('stop_atr_multiplier', '-')}"
-        f", Same {params.get('max_same_direction_positions_per_level', '-')}"
+        f", Same W/D/H4 {params.get('weekly_max_same_direction_positions', '-')}/{params.get('daily_max_same_direction_positions', '-')}/{params.get('h4_max_same_direction_positions', '-')}"
     )
 
 

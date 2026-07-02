@@ -68,7 +68,7 @@ def test_weekly_signal_uses_weekly_only_without_daily_confirmation():
     assert "weekly bear trend" in decision.signal.reason
 
 
-def test_daily_short_under_weekly_bull_is_rebound_short_not_blocked_by_h4():
+def test_daily_short_under_weekly_bull_is_independent_daily_trend_not_rebound():
     from app.strategy.position_hierarchy import PositionLevel, TradeMode
     from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision
 
@@ -87,12 +87,12 @@ def test_daily_short_under_weekly_bull_is_rebound_short_not_blocked_by_h4():
 
     assert decision.signal.action == "SHORT_ENTRY"
     assert decision.signal.position_level == "DAILY"
-    assert decision.signal.trade_mode == "REBOUND"
-    assert decision.signal.strategy_type == "DAILY_SHORT_REBOUND"
-    assert "daily short rebound under weekly bull" in decision.signal.reason
+    assert decision.signal.trade_mode == "TREND"
+    assert decision.signal.strategy_type == "DAILY_SHORT_TREND"
+    assert "daily independent short trend" in decision.signal.reason
 
 
-def test_h4_long_under_daily_bear_is_rebound_long_not_blocked_by_weekly():
+def test_h4_long_under_daily_bear_is_independent_h4_breakout_not_rebound():
     from app.strategy.position_hierarchy import PositionLevel, TradeMode
     from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision
 
@@ -112,9 +112,9 @@ def test_h4_long_under_daily_bear_is_rebound_long_not_blocked_by_weekly():
 
     assert decision.signal.action == "LONG_ENTRY"
     assert decision.signal.position_level == "H4"
-    assert decision.signal.trade_mode == "REBOUND"
-    assert decision.signal.strategy_type == "H4_LONG_REBOUND"
-    assert "h4 long rebound under daily bear" in decision.signal.reason
+    assert decision.signal.trade_mode == "BREAKOUT"
+    assert decision.signal.strategy_type == "H4_LONG_BREAKOUT"
+    assert "h4 independent long breakout" in decision.signal.reason
 
 
 def test_daily_existing_long_exits_on_full_bearish_reversal_before_new_entries():
@@ -139,7 +139,7 @@ def test_daily_existing_long_exits_on_full_bearish_reversal_before_new_entries()
     assert "daily full bearish reversal" in decision.signal.reason
 
 
-def test_h4_counter_rebound_is_blocked_when_daily_trend_is_strong():
+def test_h4_signal_is_not_blocked_by_strong_opposite_daily_trend():
     from app.strategy.position_hierarchy import PositionLevel, TradeMode
     from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision
 
@@ -156,8 +156,10 @@ def test_h4_counter_rebound_is_blocked_when_daily_trend_is_strong():
         )
     )
 
-    assert decision.signal.action == "WAIT"
-    assert "counter rebound blocked by strong daily trend" in decision.signal.reason
+    assert decision.signal.action == "LONG_ENTRY"
+    assert decision.signal.position_level == "H4"
+    assert decision.signal.trade_mode == "BREAKOUT"
+    assert decision.signal.strategy_type == "H4_LONG_BREAKOUT"
 
 
 def test_entry_signal_uses_configured_risk_reward_and_atr_stop_cap():
@@ -210,7 +212,7 @@ def test_weekly_same_direction_open_position_can_add():
     assert decision.signal.position_level == "WEEKLY"
 
 
-def test_daily_same_direction_open_position_can_add():
+def test_daily_same_direction_open_position_is_limited_to_one_by_default():
     from app.strategy.position_hierarchy import PositionLevel, TradeMode
     from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision
 
@@ -228,9 +230,8 @@ def test_daily_same_direction_open_position_can_add():
         )
     )
 
-    assert decision.signal.action == "SHORT_ENTRY"
-    assert decision.signal.position_level == "DAILY"
-    assert decision.signal.trade_mode == "TREND"
+    assert decision.signal.action == "WAIT"
+    assert "same direction position limit reached for DAILY" in decision.signal.reason
 
 
 def test_h4_same_direction_open_position_can_add():
@@ -254,7 +255,7 @@ def test_h4_same_direction_open_position_can_add():
 
     assert decision.signal.action == "LONG_ENTRY"
     assert decision.signal.position_level == "H4"
-    assert decision.signal.trade_mode == "REBOUND"
+    assert decision.signal.trade_mode == "BREAKOUT"
 
 
 def test_weekly_short_uses_weekly_ma60_for_lifecycle_defense_not_h4_or_structure_high():

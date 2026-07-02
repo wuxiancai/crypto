@@ -356,6 +356,27 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
             minimum=1,
             maximum=10,
         ),
+        weekly_max_same_direction_positions=_query_int(
+            query,
+            "weekly_max_same_direction_positions",
+            2,
+            minimum=1,
+            maximum=10,
+        ),
+        daily_max_same_direction_positions=_query_int(
+            query,
+            "daily_max_same_direction_positions",
+            1,
+            minimum=1,
+            maximum=10,
+        ),
+        h4_max_same_direction_positions=_query_int(
+            query,
+            "h4_max_same_direction_positions",
+            2,
+            minimum=1,
+            maximum=10,
+        ),
     )
 
 
@@ -405,6 +426,27 @@ def _batch_config_from_query(query: dict[str, list[str]]):
         max_same_direction_positions_per_levels=_query_int_list(
             query,
             "max_same_direction_positions_per_levels",
+            (2,),
+            minimum=1,
+            maximum=10,
+        ),
+        weekly_max_same_direction_positions=_query_int_list(
+            query,
+            "weekly_max_same_direction_positions",
+            (2,),
+            minimum=1,
+            maximum=10,
+        ),
+        daily_max_same_direction_positions=_query_int_list(
+            query,
+            "daily_max_same_direction_positions",
+            (1,),
+            minimum=1,
+            maximum=10,
+        ),
+        h4_max_same_direction_positions=_query_int_list(
+            query,
+            "h4_max_same_direction_positions",
             (2,),
             minimum=1,
             maximum=10,

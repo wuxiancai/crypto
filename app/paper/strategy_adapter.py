@@ -31,6 +31,9 @@ class RealtimeStrategyConfig:
     h4_rebound_adx_block_threshold: Decimal | None = Decimal("20")
     stop_atr_multiplier: Decimal = Decimal("1.5")
     max_same_direction_positions_per_level: int = 2
+    weekly_max_same_direction_positions: int = 2
+    daily_max_same_direction_positions: int = 1
+    h4_max_same_direction_positions: int = 2
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
     weekly_interval: str = "1w"
     daily_interval: str = "1d"
@@ -88,6 +91,9 @@ def build_realtime_strategy_signal(
             h4_rebound_adx_block_threshold=strategy_config.h4_rebound_adx_block_threshold,
             stop_atr_multiplier=strategy_config.stop_atr_multiplier,
             max_same_direction_positions_per_level=strategy_config.max_same_direction_positions_per_level,
+            weekly_max_same_direction_positions=strategy_config.weekly_max_same_direction_positions,
+            daily_max_same_direction_positions=strategy_config.daily_max_same_direction_positions,
+            h4_max_same_direction_positions=strategy_config.h4_max_same_direction_positions,
         ),
     )
     signal = decision.signal

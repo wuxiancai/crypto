@@ -780,8 +780,16 @@ def render_strategy_backtest_html(
           </select>
         </div>
         <div class="form-field">
-          <label for="max_same_direction_positions_per_level">同向最多持仓</label>
-          <input id="max_same_direction_positions_per_level" name="max_same_direction_positions_per_level" type="number" min="1" max="10" step="1" value="{_escape(getattr(config, "max_same_direction_positions_per_level", "2"))}">
+          <label for="weekly_max_same_direction_positions">周线同向上限</label>
+          <input id="weekly_max_same_direction_positions" name="weekly_max_same_direction_positions" type="number" min="1" max="10" step="1" value="{_escape(getattr(config, "weekly_max_same_direction_positions", "2"))}">
+        </div>
+        <div class="form-field">
+          <label for="daily_max_same_direction_positions">日线同向上限</label>
+          <input id="daily_max_same_direction_positions" name="daily_max_same_direction_positions" type="number" min="1" max="10" step="1" value="{_escape(getattr(config, "daily_max_same_direction_positions", "1"))}">
+        </div>
+        <div class="form-field">
+          <label for="h4_max_same_direction_positions">4H同向上限</label>
+          <input id="h4_max_same_direction_positions" name="h4_max_same_direction_positions" type="number" min="1" max="10" step="1" value="{_escape(getattr(config, "h4_max_same_direction_positions", "2"))}">
         </div>
         <button class="primary-button" type="submit" name="run" value="1">开始回测</button>
       </form>
@@ -972,7 +980,9 @@ def render_strategy_backtest_batch_html(
             <div class="form-field">{_render_batch_field_label("daily_exit_policies", "日线退出")}<input id="daily_exit_policies" name="daily_exit_policies" value="{_escape(_join_values(getattr(config, "daily_exit_policies", ("FULL_REVERSAL",))))}"></div>
             <div class="form-field">{_render_batch_field_label("h4_rebound_adx_block_thresholds", "4H反弹ADX过滤")}<input id="h4_rebound_adx_block_thresholds" name="h4_rebound_adx_block_thresholds" value="{_escape(_join_values(getattr(config, "h4_rebound_adx_block_thresholds", ("20",))))}"></div>
             <div class="form-field">{_render_batch_field_label("stop_atr_multipliers", "止损ATR上限")}<input id="stop_atr_multipliers" name="stop_atr_multipliers" value="{_escape(_join_values(getattr(config, "stop_atr_multipliers", ("1.5",))))}"></div>
-            <div class="form-field">{_render_batch_field_label("max_same_direction_positions_per_levels", "同向最多持仓")}<input id="max_same_direction_positions_per_levels" name="max_same_direction_positions_per_levels" value="{_escape(_join_values(getattr(config, "max_same_direction_positions_per_levels", (2,))))}"></div>
+            <div class="form-field">{_render_batch_field_label("weekly_max_same_direction_positions", "周线同向上限")}<input id="weekly_max_same_direction_positions" name="weekly_max_same_direction_positions" value="{_escape(_join_values(getattr(config, "weekly_max_same_direction_positions", (2,))))}"></div>
+            <div class="form-field">{_render_batch_field_label("daily_max_same_direction_positions", "日线同向上限")}<input id="daily_max_same_direction_positions" name="daily_max_same_direction_positions" value="{_escape(_join_values(getattr(config, "daily_max_same_direction_positions", (1,))))}"></div>
+            <div class="form-field">{_render_batch_field_label("h4_max_same_direction_positions", "4H同向上限")}<input id="h4_max_same_direction_positions" name="h4_max_same_direction_positions" value="{_escape(_join_values(getattr(config, "h4_max_same_direction_positions", (2,))))}"></div>
           </div>
         </fieldset>
         <fieldset class="form-section">
@@ -1580,7 +1590,9 @@ _BATCH_PARAMETER_HELP = {
     "daily_exit_policies": "日线持仓管理方式。FULL_REVERSAL 表示日线完整反向确认时先退出旧日线仓。\n影响：能避免旧日线仓长期锁住新方向，但过敏会增加换向成本。\n建议：先保留 FULL_REVERSAL。",
     "h4_rebound_adx_block_thresholds": "当日线 ADX 达到阈值时，阻断逆日线强趋势的 4H 反弹单。\n影响：数值越低越严格，能减少强趋势中逆势抄底/摸顶；数值越高越宽松。\n建议：先测 20,25,30。",
     "stop_atr_multipliers": "日线和 4H 止损距离的 ATR 上限。\n影响：数值越小止损越近、仓位可能更大但更容易扫损；数值越大容忍波动更高。\n建议：先测 1,1.5,2。",
-    "max_same_direction_positions_per_levels": "同一交易对、同一时间线、同方向最多允许同时持仓数量。\n影响：数值越小越能避免同向连续加仓集中亏损；数值越大更能吃趋势但风险更集中。\n建议：先测 1,2。",
+    "weekly_max_same_direction_positions": "周线同一交易对同方向最多持仓数量。\n影响：保留 2 可允许周线趋势确认后追加，过低会少吃大级别趋势。\n建议：默认 2。",
+    "daily_max_same_direction_positions": "日线同一交易对同方向最多持仓数量。\n影响：日线过度追加会在震荡区成对止损；限制为 1 可降低亏损簇。\n建议：默认 1。",
+    "h4_max_same_direction_positions": "4H 同一交易对同方向最多持仓数量。\n影响：4H 更偏执行级，允许 2 可保留趋势段追加能力。\n建议：默认 2。",
 }
 
 

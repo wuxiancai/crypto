@@ -1,6 +1,6 @@
 # Handoff
 
-更新时间：2026-07-01
+更新时间：2026-07-02
 
 ## 当前状态
 
@@ -39,6 +39,14 @@
 - 2026-07-01 已给 `/backtest` 和 `/backtest/batch` 统一增加“清除回测结果”入口。普通策略回测页可直接 `clear=1` 清除所有策略回测归档；批量页清除不再依赖 `PAPER_ENABLE_BATCH_BACKTEST=1`，但批量任务运行中仍会拒绝清除。普通回测页会清理 URL 中的 `run/clear` 参数，避免刷新重复执行。
 
 ## 本轮修复
+
+- 2026-07-02 周线 / 日线 / 4H 独立开仓和止盈止损策略修复：
+  - 用户指出周线、日线、4H 都必须作为独立时间线开仓、止盈止损；截图中的日线空头趋势明显，但旧回测日线仍亏损。复盘交易明细确认：日线仍用周线方向把信号分类为 `REBOUND`，4H 仍用日线方向分类/过滤，实际没有做到三条时间线完全独立；同时日线默认允许同方向 2 仓，会在震荡区产生同向成对止损。
+  - 修复：`DAILY` 入场只按日线自身 frame 生成 `DAILY_LONG_TREND` / `DAILY_SHORT_TREND`；`H4` 入场只按 4H 自身 frame 生成 `H4_*_TREND` / `H4_*_BREAKOUT`，不再被日线强趋势 ADX 阻断；周线继续只按周线自身 frame 管理。策略政策版本升级为 `INDEPENDENT_TIMELINES_V3`，避免复用旧归档/旧批量 checkpoint。
+  - 同向持仓上限拆为三层独立参数：`weekly_max_same_direction_positions=2`、`daily_max_same_direction_positions=1`、`h4_max_same_direction_positions=2`。普通回测页和批量回测页已改为“周线同向上限 / 日线同向上限 / 4H同向上限”，回测配置、归档 payload、批量参数 key/label 均记录三层值。
+  - 本地缓存 2 年 BTCUSDT 默认回测验证：`total_trades=411`、`net_pnl=203.45`、`final_equity=1203.45`；按层级：`DAILY=6.36`、`H4=108.79`、`WEEKLY=88.29`。日线已从亏损转为小幅盈利；其中 `DAILY_SHORT_TREND=12.86`、`DAILY_LONG_TREND=-6.50`，符合截图中空头段应盈利的判断。
+  - 当前仍可继续细调：`H4_LONG_BREAKOUT=-33.16` 是默认结果里最明显的负项，下一轮如果追求更高利润率，应优先优化 4H breakout 防追单/止盈止损，而不是删除周线、日线或 4H 时间线。
+  - 验证：`.venv/bin/python -m pytest -q` 为 `250 passed`；关键文件 `py_compile` 和 `git diff --check` 通过。
 
 - 2026-07-02 周线仓位过小修复：
   - 用户指出 BTCUSDT 2 年周线图中有明显大级别趋势，但回测 `WEEKLY` 只盈利 `1.79` 不合理。复盘周线交易明细确认：策略识别到了周线多头和后续周线空头，但周线仓数量极小，例如 2024-07 周线多头入场 `68138` 附近时数量只有约 `0.00017-0.00035 BTC`，名义价值只有十几到二十几 USDT。

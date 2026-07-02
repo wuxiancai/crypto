@@ -262,6 +262,9 @@ def strategy_backtest_config_payload(config: object) -> dict[str, str]:
         "max_same_direction_positions_per_level": str(
             getattr(config, "max_same_direction_positions_per_level", "2")
         ),
+        "weekly_max_same_direction_positions": str(getattr(config, "weekly_max_same_direction_positions", "2")),
+        "daily_max_same_direction_positions": str(getattr(config, "daily_max_same_direction_positions", "1")),
+        "h4_max_same_direction_positions": str(getattr(config, "h4_max_same_direction_positions", "2")),
     }
 
 
@@ -410,6 +413,9 @@ def _strategy_backtest_summary(
         h4_rebound_adx_block_threshold=str(payload.get("h4_rebound_adx_block_threshold") or "20"),
         stop_atr_multiplier=str(payload.get("stop_atr_multiplier") or "1.5"),
         max_same_direction_positions_per_level=str(payload.get("max_same_direction_positions_per_level") or "2"),
+        weekly_max_same_direction_positions=str(payload.get("weekly_max_same_direction_positions") or "2"),
+        daily_max_same_direction_positions=str(payload.get("daily_max_same_direction_positions") or "1"),
+        h4_max_same_direction_positions=str(payload.get("h4_max_same_direction_positions") or "2"),
         bucket_metrics=_summary_bucket_metrics(trades or []),
     )
 

@@ -5,7 +5,7 @@ def test_strategy_backtest_config_payload_uses_weekly_daily_h4_kernel():
     payload = strategy_backtest_config_payload(StrategyBacktestConfig())
 
     assert payload["strategy_kernel"] == "WEEKLY_DAILY_H4_V1"
-    assert payload["trade_policy_version"] == "INDEPENDENT_TIMELINES_V2"
+    assert payload["trade_policy_version"] == "INDEPENDENT_TIMELINES_V3"
     assert payload["timeframes"] == "1w,1d,4h"
     assert payload["weekly_risk_pct"] == "0.008"
     assert payload["daily_risk_pct"] == "0.005"
@@ -16,6 +16,9 @@ def test_strategy_backtest_config_payload_uses_weekly_daily_h4_kernel():
     assert payload["h4_rebound_adx_block_threshold"] == "20"
     assert payload["stop_atr_multiplier"] == "1.5"
     assert payload["max_same_direction_positions_per_level"] == "2"
+    assert payload["weekly_max_same_direction_positions"] == "2"
+    assert payload["daily_max_same_direction_positions"] == "1"
+    assert payload["h4_max_same_direction_positions"] == "2"
     assert "enable_reversal_probe" not in payload
     assert "pullback_zone_atr_multiplier" not in payload
     assert "require_pullback_close_beyond_fast_ma" not in payload
@@ -28,18 +31,21 @@ def test_batch_backtest_script_uses_weekly_daily_h4_terms_only():
 
     assert batch.SUPPORTED_INTERVALS == ("1w", "1d", "4h")
     assert "WEEKLY_DAILY_H4_V1" in parameter_set.label()
-    assert "INDEPENDENT_TIMELINES_V2" in parameter_set.label()
+    assert "INDEPENDENT_TIMELINES_V3" in parameter_set.label()
     assert "RR 2" in parameter_set.label()
     assert "DailyExit FULL_REVERSAL" in parameter_set.label()
     assert "H4ADX 20" in parameter_set.label()
     assert "StopATR 1.5" in parameter_set.label()
-    assert "Same 2" in parameter_set.label()
-    assert "independent_timelines_v2" in parameter_set.key()
+    assert "Same W/D/H4 2/1/2" in parameter_set.label()
+    assert "independent_timelines_v3" in parameter_set.key()
     assert "rr2" in parameter_set.key()
     assert "dailyexitfull_reversal" in parameter_set.key()
     assert "h4adx20" in parameter_set.key()
     assert "stopatr1.5" in parameter_set.key()
     assert "same2" in parameter_set.key()
+    assert "wsame2" in parameter_set.key()
+    assert "dsame1" in parameter_set.key()
+    assert "h4same2" in parameter_set.key()
     assert "Reversal" not in parameter_set.label()
     assert "ZoneATR" not in parameter_set.label()
     assert "CloseBeyondMA" not in parameter_set.label()
@@ -110,6 +116,9 @@ def test_backtest_query_parses_strategy_tuning_inputs():
             "h4_rebound_adx_block_threshold": ["32"],
             "stop_atr_multiplier": ["2.25"],
             "max_same_direction_positions_per_level": ["3"],
+            "weekly_max_same_direction_positions": ["2"],
+            "daily_max_same_direction_positions": ["1"],
+            "h4_max_same_direction_positions": ["4"],
         }
     )
 
@@ -118,6 +127,9 @@ def test_backtest_query_parses_strategy_tuning_inputs():
     assert str(config.h4_rebound_adx_block_threshold) == "32"
     assert str(config.stop_atr_multiplier) == "2.25"
     assert config.max_same_direction_positions_per_level == 3
+    assert config.weekly_max_same_direction_positions == 2
+    assert config.daily_max_same_direction_positions == 1
+    assert config.h4_max_same_direction_positions == 4
 
 
 def test_batch_query_parses_strategy_tuning_grids():
@@ -130,6 +142,9 @@ def test_batch_query_parses_strategy_tuning_grids():
             "h4_rebound_adx_block_thresholds": ["20,25,30"],
             "stop_atr_multipliers": ["1,1.5,2"],
             "max_same_direction_positions_per_levels": ["1,2"],
+            "weekly_max_same_direction_positions": ["2,3"],
+            "daily_max_same_direction_positions": ["1"],
+            "h4_max_same_direction_positions": ["2,4"],
         }
     )
 
@@ -138,6 +153,9 @@ def test_batch_query_parses_strategy_tuning_grids():
     assert config.h4_rebound_adx_block_thresholds == ("20", "25", "30")
     assert config.stop_atr_multipliers == ("1", "1.5", "2")
     assert config.max_same_direction_positions_per_levels == (1, 2)
+    assert config.weekly_max_same_direction_positions == (2, 3)
+    assert config.daily_max_same_direction_positions == (1,)
+    assert config.h4_max_same_direction_positions == (2, 4)
 
 
 def test_backtest_applies_risk_pct_by_position_level():

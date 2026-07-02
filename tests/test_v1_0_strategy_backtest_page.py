@@ -498,6 +498,9 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
             h4_rebound_adx_block_thresholds=("20", "25", "30"),
             stop_atr_multipliers=("1", "1.5", "2"),
             max_same_direction_positions_per_levels=(1, 2),
+            weekly_max_same_direction_positions=(2, 3),
+            daily_max_same_direction_positions=(1,),
+            h4_max_same_direction_positions=(2, 4),
             history_period="6m",
         )
     )
@@ -540,9 +543,15 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     assert "止损ATR上限" in html
     assert 'name="stop_atr_multipliers"' in html
     assert 'value="1,1.5,2"' in html
-    assert "同向最多持仓" in html
-    assert 'name="max_same_direction_positions_per_levels"' in html
-    assert 'value="1,2"' in html
+    assert "周线同向上限" in html
+    assert 'name="weekly_max_same_direction_positions"' in html
+    assert 'value="2,3"' in html
+    assert "日线同向上限" in html
+    assert 'name="daily_max_same_direction_positions"' in html
+    assert 'value="1"' in html
+    assert "4H同向上限" in html
+    assert 'name="h4_max_same_direction_positions"' in html
+    assert 'value="2,4"' in html
     assert 'class="param-help"' in html
     assert 'data-tooltip="选择回测使用的历史长度。' in html
     assert 'title="选择回测使用的历史长度。' not in html
@@ -566,7 +575,9 @@ def test_strategy_backtest_batch_page_defaults_to_smaller_refinement_grid():
     assert 'name="daily_exit_policies" value="FULL_REVERSAL"' in html
     assert 'name="h4_rebound_adx_block_thresholds" value="20"' in html
     assert 'name="stop_atr_multipliers" value="1.5"' in html
-    assert 'name="max_same_direction_positions_per_levels" value="2"' in html
+    assert 'name="weekly_max_same_direction_positions" value="2"' in html
+    assert 'name="daily_max_same_direction_positions" value="1"' in html
+    assert 'name="h4_max_same_direction_positions" value="2"' in html
     assert 'name="pullback_zone_atr_multipliers"' not in html
     assert 'name="require_pullback_close_beyond_fast_ma_options"' not in html
     assert 'name="enable_reversal_probe_options"' not in html

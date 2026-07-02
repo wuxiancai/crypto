@@ -44,6 +44,9 @@ class WeeklyDailyH4Config:
     h4_rebound_adx_block_threshold: Decimal | None = Decimal("20")
     stop_atr_multiplier: Decimal = Decimal("1.5")
     max_same_direction_positions_per_level: int = 2
+    weekly_max_same_direction_positions: int | None = 2
+    daily_max_same_direction_positions: int | None = 1
+    h4_max_same_direction_positions: int | None = 2
 
 
 @dataclass(frozen=True)
@@ -211,7 +214,7 @@ def _weekly_entry(
     if weekly_regime == MarketRegime.BEAR and _bearish(strategy_input.weekly, config):
         if _has_opposite_level(strategy_input, PositionLevel.WEEKLY, "SHORT"):
             return None
-        if _same_direction_count(strategy_input, PositionLevel.WEEKLY, "SHORT") >= config.max_same_direction_positions_per_level:
+        if _same_direction_limit_reached(strategy_input, PositionLevel.WEEKLY, "SHORT", config):
             return None
         return _entry_signal(
             side="SHORT",
@@ -227,7 +230,7 @@ def _weekly_entry(
     if weekly_regime == MarketRegime.BULL and _bullish(strategy_input.weekly, config):
         if _has_opposite_level(strategy_input, PositionLevel.WEEKLY, "LONG"):
             return None
-        if _same_direction_count(strategy_input, PositionLevel.WEEKLY, "LONG") >= config.max_same_direction_positions_per_level:
+        if _same_direction_limit_reached(strategy_input, PositionLevel.WEEKLY, "LONG", config):
             return None
         return _entry_signal(
             side="LONG",
@@ -252,16 +255,16 @@ def _daily_entry(
     if _bullish(strategy_input.daily, config):
         if _has_opposite_level(strategy_input, PositionLevel.DAILY, "LONG"):
             return None
-        if _same_direction_count(strategy_input, PositionLevel.DAILY, "LONG") >= config.max_same_direction_positions_per_level:
-            return None
-        mode = _relative_trade_mode("LONG", weekly_regime)
+        if _same_direction_limit_reached(strategy_input, PositionLevel.DAILY, "LONG", config):
+            return _wait(["same direction position limit reached for DAILY"], weekly_regime, control_state)
+        mode = TradeMode.TREND
         return _entry_signal(
             "LONG",
             PositionLevel.DAILY,
             mode,
             strategy_input.daily,
             config.daily_risk_pct,
-            [_relative_reason("daily long", mode, weekly_regime)],
+            ["daily independent long trend"],
             weekly_regime,
             control_state,
             config,
@@ -269,16 +272,16 @@ def _daily_entry(
     if _bearish(strategy_input.daily, config):
         if _has_opposite_level(strategy_input, PositionLevel.DAILY, "SHORT"):
             return None
-        if _same_direction_count(strategy_input, PositionLevel.DAILY, "SHORT") >= config.max_same_direction_positions_per_level:
-            return None
-        mode = _relative_trade_mode("SHORT", weekly_regime)
+        if _same_direction_limit_reached(strategy_input, PositionLevel.DAILY, "SHORT", config):
+            return _wait(["same direction position limit reached for DAILY"], weekly_regime, control_state)
+        mode = TradeMode.TREND
         return _entry_signal(
             "SHORT",
             PositionLevel.DAILY,
             mode,
             strategy_input.daily,
             config.daily_risk_pct,
-            [_relative_reason("daily short", mode, weekly_regime)],
+            ["daily independent short trend"],
             weekly_regime,
             control_state,
             config,
@@ -298,16 +301,14 @@ def _h4_entry(
     if _bullish(strategy_input.h4, config):
         if _has_opposite_level(strategy_input, PositionLevel.H4, "LONG"):
             return None
-        if _same_direction_count(strategy_input, PositionLevel.H4, "LONG") >= config.max_same_direction_positions_per_level:
+        if _same_direction_limit_reached(strategy_input, PositionLevel.H4, "LONG", config):
             return None
-        mode = _relative_trade_mode("LONG", daily_regime)
-        if _counter_rebound_blocked(mode, strategy_input.daily, config):
-            return _wait(["counter rebound blocked by strong daily trend"], weekly_regime, control_state)
-        if mode == TradeMode.TREND and _h4_breakout(strategy_input.h4):
+        mode = TradeMode.TREND
+        if _h4_breakout(strategy_input.h4):
             mode = TradeMode.BREAKOUT
-            reason = "h4 long breakout with daily bull"
+            reason = "h4 independent long breakout"
         else:
-            reason = _relative_reason("h4 long", mode, daily_regime).replace("weekly", "daily")
+            reason = "h4 independent long trend"
         return _entry_signal(
             "LONG",
             PositionLevel.H4,
@@ -322,16 +323,14 @@ def _h4_entry(
     if _bearish(strategy_input.h4, config):
         if _has_opposite_level(strategy_input, PositionLevel.H4, "SHORT"):
             return None
-        if _same_direction_count(strategy_input, PositionLevel.H4, "SHORT") >= config.max_same_direction_positions_per_level:
+        if _same_direction_limit_reached(strategy_input, PositionLevel.H4, "SHORT", config):
             return None
-        mode = _relative_trade_mode("SHORT", daily_regime)
-        if _counter_rebound_blocked(mode, strategy_input.daily, config):
-            return _wait(["counter rebound blocked by strong daily trend"], weekly_regime, control_state)
-        if mode == TradeMode.TREND and _h4_breakdown(strategy_input.h4):
+        mode = TradeMode.TREND
+        if _h4_breakdown(strategy_input.h4):
             mode = TradeMode.BREAKOUT
-            reason = "h4 short breakout with daily bear"
+            reason = "h4 independent short breakout"
         else:
-            reason = _relative_reason("h4 short", mode, daily_regime).replace("weekly", "daily")
+            reason = "h4 independent short trend"
         return _entry_signal(
             "SHORT",
             PositionLevel.H4,
@@ -549,6 +548,21 @@ def _has_opposite_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel
 
 def _same_direction_count(strategy_input: WeeklyDailyH4Input, level: PositionLevel, side: str) -> int:
     return sum(1 for position in strategy_input.open_positions if position.position_level == level and position.side == side)
+
+
+def _same_direction_limit_reached(
+    strategy_input: WeeklyDailyH4Input,
+    level: PositionLevel,
+    side: str,
+    config: WeeklyDailyH4Config,
+) -> bool:
+    level_limit = {
+        PositionLevel.WEEKLY: config.weekly_max_same_direction_positions,
+        PositionLevel.DAILY: config.daily_max_same_direction_positions,
+        PositionLevel.H4: config.h4_max_same_direction_positions,
+    }[level]
+    limit = level_limit if level_limit is not None else config.max_same_direction_positions_per_level
+    return _same_direction_count(strategy_input, level, side) >= limit
 
 
 def _should_evaluate_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel) -> bool:
