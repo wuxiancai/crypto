@@ -40,6 +40,10 @@ class WeeklyDailyH4Config:
     min_boll_width_pct: Decimal = Decimal("0.01")
     min_signal_score: Decimal = Decimal("70")
     min_bars_between_trades: int = 3
+    daily_exit_policy: str = "FULL_REVERSAL"
+    h4_rebound_adx_block_threshold: Decimal | None = Decimal("20")
+    stop_atr_multiplier: Decimal = Decimal("1.5")
+    max_same_direction_positions_per_level: int = 2
 
 
 @dataclass(frozen=True)
@@ -103,6 +107,11 @@ def build_weekly_daily_h4_decision(
         staged_reduction = _weekly_staged_reduction(strategy_input, weekly_regime, effective_config, control_state)
         if staged_reduction is not None:
             return _decision(strategy_input, staged_reduction, weekly_regime, control_state, diagnostics)
+
+    if _should_evaluate_level(strategy_input, PositionLevel.DAILY):
+        daily_exit = _daily_exit(strategy_input, weekly_regime, effective_config)
+        if daily_exit is not None:
+            return _decision(strategy_input, daily_exit, weekly_regime, control_state, diagnostics)
 
     if not control_state.allows_entry:
         return _decision(
@@ -202,6 +211,8 @@ def _weekly_entry(
     if weekly_regime == MarketRegime.BEAR and _bearish(strategy_input.weekly, config):
         if _has_opposite_level(strategy_input, PositionLevel.WEEKLY, "SHORT"):
             return None
+        if _same_direction_count(strategy_input, PositionLevel.WEEKLY, "SHORT") >= config.max_same_direction_positions_per_level:
+            return None
         return _entry_signal(
             side="SHORT",
             level=PositionLevel.WEEKLY,
@@ -211,9 +222,12 @@ def _weekly_entry(
             reason=["weekly bear trend"],
             weekly_regime=weekly_regime,
             control_state=control_state,
+            config=config,
         )
     if weekly_regime == MarketRegime.BULL and _bullish(strategy_input.weekly, config):
         if _has_opposite_level(strategy_input, PositionLevel.WEEKLY, "LONG"):
+            return None
+        if _same_direction_count(strategy_input, PositionLevel.WEEKLY, "LONG") >= config.max_same_direction_positions_per_level:
             return None
         return _entry_signal(
             side="LONG",
@@ -224,6 +238,7 @@ def _weekly_entry(
             reason=["weekly bull trend"],
             weekly_regime=weekly_regime,
             control_state=control_state,
+            config=config,
         )
     return None
 
@@ -237,6 +252,8 @@ def _daily_entry(
     if _bullish(strategy_input.daily, config):
         if _has_opposite_level(strategy_input, PositionLevel.DAILY, "LONG"):
             return None
+        if _same_direction_count(strategy_input, PositionLevel.DAILY, "LONG") >= config.max_same_direction_positions_per_level:
+            return None
         mode = _relative_trade_mode("LONG", weekly_regime)
         return _entry_signal(
             "LONG",
@@ -247,9 +264,12 @@ def _daily_entry(
             [_relative_reason("daily long", mode, weekly_regime)],
             weekly_regime,
             control_state,
+            config,
         )
     if _bearish(strategy_input.daily, config):
         if _has_opposite_level(strategy_input, PositionLevel.DAILY, "SHORT"):
+            return None
+        if _same_direction_count(strategy_input, PositionLevel.DAILY, "SHORT") >= config.max_same_direction_positions_per_level:
             return None
         mode = _relative_trade_mode("SHORT", weekly_regime)
         return _entry_signal(
@@ -261,6 +281,7 @@ def _daily_entry(
             [_relative_reason("daily short", mode, weekly_regime)],
             weekly_regime,
             control_state,
+            config,
         )
     return None
 
@@ -277,23 +298,51 @@ def _h4_entry(
     if _bullish(strategy_input.h4, config):
         if _has_opposite_level(strategy_input, PositionLevel.H4, "LONG"):
             return None
+        if _same_direction_count(strategy_input, PositionLevel.H4, "LONG") >= config.max_same_direction_positions_per_level:
+            return None
         mode = _relative_trade_mode("LONG", daily_regime)
+        if _counter_rebound_blocked(mode, strategy_input.daily, config):
+            return _wait(["counter rebound blocked by strong daily trend"], weekly_regime, control_state)
         if mode == TradeMode.TREND and _h4_breakout(strategy_input.h4):
             mode = TradeMode.BREAKOUT
             reason = "h4 long breakout with daily bull"
         else:
             reason = _relative_reason("h4 long", mode, daily_regime).replace("weekly", "daily")
-        return _entry_signal("LONG", PositionLevel.H4, mode, strategy_input.h4, config.h4_risk_pct, [reason], weekly_regime, control_state)
+        return _entry_signal(
+            "LONG",
+            PositionLevel.H4,
+            mode,
+            strategy_input.h4,
+            config.h4_risk_pct,
+            [reason],
+            weekly_regime,
+            control_state,
+            config,
+        )
     if _bearish(strategy_input.h4, config):
         if _has_opposite_level(strategy_input, PositionLevel.H4, "SHORT"):
             return None
+        if _same_direction_count(strategy_input, PositionLevel.H4, "SHORT") >= config.max_same_direction_positions_per_level:
+            return None
         mode = _relative_trade_mode("SHORT", daily_regime)
+        if _counter_rebound_blocked(mode, strategy_input.daily, config):
+            return _wait(["counter rebound blocked by strong daily trend"], weekly_regime, control_state)
         if mode == TradeMode.TREND and _h4_breakdown(strategy_input.h4):
             mode = TradeMode.BREAKOUT
             reason = "h4 short breakout with daily bear"
         else:
             reason = _relative_reason("h4 short", mode, daily_regime).replace("weekly", "daily")
-        return _entry_signal("SHORT", PositionLevel.H4, mode, strategy_input.h4, config.h4_risk_pct, [reason], weekly_regime, control_state)
+        return _entry_signal(
+            "SHORT",
+            PositionLevel.H4,
+            mode,
+            strategy_input.h4,
+            config.h4_risk_pct,
+            [reason],
+            weekly_regime,
+            control_state,
+            config,
+        )
     return None
 
 
@@ -315,6 +364,45 @@ def _relative_reason(prefix: str, mode: TradeMode, upper_regime: MarketRegime) -
     return f"{prefix} neutral upper timeframe"
 
 
+def _daily_exit(
+    strategy_input: WeeklyDailyH4Input,
+    weekly_regime: MarketRegime,
+    config: WeeklyDailyH4Config,
+) -> StrategySignal | None:
+    if config.daily_exit_policy.upper() != "FULL_REVERSAL":
+        return None
+    daily_position = _open_level(strategy_input, PositionLevel.DAILY)
+    if daily_position is None:
+        return None
+    daily = strategy_input.daily
+    if daily_position.side == "LONG" and _bearish(daily, config):
+        return _management_signal(
+            "EXIT_POSITION",
+            "LONG",
+            PositionLevel.DAILY,
+            daily_position.trade_mode,
+            Decimal("1"),
+            ["daily full bearish reversal"],
+            weekly_regime,
+        )
+    if daily_position.side == "SHORT" and _bullish(daily, config):
+        return _management_signal(
+            "EXIT_POSITION",
+            "SHORT",
+            PositionLevel.DAILY,
+            daily_position.trade_mode,
+            Decimal("1"),
+            ["daily full bullish reversal"],
+            weekly_regime,
+        )
+    return None
+
+
+def _counter_rebound_blocked(mode: TradeMode, upper_frame: TrendFrame, config: WeeklyDailyH4Config) -> bool:
+    threshold = config.h4_rebound_adx_block_threshold
+    return mode == TradeMode.REBOUND and threshold is not None and upper_frame.adx >= threshold
+
+
 def _entry_signal(
     side: str,
     level: PositionLevel,
@@ -324,22 +412,26 @@ def _entry_signal(
     reason: list[str],
     weekly_regime: MarketRegime,
     control_state: ControlState,
+    config: WeeklyDailyH4Config,
 ) -> StrategySignal:
     entry_price = frame.close
     atr_value = frame.atr or abs(frame.fast_ma - frame.slow_ma) or entry_price * Decimal("0.02")
+    stop_atr_distance = atr_value * config.stop_atr_multiplier
     if side == "LONG":
         if level == PositionLevel.WEEKLY:
             stop_loss = frame.slow_ma if frame.slow_ma < entry_price else entry_price - atr_value
         else:
-            stop_loss = min(frame.previous_low or entry_price - atr_value, entry_price - atr_value)
-        take_profit = entry_price + (entry_price - stop_loss) * Decimal("2")
+            structure_stop = min(frame.previous_low or entry_price - atr_value, entry_price - atr_value)
+            stop_loss = max(structure_stop, entry_price - stop_atr_distance)
+        take_profit = entry_price + (entry_price - stop_loss) * config.target_risk_reward
         action = "LONG_ENTRY"
     else:
         if level == PositionLevel.WEEKLY:
             stop_loss = frame.slow_ma if frame.slow_ma > entry_price else entry_price + atr_value
         else:
-            stop_loss = max(frame.previous_high or entry_price + atr_value, entry_price + atr_value)
-        take_profit = entry_price - (stop_loss - entry_price) * Decimal("2")
+            structure_stop = max(frame.previous_high or entry_price + atr_value, entry_price + atr_value)
+            stop_loss = min(structure_stop, entry_price + stop_atr_distance)
+        take_profit = entry_price - (stop_loss - entry_price) * config.target_risk_reward
         action = "SHORT_ENTRY"
     return StrategySignal(
         action=action,
@@ -349,7 +441,7 @@ def _entry_signal(
         entry_price=entry_price,
         stop_loss=stop_loss,
         take_profit=take_profit,
-        risk_reward=Decimal("2"),
+        risk_reward=config.target_risk_reward,
         risk_pct=risk_pct,
         score=control_state.signal_score.total,
         trailing_atr=atr_value,
@@ -453,6 +545,10 @@ def _open_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel) -> Ope
 
 def _has_opposite_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel, side: str) -> bool:
     return any(position.position_level == level and position.side != side for position in strategy_input.open_positions)
+
+
+def _same_direction_count(strategy_input: WeeklyDailyH4Input, level: PositionLevel, side: str) -> int:
+    return sum(1 for position in strategy_input.open_positions if position.position_level == level and position.side == side)
 
 
 def _should_evaluate_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel) -> bool:

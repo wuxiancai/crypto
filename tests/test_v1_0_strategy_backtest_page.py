@@ -141,7 +141,7 @@ def test_strategy_backtest_page_selects_one_symbol_and_uses_compact_form():
     assert 'name="symbol"' in html
     assert '<option value="BTCUSDT">BTC</option>' in html
     assert '<option value="ETHUSDT" selected>ETH</option>' in html
-    assert "grid-template-columns: 100px 95px 95px 95px 130px 145px 145px 130px" in html
+    assert "grid-template-columns: repeat(4, minmax(120px, 1fr))" in html
 
 
 def test_strategy_backtest_query_uses_selected_single_symbol_and_ma_types():
@@ -493,8 +493,13 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
             swing_lookbacks=(15, 20),
             max_fee_to_risk_ratios=("0.20", "0.25"),
             take_profit_modes=("TRAILING", "FIXED"),
-                history_period="6m",
-            )
+            target_risk_rewards=("2", "3"),
+            daily_exit_policies=("FULL_REVERSAL", "NONE"),
+            h4_rebound_adx_block_thresholds=("20", "25", "30"),
+            stop_atr_multipliers=("1", "1.5", "2"),
+            max_same_direction_positions_per_levels=(1, 2),
+            history_period="6m",
+        )
     )
 
     assert "批量参数回测" in html
@@ -523,6 +528,21 @@ def test_strategy_backtest_batch_page_shows_all_script_parameters():
     assert "不是手续费开关" in html
     assert "固定手续费始终按 maker 0.02%、taker 0.05% 计入回测" in html
     assert "止盈模式" in html
+    assert "目标R倍数" in html
+    assert 'name="target_risk_rewards"' in html
+    assert 'value="2,3"' in html
+    assert "日线退出" in html
+    assert 'name="daily_exit_policies"' in html
+    assert 'value="FULL_REVERSAL,NONE"' in html
+    assert "4H反弹ADX过滤" in html
+    assert 'name="h4_rebound_adx_block_thresholds"' in html
+    assert 'value="20,25,30"' in html
+    assert "止损ATR上限" in html
+    assert 'name="stop_atr_multipliers"' in html
+    assert 'value="1,1.5,2"' in html
+    assert "同向最多持仓" in html
+    assert 'name="max_same_direction_positions_per_levels"' in html
+    assert 'value="1,2"' in html
     assert 'class="param-help"' in html
     assert 'data-tooltip="选择回测使用的历史长度。' in html
     assert 'title="选择回测使用的历史长度。' not in html
@@ -542,6 +562,11 @@ def test_strategy_backtest_batch_page_defaults_to_smaller_refinement_grid():
     assert 'name="dmi_periods" value="12,14"' in html
     assert 'name="swing_lookbacks" value="20,30"' in html
     assert 'name="max_fee_to_risk_ratios" value="0.25,0"' in html
+    assert 'name="target_risk_rewards" value="2"' in html
+    assert 'name="daily_exit_policies" value="FULL_REVERSAL"' in html
+    assert 'name="h4_rebound_adx_block_thresholds" value="20"' in html
+    assert 'name="stop_atr_multipliers" value="1.5"' in html
+    assert 'name="max_same_direction_positions_per_levels" value="2"' in html
     assert 'name="pullback_zone_atr_multipliers"' not in html
     assert 'name="require_pullback_close_beyond_fast_ma_options"' not in html
     assert 'name="enable_reversal_probe_options"' not in html

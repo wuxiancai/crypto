@@ -40,6 +40,17 @@
 
 ## 本轮修复
 
+- 2026-07-02 日线/4H 亏损回测参数修复：
+  - 用户确认日线和 4H 必须保留，问题应优先从触发条件和止盈止损参数修。已复查 2 年 BTCUSDT 回测：旧默认附近结果亏损主要来自日线仓没有完整反转退出，且 4H 在日线强趋势中仍频繁做逆势反弹；日线旧仓还会占住同一时间线，错过截图中明显的日线空头段。
+  - 策略层新增日线完整反转退出：`daily_exit_policy=FULL_REVERSAL` 时，日线多仓遇到完整空头确认先 `EXIT_POSITION`，日线空仓遇到完整多头确认先退出，再等待后续新方向信号。
+  - 策略层新增 4H 逆日线强趋势反弹过滤：`h4_rebound_adx_block_threshold` 默认从 25 收紧为 20；当日线 ADX 达到阈值，4H 逆日线方向的 `REBOUND` 信号会等待，避免强趋势里反复抄底/摸顶。
+  - 入场参数改为真正接入策略：`target_risk_reward` 现在决定止盈 R 倍数；`stop_atr_multiplier` 对日线/4H 结构止损施加 ATR 上限；`max_same_direction_positions_per_level` 限制同一交易对、同一时间线、同方向的追加数量。
+  - Paper/Backtest/Web/归档/批量回测均已接线新增参数：普通回测页可调 RR、日线退出、4H ADX 过滤、止损 ATR 上限和同向最多持仓；批量回测页和脚本支持 `target_risk_rewards`、`daily_exit_policies`、`h4_rebound_adx_block_thresholds`、`stop_atr_multipliers`、`max_same_direction_positions_per_levels` 网格，参数 key/label 会区分这些值，避免复用错误归档。
+  - 本地缓存 2 年 BTCUSDT 默认回测验证：`total_trades=261`，`wins=104`，`losses=157`，`net_pnl=120.86`，`final_equity=1120.86`；按层级：`DAILY=-16.69`、`H4=135.76`、`WEEKLY=1.79`。对比此前远端 2 年基线 `net_pnl=-23.30`，默认参数已扭亏。
+  - 小型 2 年参数网格结果：最佳为 `RR=2 / h4_rebound_adx_block_threshold=20 / stop_atr_multiplier=1.5 / max_same_direction_positions_per_level=2`，`net_pnl=120.86`；若优先让日线层级本身转正，`RR=2 / ADX=25 / same=1` 为 `net_pnl=96.45` 且 `DAILY=4.48`，下一轮细节可考虑拆分 DAILY/H4 的同向持仓上限。
+  - 当前仍需下一轮细调：`DAILY_SHORT_REBOUND=-45.03`、`DAILY_LONG_REBOUND=-16.42` 仍是日线亏损来源；建议优先给日线反弹单增加更严格的确认或单独风险预算/持仓上限，而不是删除日线或 4H。
+  - 验证：`.venv/bin/python -m pytest -q` 为 `249 passed`；关键文件 `py_compile` 和 `git diff --check` 通过。
+
 - 2026-07-01 回测 / 批量回测独立时间线一致性修复：
   - 用户截图指出 `/backtest` 和 `/backtest/batch` 仍显示旧口径：批量页写着 `1w 周线 + 1d 日线 + 4h 执行`，普通回测页仍用“时间层级 / 层级风险”等旧表述，且批量日志出现 `[skip]`，说明同参数仍可能复用独立时间线政策改造前的归档结果。
   - 修复：回测页面风险输入改为“周线 / 日线 / 4H 风险预算”，最近结果和参数对比表改为“独立时间线 / 风险预算”；批量页策略框架改为“三条独立时间线：1w 周线 / 1d 日线 / 4h”，策略参数区改为“独立时间线策略参数”，输出统计改为按策略、独立时间线、交易对聚合。

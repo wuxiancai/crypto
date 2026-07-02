@@ -61,6 +61,11 @@ class ParameterSet:
     swing_lookback: int = 20
     max_fee_to_risk_ratio: str = "0.25"
     trend_pullback_take_profit_mode: str = "TRAILING"
+    target_risk_reward: str = "2"
+    daily_exit_policy: str = "FULL_REVERSAL"
+    h4_rebound_adx_block_threshold: str = "20"
+    stop_atr_multiplier: str = "1.5"
+    max_same_direction_positions_per_level: int = 2
 
     def key(self) -> str:
         return (
@@ -71,6 +76,11 @@ class ParameterSet:
             f"-swing{self.swing_lookback}"
             f"-feerisk{self.max_fee_to_risk_ratio}"
             f"-tp{self.trend_pullback_take_profit_mode.lower()}"
+            f"-rr{self.target_risk_reward}"
+            f"-dailyexit{self.daily_exit_policy.lower()}"
+            f"-h4adx{self.h4_rebound_adx_block_threshold}"
+            f"-stopatr{self.stop_atr_multiplier}"
+            f"-same{self.max_same_direction_positions_per_level}"
             f"-policy{TRADE_POLICY_VERSION.lower()}"
         )
 
@@ -85,6 +95,11 @@ class ParameterSet:
             f" | Swing {self.swing_lookback}"
             f" | Fee/Risk {self.max_fee_to_risk_ratio}"
             f" | TP {self.trend_pullback_take_profit_mode}"
+            f" | RR {self.target_risk_reward}"
+            f" | DailyExit {self.daily_exit_policy}"
+            f" | H4ADX {self.h4_rebound_adx_block_threshold}"
+            f" | StopATR {self.stop_atr_multiplier}"
+            f" | Same {self.max_same_direction_positions_per_level}"
         )
 
     def to_config(
@@ -110,6 +125,11 @@ class ParameterSet:
             history_cache_dir=cache_dir,
             max_fee_to_risk_ratio=Decimal(self.max_fee_to_risk_ratio),
             trend_pullback_take_profit_mode=self.trend_pullback_take_profit_mode,
+            target_risk_reward=Decimal(self.target_risk_reward),
+            daily_exit_policy=self.daily_exit_policy,
+            h4_rebound_adx_block_threshold=Decimal(self.h4_rebound_adx_block_threshold),
+            stop_atr_multiplier=Decimal(self.stop_atr_multiplier),
+            max_same_direction_positions_per_level=self.max_same_direction_positions_per_level,
         )
 
 
@@ -126,6 +146,11 @@ class StrategyBacktestBatchConfig:
     swing_lookbacks: tuple[int, ...] = (20, 30)
     max_fee_to_risk_ratios: tuple[str, ...] = ("0.25", "0")
     take_profit_modes: tuple[str, ...] = ("TRAILING", "FIXED")
+    target_risk_rewards: tuple[str, ...] = ("2",)
+    daily_exit_policies: tuple[str, ...] = ("FULL_REVERSAL",)
+    h4_rebound_adx_block_thresholds: tuple[str, ...] = ("20",)
+    stop_atr_multipliers: tuple[str, ...] = ("1.5",)
+    max_same_direction_positions_per_levels: tuple[int, ...] = (2,)
     history_period: str = HISTORY_PERIOD
     history_window_ms: int = HISTORY_WINDOW_MS
     skip_fast_gte_slow: bool = True
@@ -157,6 +182,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--swing-lookbacks", default="20,30")
     parser.add_argument("--max-fee-to-risk-ratios", default="0.25,0")
     parser.add_argument("--take-profit-modes", default="TRAILING,FIXED")
+    parser.add_argument("--target-risk-rewards", default="2")
+    parser.add_argument("--daily-exit-policies", default="FULL_REVERSAL")
+    parser.add_argument("--h4-rebound-adx-block-thresholds", default="25")
+    parser.add_argument("--stop-atr-multipliers", default="1.5")
+    parser.add_argument("--max-same-direction-positions-per-levels", default="2")
     parser.add_argument("--history-period", default=HISTORY_PERIOD, choices=tuple(HISTORY_WINDOWS_MS))
     parser.add_argument(
         "--workspace",
@@ -218,6 +248,11 @@ def _batch_config_from_args(args: argparse.Namespace) -> StrategyBacktestBatchCo
         swing_lookbacks=_parse_int_series(args.swing_lookbacks),
         max_fee_to_risk_ratios=_parse_decimal_series(args.max_fee_to_risk_ratios),
         take_profit_modes=_parse_take_profit_modes(args.take_profit_modes),
+        target_risk_rewards=_parse_decimal_series(args.target_risk_rewards),
+        daily_exit_policies=_parse_daily_exit_policies(args.daily_exit_policies),
+        h4_rebound_adx_block_thresholds=_parse_decimal_series(args.h4_rebound_adx_block_thresholds),
+        stop_atr_multipliers=_parse_decimal_series(args.stop_atr_multipliers),
+        max_same_direction_positions_per_levels=_parse_int_series(args.max_same_direction_positions_per_levels),
         history_period=args.history_period,
         history_window_ms=HISTORY_WINDOWS_MS[args.history_period],
         skip_fast_gte_slow=args.skip_fast_gte_slow,
@@ -405,6 +440,17 @@ def _parse_take_profit_modes(raw: str) -> tuple[str, ...]:
     invalid = [value for value in values if value not in allowed]
     if invalid:
         raise SystemExit(f"Invalid take-profit mode: {', '.join(invalid)}")
+    return values
+
+
+def _parse_daily_exit_policies(raw: str) -> tuple[str, ...]:
+    allowed = {"FULL_REVERSAL", "NONE"}
+    values = tuple(part.strip().upper() for part in str(raw or "").split(",") if part.strip())
+    if not values:
+        raise SystemExit("At least one daily-exit policy is required.")
+    invalid = [value for value in values if value not in allowed]
+    if invalid:
+        raise SystemExit(f"Invalid daily-exit policy: {', '.join(invalid)}")
     return values
 
 
@@ -806,17 +852,27 @@ def _build_primary_candidates(config: StrategyBacktestBatchConfig | bool) -> Ite
                     for swing_lookback in config.swing_lookbacks:
                         for max_fee_to_risk_ratio in config.max_fee_to_risk_ratios:
                             for take_profit_mode in config.take_profit_modes:
-                                yield ParameterSet(
-                                    fast_period=fast_period,
-                                    slow_period=slow_period,
-                                    fast_ma_type=config.fast_ma_type,
-                                    slow_ma_type=config.slow_ma_type,
-                                    atr_period=atr_period,
-                                    dmi_period=dmi_period,
-                                    swing_lookback=swing_lookback,
-                                    max_fee_to_risk_ratio=max_fee_to_risk_ratio,
-                                    trend_pullback_take_profit_mode=take_profit_mode,
-                                )
+                                for target_risk_reward in config.target_risk_rewards:
+                                    for daily_exit_policy in config.daily_exit_policies:
+                                        for h4_rebound_adx_block_threshold in config.h4_rebound_adx_block_thresholds:
+                                            for stop_atr_multiplier in config.stop_atr_multipliers:
+                                                for max_same_direction in config.max_same_direction_positions_per_levels:
+                                                    yield ParameterSet(
+                                                        fast_period=fast_period,
+                                                        slow_period=slow_period,
+                                                        fast_ma_type=config.fast_ma_type,
+                                                        slow_ma_type=config.slow_ma_type,
+                                                        atr_period=atr_period,
+                                                        dmi_period=dmi_period,
+                                                        swing_lookback=swing_lookback,
+                                                        max_fee_to_risk_ratio=max_fee_to_risk_ratio,
+                                                        trend_pullback_take_profit_mode=take_profit_mode,
+                                                        target_risk_reward=target_risk_reward,
+                                                        daily_exit_policy=daily_exit_policy,
+                                                        h4_rebound_adx_block_threshold=h4_rebound_adx_block_threshold,
+                                                        stop_atr_multiplier=stop_atr_multiplier,
+                                                        max_same_direction_positions_per_level=max_same_direction,
+                                                    )
 
 
 def _build_refinement_candidates(
@@ -1132,6 +1188,11 @@ def _params_from_record(record: dict[str, Any]) -> ParameterSet:
         swing_lookback=int(params["swing_lookback"]),
         max_fee_to_risk_ratio=str(params["max_fee_to_risk_ratio"]),
         trend_pullback_take_profit_mode=str(params["trend_pullback_take_profit_mode"]),
+        target_risk_reward=str(params.get("target_risk_reward") or "2"),
+        daily_exit_policy=str(params.get("daily_exit_policy") or "FULL_REVERSAL"),
+        h4_rebound_adx_block_threshold=str(params.get("h4_rebound_adx_block_threshold") or "20"),
+        stop_atr_multiplier=str(params.get("stop_atr_multiplier") or "1.5"),
+        max_same_direction_positions_per_level=int(params.get("max_same_direction_positions_per_level") or 2),
     )
 
 
@@ -1276,6 +1337,11 @@ def _record_params_label(record: dict[str, Any]) -> str:
         f", Swing {params.get('swing_lookback', '-')}"
         f", Fee/Risk {params.get('max_fee_to_risk_ratio', '-')}"
         f", TP {params.get('trend_pullback_take_profit_mode', '-')}"
+        f", RR {params.get('target_risk_reward', '-')}"
+        f", DailyExit {params.get('daily_exit_policy', '-')}"
+        f", H4ADX {params.get('h4_rebound_adx_block_threshold', '-')}"
+        f", StopATR {params.get('stop_atr_multiplier', '-')}"
+        f", Same {params.get('max_same_direction_positions_per_level', '-')}"
     )
 
 

@@ -27,6 +27,10 @@ class RealtimeStrategyConfig:
     min_adx: Decimal = Decimal("18")
     min_risk_reward: Decimal = Decimal("1.5")
     target_risk_reward: Decimal = Decimal("2")
+    daily_exit_policy: str = "FULL_REVERSAL"
+    h4_rebound_adx_block_threshold: Decimal | None = Decimal("20")
+    stop_atr_multiplier: Decimal = Decimal("1.5")
+    max_same_direction_positions_per_level: int = 2
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
     weekly_interval: str = "1w"
     daily_interval: str = "1d"
@@ -80,6 +84,10 @@ def build_realtime_strategy_signal(
         WeeklyDailyH4Config(
             min_adx=strategy_config.min_adx,
             target_risk_reward=strategy_config.target_risk_reward,
+            daily_exit_policy=strategy_config.daily_exit_policy,
+            h4_rebound_adx_block_threshold=strategy_config.h4_rebound_adx_block_threshold,
+            stop_atr_multiplier=strategy_config.stop_atr_multiplier,
+            max_same_direction_positions_per_level=strategy_config.max_same_direction_positions_per_level,
         ),
     )
     signal = decision.signal

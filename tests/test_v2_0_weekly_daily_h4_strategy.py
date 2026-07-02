@@ -15,6 +15,7 @@ def _frame(
     boll_upper: str = "110",
     boll_lower: str = "90",
     boll_middle: str = "100",
+    atr: str = "2",
 ):
     from app.strategy.weekly_daily_h4_strategy import TrendFrame
 
@@ -31,7 +32,7 @@ def _frame(
         boll_upper=Decimal(boll_upper),
         boll_lower=Decimal(boll_lower),
         boll_middle=Decimal(boll_middle),
-        atr=Decimal("2"),
+        atr=Decimal(atr),
     )
 
 
@@ -75,7 +76,7 @@ def test_daily_short_under_weekly_bull_is_rebound_short_not_blocked_by_h4():
         WeeklyDailyH4Input(
             symbol="BTCUSDT",
             weekly=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10"),
-            daily=_frame(),
+            daily=_frame(adx="19"),
             h4=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10"),
             open_positions=(
                 OpenPositionState("BTCUSDT", "LONG", PositionLevel.WEEKLY, TradeMode.TREND),
@@ -99,7 +100,7 @@ def test_h4_long_under_daily_bear_is_rebound_long_not_blocked_by_weekly():
         WeeklyDailyH4Input(
             symbol="BTCUSDT",
             weekly=_frame(),
-            daily=_frame(),
+            daily=_frame(adx="19"),
             h4=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10", close="112", previous_high="108"),
             open_positions=(
                 OpenPositionState("BTCUSDT", "SHORT", PositionLevel.WEEKLY, TradeMode.TREND),
@@ -114,6 +115,78 @@ def test_h4_long_under_daily_bear_is_rebound_long_not_blocked_by_weekly():
     assert decision.signal.trade_mode == "REBOUND"
     assert decision.signal.strategy_type == "H4_LONG_REBOUND"
     assert "h4 long rebound under daily bear" in decision.signal.reason
+
+
+def test_daily_existing_long_exits_on_full_bearish_reversal_before_new_entries():
+    from app.strategy.position_hierarchy import PositionLevel, TradeMode
+    from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision
+
+    decision = build_weekly_daily_h4_decision(
+        WeeklyDailyH4Input(
+            symbol="BTCUSDT",
+            weekly=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10"),
+            daily=_frame(fast="90", slow="100", slope="-1", di_plus="10", di_minus="30"),
+            h4=_frame(),
+            open_positions=(
+                OpenPositionState("BTCUSDT", "LONG", PositionLevel.DAILY, TradeMode.TREND),
+            ),
+            focus_level=PositionLevel.DAILY,
+        )
+    )
+
+    assert decision.signal.action == "EXIT_POSITION"
+    assert decision.signal.position_level == "DAILY"
+    assert "daily full bearish reversal" in decision.signal.reason
+
+
+def test_h4_counter_rebound_is_blocked_when_daily_trend_is_strong():
+    from app.strategy.position_hierarchy import PositionLevel, TradeMode
+    from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision
+
+    decision = build_weekly_daily_h4_decision(
+        WeeklyDailyH4Input(
+            symbol="BTCUSDT",
+            weekly=_frame(),
+            daily=_frame(adx="30"),
+            h4=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10", close="112", previous_high="108"),
+            open_positions=(
+                OpenPositionState("BTCUSDT", "SHORT", PositionLevel.DAILY, TradeMode.TREND),
+            ),
+            focus_level=PositionLevel.H4,
+        )
+    )
+
+    assert decision.signal.action == "WAIT"
+    assert "counter rebound blocked by strong daily trend" in decision.signal.reason
+
+
+def test_entry_signal_uses_configured_risk_reward_and_atr_stop_cap():
+    from app.strategy.position_hierarchy import PositionLevel
+    from app.strategy.weekly_daily_h4_strategy import WeeklyDailyH4Config, WeeklyDailyH4Input, build_weekly_daily_h4_decision
+
+    decision = build_weekly_daily_h4_decision(
+        WeeklyDailyH4Input(
+            symbol="BTCUSDT",
+            weekly=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10"),
+            daily=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10"),
+            h4=_frame(
+                close="100",
+                fast="110",
+                slow="100",
+                slope="1",
+                di_plus="30",
+                di_minus="10",
+                previous_low="80",
+                atr="2",
+            ),
+            focus_level=PositionLevel.H4,
+        ),
+        WeeklyDailyH4Config(target_risk_reward=Decimal("3"), stop_atr_multiplier=Decimal("1.5")),
+    )
+
+    assert decision.signal.position_level == "H4"
+    assert decision.signal.stop_loss == Decimal("97.0")
+    assert decision.signal.take_profit == Decimal("109.0")
 
 
 def test_weekly_same_direction_open_position_can_add():
@@ -168,7 +241,7 @@ def test_h4_same_direction_open_position_can_add():
         WeeklyDailyH4Input(
             symbol="BTCUSDT",
             weekly=_frame(),
-            daily=_frame(),
+            daily=_frame(adx="19"),
             h4=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10", close="112", previous_high="108"),
             open_positions=(
                 OpenPositionState("BTCUSDT", "SHORT", PositionLevel.WEEKLY, TradeMode.TREND),
@@ -274,7 +347,7 @@ def test_weekly_reduction_allows_new_stage_after_prior_stage():
     assert decision.signal.lifecycle_state == "REDUCED_TREND|REDUCED_MOMENTUM"
 
 
-def test_daily_existing_long_blocks_daily_short_signal_only():
+def test_daily_existing_long_exits_daily_short_reversal_before_h4():
     from app.strategy.position_hierarchy import PositionLevel, TradeMode
     from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision
 
@@ -298,7 +371,9 @@ def test_daily_existing_long_blocks_daily_short_signal_only():
         )
     )
 
-    assert decision.signal.action == "WAIT"
+    assert decision.signal.action == "EXIT_POSITION"
+    assert decision.signal.position_level == "DAILY"
+    assert "daily full bearish reversal" in decision.signal.reason
 
 
 def test_h4_breakout_requires_bollinger_expansion():

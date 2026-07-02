@@ -254,6 +254,13 @@ def strategy_backtest_config_payload(config: object) -> dict[str, str]:
         "leverage": str(getattr(config, "leverage")),
         "trend_pullback_take_profit_mode": str(getattr(config, "trend_pullback_take_profit_mode")),
         "max_fee_to_risk_ratio": str(getattr(config, "max_fee_to_risk_ratio")),
+        "target_risk_reward": str(getattr(config, "target_risk_reward", "2")),
+        "daily_exit_policy": str(getattr(config, "daily_exit_policy", "FULL_REVERSAL")),
+        "h4_rebound_adx_block_threshold": str(getattr(config, "h4_rebound_adx_block_threshold", "20")),
+        "stop_atr_multiplier": str(getattr(config, "stop_atr_multiplier", "1.5")),
+        "max_same_direction_positions_per_level": str(
+            getattr(config, "max_same_direction_positions_per_level", "2")
+        ),
     }
 
 
@@ -396,6 +403,11 @@ def _strategy_backtest_summary(
         weekly_leverage=str(payload.get("weekly_leverage") or "2"),
         daily_leverage=str(payload.get("daily_leverage") or "5"),
         h4_leverage=str(payload.get("h4_leverage") or "10"),
+        target_risk_reward=str(payload.get("target_risk_reward") or "2"),
+        daily_exit_policy=str(payload.get("daily_exit_policy") or "FULL_REVERSAL"),
+        h4_rebound_adx_block_threshold=str(payload.get("h4_rebound_adx_block_threshold") or "20"),
+        stop_atr_multiplier=str(payload.get("stop_atr_multiplier") or "1.5"),
+        max_same_direction_positions_per_level=str(payload.get("max_same_direction_positions_per_level") or "2"),
         bucket_metrics=_summary_bucket_metrics(trades or []),
     )
 

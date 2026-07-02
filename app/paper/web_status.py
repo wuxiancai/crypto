@@ -651,7 +651,7 @@ def render_strategy_backtest_html(
     .label {{ color: #65748b; font-size: 12px; margin-bottom: 6px; }}
     .value {{ font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }}
     h2 {{ font-size: 16px; margin: 0 0 10px; }}
-    .form-grid {{ display: grid; grid-template-columns: 100px 95px 95px 95px 130px 145px 145px 130px; gap: 12px; align-items: end; }}
+    .form-grid {{ display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 12px; align-items: end; }}
     .form-field {{ display: grid; gap: 6px; }}
     .form-field label {{ color: #344055; font-size: 13px; font-weight: 700; }}
     .form-field input, .form-field select {{ width: 100%; box-sizing: border-box; border: 1px solid #b8c2d6; border-radius: 4px; padding: 8px 10px; font-size: 14px; background: #fff; }}
@@ -756,6 +756,28 @@ def render_strategy_backtest_html(
         <div class="form-field">
           <label for="h4_leverage">4H杠杆</label>
           <input id="h4_leverage" name="h4_leverage" type="number" min="1" max="20" step="0.5" value="{_escape(getattr(config, "h4_leverage", "10"))}">
+        </div>
+        <div class="form-field">
+          <label for="target_risk_reward">目标R倍数</label>
+          <input id="target_risk_reward" name="target_risk_reward" type="number" min="0.5" max="10" step="0.25" value="{_escape(getattr(config, "target_risk_reward", "2"))}">
+        </div>
+        <div class="form-field">
+          <label for="stop_atr_multiplier">止损ATR上限</label>
+          <input id="stop_atr_multiplier" name="stop_atr_multiplier" type="number" min="0.5" max="10" step="0.25" value="{_escape(getattr(config, "stop_atr_multiplier", "1.5"))}">
+        </div>
+        <div class="form-field">
+          <label for="h4_rebound_adx_block_threshold">4H反弹ADX过滤</label>
+          <input id="h4_rebound_adx_block_threshold" name="h4_rebound_adx_block_threshold" type="number" min="0" max="80" step="1" value="{_escape(getattr(config, "h4_rebound_adx_block_threshold", "20"))}">
+        </div>
+        <div class="form-field">
+          <label for="daily_exit_policy">日线退出</label>
+          <select id="daily_exit_policy" name="daily_exit_policy">
+            {_render_daily_exit_policy_options(getattr(config, "daily_exit_policy", "FULL_REVERSAL"))}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="max_same_direction_positions_per_level">同向最多持仓</label>
+          <input id="max_same_direction_positions_per_level" name="max_same_direction_positions_per_level" type="number" min="1" max="10" step="1" value="{_escape(getattr(config, "max_same_direction_positions_per_level", "2"))}">
         </div>
         <button class="primary-button" type="submit" name="run" value="1">开始回测</button>
       </form>
@@ -942,6 +964,11 @@ def render_strategy_backtest_batch_html(
               {_render_batch_field_label("take_profit_modes", "止盈模式")}
               <select id="take_profit_modes" name="take_profit_modes">{_render_take_profit_mode_options(getattr(config, "take_profit_modes", ("TRAILING", "FIXED")))}</select>
             </div>
+            <div class="form-field">{_render_batch_field_label("target_risk_rewards", "目标R倍数")}<input id="target_risk_rewards" name="target_risk_rewards" value="{_escape(_join_values(getattr(config, "target_risk_rewards", ("2",))))}"></div>
+            <div class="form-field">{_render_batch_field_label("daily_exit_policies", "日线退出")}<input id="daily_exit_policies" name="daily_exit_policies" value="{_escape(_join_values(getattr(config, "daily_exit_policies", ("FULL_REVERSAL",))))}"></div>
+            <div class="form-field">{_render_batch_field_label("h4_rebound_adx_block_thresholds", "4H反弹ADX过滤")}<input id="h4_rebound_adx_block_thresholds" name="h4_rebound_adx_block_thresholds" value="{_escape(_join_values(getattr(config, "h4_rebound_adx_block_thresholds", ("20",))))}"></div>
+            <div class="form-field">{_render_batch_field_label("stop_atr_multipliers", "止损ATR上限")}<input id="stop_atr_multipliers" name="stop_atr_multipliers" value="{_escape(_join_values(getattr(config, "stop_atr_multipliers", ("1.5",))))}"></div>
+            <div class="form-field">{_render_batch_field_label("max_same_direction_positions_per_levels", "同向最多持仓")}<input id="max_same_direction_positions_per_levels" name="max_same_direction_positions_per_levels" value="{_escape(_join_values(getattr(config, "max_same_direction_positions_per_levels", (2,))))}"></div>
           </div>
         </fieldset>
         <fieldset class="form-section">
@@ -1502,6 +1529,18 @@ def _render_average_type_options(selected: Any) -> str:
     )
 
 
+def _render_daily_exit_policy_options(selected: Any) -> str:
+    selected_values = {str(item).upper() for item in selected} if isinstance(selected, (list, tuple, set)) else {str(selected or "FULL_REVERSAL").upper()}
+    options = [
+        ("FULL_REVERSAL", "完整反转退出"),
+        ("NONE", "不提前退出"),
+    ]
+    return "".join(
+        f'<option value="{_escape(value)}"{_selected_attr(value in selected_values)}>{_escape(label)}</option>'
+        for value, label in options
+    )
+
+
 def _render_symbol_options(symbols: Any) -> str:
     selected = "BTCUSDT"
     if isinstance(symbols, (list, tuple)) and symbols:
@@ -1533,6 +1572,11 @@ _BATCH_PARAMETER_HELP = {
     "swing_lookbacks": "Swing 高低点回看窗口，用于结构止损和关键高低点判断。\n影响：数值小止损更近、交易更多；数值大止损更宽、胜率可能更稳但盈亏比受影响。\n建议：20-30，当前优先 20。",
     "max_fee_to_risk_ratios": "这是手续费占单笔风险比例的过滤阈值，不是手续费开关。固定手续费始终按 maker 0.02%、taker 0.05% 计入回测。\n影响：数值越低越严格，会过滤掉止损过近、手续费占风险过高的交易；0 只表示不启用这道过滤。\n建议：默认 0.25，并保留 0 作为关闭过滤的对照组。",
     "take_profit_modes": "止盈方式。TRAILING 是移动止盈，FIXED 是固定目标止盈。\n影响：TRAILING 更适合趋势延伸，FIXED 更容易落袋但可能放弃大行情。\n建议：批量对比 TRAILING + FIXED，最终按净盈亏、回撤和盈亏比选择。",
+    "target_risk_rewards": "止盈目标的 R 倍数。\n影响：数值越大单笔潜在利润越高，但更难触达；数值越小更容易止盈但可能吃不到趋势段。\n建议：先测 2,3。",
+    "daily_exit_policies": "日线持仓管理方式。FULL_REVERSAL 表示日线完整反向确认时先退出旧日线仓。\n影响：能避免旧日线仓长期锁住新方向，但过敏会增加换向成本。\n建议：先保留 FULL_REVERSAL。",
+    "h4_rebound_adx_block_thresholds": "当日线 ADX 达到阈值时，阻断逆日线强趋势的 4H 反弹单。\n影响：数值越低越严格，能减少强趋势中逆势抄底/摸顶；数值越高越宽松。\n建议：先测 20,25,30。",
+    "stop_atr_multipliers": "日线和 4H 止损距离的 ATR 上限。\n影响：数值越小止损越近、仓位可能更大但更容易扫损；数值越大容忍波动更高。\n建议：先测 1,1.5,2。",
+    "max_same_direction_positions_per_levels": "同一交易对、同一时间线、同方向最多允许同时持仓数量。\n影响：数值越小越能避免同向连续加仓集中亏损；数值越大更能吃趋势但风险更集中。\n建议：先测 1,2。",
 }
 
 

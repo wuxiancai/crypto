@@ -49,6 +49,11 @@ class StrategyBacktestConfig:
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     trend_pullback_take_profit_mode: str = "TRAILING"
     max_fee_to_risk_ratio: Decimal | None = Decimal("0.25")
+    target_risk_reward: Decimal = Decimal("2")
+    daily_exit_policy: str = "FULL_REVERSAL"
+    h4_rebound_adx_block_threshold: Decimal | None = Decimal("20")
+    stop_atr_multiplier: Decimal = Decimal("1.5")
+    max_same_direction_positions_per_level: int = 2
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
     trade_policy_version: str = TRADE_POLICY_VERSION
 
@@ -104,6 +109,11 @@ class StrategyBacktestRunSummary:
     weekly_leverage: str = "2"
     daily_leverage: str = "5"
     h4_leverage: str = "10"
+    target_risk_reward: str = "2"
+    daily_exit_policy: str = "FULL_REVERSAL"
+    h4_rebound_adx_block_threshold: str = "20"
+    stop_atr_multiplier: str = "1.5"
+    max_same_direction_positions_per_level: str = "2"
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
 
 
@@ -130,6 +140,11 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         atr_period=backtest_config.atr_period,
         dmi_period=backtest_config.dmi_period,
         swing_lookback=backtest_config.swing_lookback,
+        target_risk_reward=backtest_config.target_risk_reward,
+        daily_exit_policy=backtest_config.daily_exit_policy,
+        h4_rebound_adx_block_threshold=backtest_config.h4_rebound_adx_block_threshold,
+        stop_atr_multiplier=backtest_config.stop_atr_multiplier,
+        max_same_direction_positions_per_level=backtest_config.max_same_direction_positions_per_level,
         strategy_kernel=StrategyKernel.WEEKLY_DAILY_H4_V1.value,
     )
     engine = PaperTradingEngine(
