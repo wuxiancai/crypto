@@ -10,6 +10,7 @@ def test_strategy_backtest_config_payload_uses_weekly_daily_h4_kernel():
     assert payload["weekly_risk_pct"] == "0.008"
     assert payload["daily_risk_pct"] == "0.005"
     assert payload["h4_risk_pct"] == "0.002"
+    assert payload["weekly_margin_pct"] == "0.10"
     assert payload["target_risk_reward"] == "2"
     assert payload["daily_exit_policy"] == "FULL_REVERSAL"
     assert payload["h4_rebound_adx_block_threshold"] == "20"
@@ -72,6 +73,9 @@ def test_backtest_page_exposes_timeline_risk_budget_inputs():
     assert 'value="0.005"' in html
     assert 'name="h4_risk_pct"' in html
     assert 'value="0.002"' in html
+    assert 'name="weekly_margin_pct"' in html
+    assert 'value="0.10"' in html
+    assert "周线保证金预算" in html
     assert "周线风险预算" in html
     assert "日线风险预算" in html
     assert "4H风险预算" in html
@@ -86,12 +90,14 @@ def test_backtest_query_parses_layered_risk_pct_inputs():
             "weekly_risk_pct": ["0.01"],
             "daily_risk_pct": ["0.006"],
             "h4_risk_pct": ["0.0025"],
+            "weekly_margin_pct": ["0.12"],
         }
     )
 
     assert str(config.weekly_risk_pct) == "0.01"
     assert str(config.daily_risk_pct) == "0.006"
     assert str(config.h4_risk_pct) == "0.0025"
+    assert str(config.weekly_margin_pct) == "0.12"
 
 
 def test_backtest_query_parses_strategy_tuning_inputs():

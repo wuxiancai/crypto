@@ -290,3 +290,36 @@ def test_weekly_position_uses_independent_leverage_for_liquidation_guard():
 
     assert position is not None
     assert position.leverage == Decimal("2")
+
+
+def test_weekly_position_uses_margin_budget_instead_of_virtual_stop_distance():
+    from app.paper.trading import PaperConfig, PaperTradingEngine
+    from app.strategy.signal_router import StrategySignal
+
+    engine = PaperTradingEngine(
+        PaperConfig(
+            initial_equity=Decimal("1000"),
+            risk_per_trade_pct=Decimal("0.01"),
+            slippage_pct=Decimal("0"),
+            weekly_leverage=Decimal("2"),
+            weekly_margin_pct=Decimal("0.10"),
+        )
+    )
+    entry = StrategySignal(
+        action="LONG_ENTRY",
+        strategy_type="WEEKLY_LONG_TREND",
+        bucket="WEEKLY",
+        reason=["weekly"],
+        entry_price=Decimal("100"),
+        stop_loss=Decimal("60"),
+        take_profit=Decimal("200"),
+        risk_pct=Decimal("0.008"),
+        strategy_kernel="WEEKLY_DAILY_H4_V1",
+        position_level="WEEKLY",
+        trade_mode="TREND",
+    )
+
+    position = engine.on_signal(_kline(interval="1w"), entry)
+
+    assert position is not None
+    assert position.quantity == Decimal("2.0")

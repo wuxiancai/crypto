@@ -22,6 +22,7 @@ class PaperConfig:
     weekly_leverage: Decimal = Decimal("2")
     daily_leverage: Decimal = Decimal("5")
     h4_leverage: Decimal = Decimal("10")
+    weekly_margin_pct: Decimal | None = Decimal("0.10")
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     default_stop_distance_pct: Decimal = Decimal("0.02")
@@ -264,23 +265,27 @@ class PaperTradingEngine:
         risk_pct = risk_pct * risk_multiplier
         if risk_pct <= 0:
             return None
-        risk_quantity = self._equity * risk_pct / stop_distance
         effective_leverage = _leverage_for_signal(signal, self._config)
         max_notional_quantity = self._max_single_position_quantity(entry_price, effective_leverage)
-        quantity = min(risk_quantity, max_notional_quantity)
+        weekly_margin_quantity = self._weekly_margin_quantity(signal, entry_price, effective_leverage)
+        if weekly_margin_quantity is not None:
+            quantity = min(weekly_margin_quantity, max_notional_quantity)
+        else:
+            risk_quantity = self._equity * risk_pct / stop_distance
+            quantity = min(risk_quantity, max_notional_quantity)
         if quantity <= 0:
             return None
         entry_fee = entry_price * quantity * self._config.taker_fee_rate
         estimated_stop_fee = stop_loss * quantity * self._config.taker_fee_rate
-        planned_risk = stop_distance * quantity
         planned_notional = entry_price * quantity
+        planned_risk = self._planned_risk_for_signal(signal, stop_distance, quantity, planned_notional, effective_leverage)
         if _fees_too_high_for_planned_risk(
             fees=entry_fee + estimated_stop_fee,
             planned_risk=planned_risk,
             max_ratio=self._config.max_fee_to_risk_ratio,
         ):
             return None
-        if _bucket_from_signal(signal) != "LEGACY" and self._portfolio_risk_exceeded(planned_risk, planned_notional):
+        if _bucket_from_signal(signal) != "LEGACY" and self._portfolio_risk_exceeded(signal, planned_risk, planned_notional):
             return None
         position = PaperPosition(
             symbol=kline.symbol,
@@ -438,9 +443,28 @@ class PaperTradingEngine:
             max_notional = min(max_notional, self._equity * max_single_leverage)
         return max_notional / entry_price
 
-    def _portfolio_risk_exceeded(self, planned_risk: Decimal, planned_notional: Decimal) -> bool:
+    def _weekly_margin_quantity(self, signal: SignalLike, entry_price: Decimal, leverage: Decimal) -> Decimal | None:
+        margin_pct = self._config.weekly_margin_pct
+        if not _uses_weekly_margin_sizing(signal, self._config):
+            return None
+        assert margin_pct is not None
+        return self._equity * margin_pct * leverage / entry_price
+
+    def _planned_risk_for_signal(
+        self,
+        signal: SignalLike,
+        stop_distance: Decimal,
+        quantity: Decimal,
+        planned_notional: Decimal,
+        leverage: Decimal,
+    ) -> Decimal:
+        if _uses_weekly_margin_sizing(signal, self._config):
+            return planned_notional / leverage
+        return stop_distance * quantity
+
+    def _portfolio_risk_exceeded(self, signal: SignalLike, planned_risk: Decimal, planned_notional: Decimal) -> bool:
         max_risk_pct = self._config.max_total_planned_risk_pct
-        if max_risk_pct is not None and max_risk_pct > 0:
+        if max_risk_pct is not None and max_risk_pct > 0 and not _uses_weekly_margin_sizing(signal, self._config):
             max_risk = self._equity * max_risk_pct
             if _open_planned_risk(self._positions) + planned_risk > max_risk:
                 return True
@@ -639,6 +663,8 @@ def _open_planned_risk(positions: list[PaperPosition]) -> Decimal:
 
 
 def _position_planned_risk(position: PaperPosition) -> Decimal:
+    if _is_kernel_weekly_position(position):
+        return Decimal("0")
     initial_stop = position.initial_stop_loss or position.stop_loss
     return abs(position.entry_price - initial_stop) * position.quantity
 
@@ -690,6 +716,14 @@ def _uses_trailing_take_profit(position: PaperPosition, config: PaperConfig) -> 
 
 def _is_kernel_weekly_position(position: PaperPosition) -> bool:
     return position.strategy_kernel == "WEEKLY_DAILY_H4_V1" and position.position_level == "WEEKLY"
+
+
+def _is_weekly_kernel_signal(signal: SignalLike) -> bool:
+    return getattr(signal, "strategy_kernel", None) == "WEEKLY_DAILY_H4_V1" and getattr(signal, "position_level", None) == "WEEKLY"
+
+
+def _uses_weekly_margin_sizing(signal: SignalLike, config: PaperConfig) -> bool:
+    return _is_weekly_kernel_signal(signal) and config.weekly_margin_pct is not None and config.weekly_margin_pct > 0
 
 
 def _activate_trailing_take_profit(position: PaperPosition, kline: Kline, config: PaperConfig) -> PaperPosition:

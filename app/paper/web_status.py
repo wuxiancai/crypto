@@ -758,6 +758,10 @@ def render_strategy_backtest_html(
           <input id="h4_leverage" name="h4_leverage" type="number" min="1" max="20" step="0.5" value="{_escape(getattr(config, "h4_leverage", "10"))}">
         </div>
         <div class="form-field">
+          <label for="weekly_margin_pct">周线保证金预算</label>
+          <input id="weekly_margin_pct" name="weekly_margin_pct" type="number" min="0" max="1" step="0.01" value="{_escape(getattr(config, "weekly_margin_pct", "0.10"))}">
+        </div>
+        <div class="form-field">
           <label for="target_risk_reward">目标R倍数</label>
           <input id="target_risk_reward" name="target_risk_reward" type="number" min="0.5" max="10" step="0.25" value="{_escape(getattr(config, "target_risk_reward", "2"))}">
         </div>

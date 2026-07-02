@@ -45,6 +45,7 @@ class StrategyBacktestConfig:
     weekly_leverage: Decimal = Decimal("2")
     daily_leverage: Decimal = Decimal("5")
     h4_leverage: Decimal = Decimal("10")
+    weekly_margin_pct: Decimal = Decimal("0.10")
     funding_rate: Decimal = Decimal("0")
     funding_interval_ms: int = 8 * 60 * 60 * 1000
     trend_pullback_take_profit_mode: str = "TRAILING"
@@ -109,6 +110,7 @@ class StrategyBacktestRunSummary:
     weekly_leverage: str = "2"
     daily_leverage: str = "5"
     h4_leverage: str = "10"
+    weekly_margin_pct: str = "0.10"
     target_risk_reward: str = "2"
     daily_exit_policy: str = "FULL_REVERSAL"
     h4_rebound_adx_block_threshold: str = "20"
@@ -158,6 +160,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
             weekly_leverage=backtest_config.weekly_leverage,
             daily_leverage=backtest_config.daily_leverage,
             h4_leverage=backtest_config.h4_leverage,
+            weekly_margin_pct=backtest_config.weekly_margin_pct,
             funding_rate=backtest_config.funding_rate,
             funding_interval_ms=backtest_config.funding_interval_ms,
             trend_pullback_take_profit_mode=backtest_config.trend_pullback_take_profit_mode,

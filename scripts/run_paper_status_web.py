@@ -315,6 +315,13 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
             minimum=Decimal("1"),
             maximum=Decimal("20"),
         ),
+        weekly_margin_pct=_query_decimal(
+            query,
+            "weekly_margin_pct",
+            Decimal("0.10"),
+            minimum=Decimal("0"),
+            maximum=Decimal("1"),
+        ),
         target_risk_reward=_query_decimal(
             query,
             "target_risk_reward",
