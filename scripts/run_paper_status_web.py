@@ -283,7 +283,7 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
         daily_risk_pct=_query_decimal(
             query,
             "daily_risk_pct",
-            Decimal("0.005"),
+            Decimal("0.010"),
             minimum=Decimal("0"),
             maximum=Decimal("0.05"),
         ),
@@ -385,6 +385,7 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
             maximum=10,
         ),
         allow_same_direction_add_positions=_query_bool(query, "allow_same_direction_add_positions", True),
+        allow_daily_long_entries=_query_bool(query, "allow_daily_long_entries", False),
     )
 
 

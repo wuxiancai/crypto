@@ -92,6 +92,48 @@ def test_daily_short_under_weekly_bull_is_independent_daily_trend_not_rebound():
     assert "daily independent short trend" in decision.signal.reason
 
 
+def test_daily_long_entries_are_disabled_by_default():
+    from app.strategy.position_hierarchy import PositionLevel
+    from app.strategy.weekly_daily_h4_strategy import WeeklyDailyH4Input, build_weekly_daily_h4_decision
+
+    decision = build_weekly_daily_h4_decision(
+        WeeklyDailyH4Input(
+            symbol="BTCUSDT",
+            weekly=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10"),
+            daily=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10"),
+            h4=_frame(),
+            focus_level=PositionLevel.DAILY,
+        )
+    )
+
+    assert decision.signal.action == "WAIT"
+    assert "daily long entries disabled" in decision.signal.reason
+
+
+def test_daily_long_entries_can_be_enabled_for_experiments():
+    from app.strategy.position_hierarchy import PositionLevel
+    from app.strategy.weekly_daily_h4_strategy import (
+        WeeklyDailyH4Config,
+        WeeklyDailyH4Input,
+        build_weekly_daily_h4_decision,
+    )
+
+    decision = build_weekly_daily_h4_decision(
+        WeeklyDailyH4Input(
+            symbol="BTCUSDT",
+            weekly=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10"),
+            daily=_frame(fast="110", slow="100", slope="1", di_plus="30", di_minus="10"),
+            h4=_frame(),
+            focus_level=PositionLevel.DAILY,
+        ),
+        WeeklyDailyH4Config(allow_daily_long_entries=True),
+    )
+
+    assert decision.signal.action == "LONG_ENTRY"
+    assert decision.signal.position_level == "DAILY"
+    assert decision.signal.strategy_type == "DAILY_LONG_TREND"
+
+
 def test_h4_long_under_daily_bear_is_independent_h4_breakout_not_rebound():
     from app.strategy.position_hierarchy import PositionLevel, TradeMode
     from app.strategy.weekly_daily_h4_strategy import OpenPositionState, WeeklyDailyH4Input, build_weekly_daily_h4_decision

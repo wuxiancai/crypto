@@ -49,6 +49,7 @@ class WeeklyDailyH4Config:
     h4_max_same_direction_positions: int | None = 2
     allow_same_direction_add_positions: bool = True
     weekly_bear_daily_short_stop_atr_multiplier: Decimal | None = Decimal("2")
+    allow_daily_long_entries: bool = False
 
 
 @dataclass(frozen=True)
@@ -255,6 +256,8 @@ def _daily_entry(
     control_state: ControlState,
 ) -> StrategySignal | None:
     if _bullish(strategy_input.daily, config):
+        if not config.allow_daily_long_entries:
+            return _wait(["daily long entries disabled"], weekly_regime, control_state)
         if _has_opposite_level(strategy_input, PositionLevel.DAILY, "LONG"):
             return None
         if _same_direction_limit_reached(strategy_input, PositionLevel.DAILY, "LONG", config):

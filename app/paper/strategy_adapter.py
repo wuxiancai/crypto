@@ -27,6 +27,9 @@ class RealtimeStrategyConfig:
     min_adx: Decimal = Decimal("18")
     min_risk_reward: Decimal = Decimal("1.5")
     target_risk_reward: Decimal = Decimal("2")
+    weekly_risk_pct: Decimal = Decimal("0.008")
+    daily_risk_pct: Decimal = Decimal("0.010")
+    h4_risk_pct: Decimal = Decimal("0.002")
     daily_exit_policy: str = "FULL_REVERSAL"
     h4_rebound_adx_block_threshold: Decimal | None = Decimal("20")
     stop_atr_multiplier: Decimal = Decimal("1.5")
@@ -36,6 +39,7 @@ class RealtimeStrategyConfig:
     daily_max_same_direction_positions: int = 1
     h4_max_same_direction_positions: int = 2
     allow_same_direction_add_positions: bool = True
+    allow_daily_long_entries: bool = False
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
     weekly_interval: str = "1w"
     daily_interval: str = "1d"
@@ -89,6 +93,9 @@ def build_realtime_strategy_signal(
         WeeklyDailyH4Config(
             min_adx=strategy_config.min_adx,
             target_risk_reward=strategy_config.target_risk_reward,
+            weekly_risk_pct=strategy_config.weekly_risk_pct,
+            daily_risk_pct=strategy_config.daily_risk_pct,
+            h4_risk_pct=strategy_config.h4_risk_pct,
             daily_exit_policy=strategy_config.daily_exit_policy,
             h4_rebound_adx_block_threshold=strategy_config.h4_rebound_adx_block_threshold,
             stop_atr_multiplier=strategy_config.stop_atr_multiplier,
@@ -100,6 +107,7 @@ def build_realtime_strategy_signal(
             daily_max_same_direction_positions=strategy_config.daily_max_same_direction_positions,
             h4_max_same_direction_positions=strategy_config.h4_max_same_direction_positions,
             allow_same_direction_add_positions=strategy_config.allow_same_direction_add_positions,
+            allow_daily_long_entries=strategy_config.allow_daily_long_entries,
         ),
     )
     signal = decision.signal

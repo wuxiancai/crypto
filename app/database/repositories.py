@@ -244,7 +244,7 @@ def strategy_backtest_config_payload(config: object) -> dict[str, str]:
         "initial_equity": str(getattr(config, "initial_equity")),
         "risk_per_trade_pct": str(getattr(config, "risk_per_trade_pct")),
         "weekly_risk_pct": str(getattr(config, "weekly_risk_pct", "0.008")),
-        "daily_risk_pct": str(getattr(config, "daily_risk_pct", "0.005")),
+        "daily_risk_pct": str(getattr(config, "daily_risk_pct", "0.010")),
         "h4_risk_pct": str(getattr(config, "h4_risk_pct", "0.002")),
         "weekly_leverage": str(getattr(config, "weekly_leverage", "2")),
         "daily_leverage": str(getattr(config, "daily_leverage", "5")),
@@ -271,6 +271,7 @@ def strategy_backtest_config_payload(config: object) -> dict[str, str]:
         "allow_same_direction_add_positions": _bool_payload(
             getattr(config, "allow_same_direction_add_positions", True)
         ),
+        "allow_daily_long_entries": _bool_payload(getattr(config, "allow_daily_long_entries", False)),
     }
 
 
@@ -408,7 +409,7 @@ def _strategy_backtest_summary(
         profit_loss_ratio=_summary_profit_loss_ratio(trades or []),
         trend_pullback_take_profit_mode=str(payload.get("trend_pullback_take_profit_mode") or "TRAILING"),
         weekly_risk_pct=str(payload.get("weekly_risk_pct") or "0.008"),
-        daily_risk_pct=str(payload.get("daily_risk_pct") or "0.005"),
+        daily_risk_pct=str(payload.get("daily_risk_pct") or "0.010"),
         h4_risk_pct=str(payload.get("h4_risk_pct") or "0.002"),
         weekly_leverage=str(payload.get("weekly_leverage") or "2"),
         daily_leverage=str(payload.get("daily_leverage") or "5"),
@@ -426,6 +427,7 @@ def _strategy_backtest_summary(
         daily_max_same_direction_positions=str(payload.get("daily_max_same_direction_positions") or "1"),
         h4_max_same_direction_positions=str(payload.get("h4_max_same_direction_positions") or "2"),
         allow_same_direction_add_positions=str(payload.get("allow_same_direction_add_positions") or "true"),
+        allow_daily_long_entries=str(payload.get("allow_daily_long_entries") or "false"),
         bucket_metrics=_summary_bucket_metrics(trades or []),
     )
 

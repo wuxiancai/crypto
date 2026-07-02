@@ -40,6 +40,14 @@
 
 ## 本轮修复
 
+- 2026-07-02 日线策略继续优化：
+  - 用户指出日线 2 年只赚约 `12` 仍明显不合理，要求继续优化日线交易策略。已按逐笔交易复盘定位根因：上一版默认 2 年回测中，日线共 32 笔，`DAILY_LONG_TREND` 的 12 笔止损合计约 `-63.68`，日线多单是主要拖累；日线空单 6 笔移动止盈合计约 `+65.20`，但被空单止损和日线多单抵消。
+  - 参数/逻辑对照结论：单纯要求日线收盘在快线同侧没有改善；单纯提高日线风险预算能提高收益但会放大回撤；关闭日线多单后，日线收益提升且回撤下降。`no_daily_long + daily_risk_pct=0.010` 的 2 年对照结果最好，且不是放大杠杆。
+  - 修复：新增 `allow_daily_long_entries`，默认 `false`，普通回测页可通过“允许日线多单”重新开启做对照；日线风险预算默认从 `0.005` 提高到 `0.010`。日线杠杆仍保持 `5x`，不是通过加杠杆提高收益。策略政策版本升级为 `INDEPENDENT_TIMELINES_V7`，避免复用旧归档。
+  - 同步修正：`RealtimeStrategyConfig` 现在显式携带并传入 `weekly_risk_pct / daily_risk_pct / h4_risk_pct`，避免实时 Paper 的策略层风险预算和回测配置默认值不一致。
+  - 本地缓存 2 年 BTCUSDT 默认回测验证：`net_pnl=241.04`、`final_equity=1241.04`、`total_trades=393`、`max_drawdown=60.27 / 4.84%`；按层级：`DAILY=39.21`、`H4=113.72`、`WEEKLY=88.12`。日线内部只保留 `DAILY_SHORT_TREND=39.21`，`DAILY_LONG_TREND` 默认关闭。
+  - 验证：新增日线多单默认关闭/可开启测试；`.venv/bin/python -m pytest -q` 为 `255 passed`；2 年默认回测已用本地缓存 K 线验证。
+
 - 2026-07-02 周线空头下日线空单止损参数修复：
   - 用户继续指出日线收益偏低，要求重点分析是否应在周线趋势空下让日线空单不轻易止损止盈、允许更大浮亏，以及杠杆是否可以放大。已用本地缓存 K 线做 2 年 BTCUSDT 参数对照，结论是收益低的关键不是日线杠杆过小，也不是固定止盈过早，而是周线空头背景下日线空单的 ATR 止损上限偏紧。
   - 策略新增 `weekly_bear_daily_short_stop_atr_multiplier=2`，只作用于 `DAILY + SHORT + weekly_regime=BEAR` 的入场止损 ATR 上限；其他周线、日线多单、4H 默认仍使用全局 `stop_atr_multiplier=1.5`，保持周线 / 日线 / 4H 独立参数语义。策略政策版本升级为 `INDEPENDENT_TIMELINES_V6`，避免复用 V5 归档结果。

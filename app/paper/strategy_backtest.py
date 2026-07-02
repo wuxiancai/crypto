@@ -36,7 +36,7 @@ class StrategyBacktestConfig:
     initial_equity: Decimal = Decimal("1000")
     risk_per_trade_pct: Decimal = Decimal("0.005")
     weekly_risk_pct: Decimal = Decimal("0.008")
-    daily_risk_pct: Decimal = Decimal("0.005")
+    daily_risk_pct: Decimal = Decimal("0.010")
     h4_risk_pct: Decimal = Decimal("0.002")
     maker_fee_rate: Decimal = Decimal("0.0002")
     taker_fee_rate: Decimal = Decimal("0.0005")
@@ -60,6 +60,7 @@ class StrategyBacktestConfig:
     daily_max_same_direction_positions: int = 1
     h4_max_same_direction_positions: int = 2
     allow_same_direction_add_positions: bool = True
+    allow_daily_long_entries: bool = False
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
     trade_policy_version: str = TRADE_POLICY_VERSION
 
@@ -110,7 +111,7 @@ class StrategyBacktestRunSummary:
     trade_policy_version: str = TRADE_POLICY_VERSION
     timeframes: str = "1w,1d,4h"
     weekly_risk_pct: str = "0.008"
-    daily_risk_pct: str = "0.005"
+    daily_risk_pct: str = "0.010"
     h4_risk_pct: str = "0.002"
     weekly_leverage: str = "2"
     daily_leverage: str = "5"
@@ -126,6 +127,7 @@ class StrategyBacktestRunSummary:
     daily_max_same_direction_positions: str = "1"
     h4_max_same_direction_positions: str = "2"
     allow_same_direction_add_positions: str = "true"
+    allow_daily_long_entries: str = "false"
     bucket_metrics: dict[str, dict[str, str | int]] = field(default_factory=dict)
 
 
@@ -152,6 +154,9 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         atr_period=backtest_config.atr_period,
         dmi_period=backtest_config.dmi_period,
         swing_lookback=backtest_config.swing_lookback,
+        weekly_risk_pct=backtest_config.weekly_risk_pct,
+        daily_risk_pct=backtest_config.daily_risk_pct,
+        h4_risk_pct=backtest_config.h4_risk_pct,
         target_risk_reward=backtest_config.target_risk_reward,
         daily_exit_policy=backtest_config.daily_exit_policy,
         h4_rebound_adx_block_threshold=backtest_config.h4_rebound_adx_block_threshold,
@@ -162,6 +167,7 @@ async def run_strategy_backtest(config: StrategyBacktestConfig | None = None) ->
         daily_max_same_direction_positions=backtest_config.daily_max_same_direction_positions,
         h4_max_same_direction_positions=backtest_config.h4_max_same_direction_positions,
         allow_same_direction_add_positions=backtest_config.allow_same_direction_add_positions,
+        allow_daily_long_entries=backtest_config.allow_daily_long_entries,
         strategy_kernel=StrategyKernel.WEEKLY_DAILY_H4_V1.value,
     )
     engine = PaperTradingEngine(

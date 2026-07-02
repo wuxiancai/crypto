@@ -739,7 +739,7 @@ def render_strategy_backtest_html(
         </div>
         <div class="form-field">
           <label for="daily_risk_pct">日线风险预算</label>
-          <input id="daily_risk_pct" name="daily_risk_pct" type="number" min="0" max="0.05" step="0.001" value="{_escape(getattr(config, "daily_risk_pct", "0.005"))}">
+          <input id="daily_risk_pct" name="daily_risk_pct" type="number" min="0" max="0.05" step="0.001" value="{_escape(getattr(config, "daily_risk_pct", "0.010"))}">
         </div>
         <div class="form-field">
           <label for="h4_risk_pct">4H风险预算</label>
@@ -799,6 +799,12 @@ def render_strategy_backtest_html(
           <label for="allow_same_direction_add_positions">允许追加仓位</label>
           <select id="allow_same_direction_add_positions" name="allow_same_direction_add_positions">
             {_render_bool_options(getattr(config, "allow_same_direction_add_positions", True))}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="allow_daily_long_entries">允许日线多单</label>
+          <select id="allow_daily_long_entries" name="allow_daily_long_entries">
+            {_render_bool_options(getattr(config, "allow_daily_long_entries", False))}
           </select>
         </div>
         <button class="primary-button" type="submit" name="run" value="1">开始回测</button>
