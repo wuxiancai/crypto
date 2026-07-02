@@ -34,6 +34,7 @@ class RealtimeStrategyConfig:
     weekly_max_same_direction_positions: int = 2
     daily_max_same_direction_positions: int = 1
     h4_max_same_direction_positions: int = 2
+    allow_same_direction_add_positions: bool = True
     strategy_kernel: str = StrategyKernel.WEEKLY_DAILY_H4_V1.value
     weekly_interval: str = "1w"
     daily_interval: str = "1d"
@@ -94,6 +95,7 @@ def build_realtime_strategy_signal(
             weekly_max_same_direction_positions=strategy_config.weekly_max_same_direction_positions,
             daily_max_same_direction_positions=strategy_config.daily_max_same_direction_positions,
             h4_max_same_direction_positions=strategy_config.h4_max_same_direction_positions,
+            allow_same_direction_add_positions=strategy_config.allow_same_direction_add_positions,
         ),
     )
     signal = decision.signal
@@ -210,8 +212,7 @@ def _open_position_states(
             level = normalise_position_level(parts[1])
             mode = normalise_trade_mode(parts[3])
             if level is not None and mode is not None:
-                entry_count = _entry_count_from_encoded_parts(parts)
-                lifecycle_parts = parts[4:-1] if parts and parts[-1].startswith("entries=") else parts[4:]
+                lifecycle_parts = parts[4:]
                 lifecycle_state = "|".join(part for part in lifecycle_parts if part) if lifecycle_parts else "OPEN"
                 lifecycle_state = lifecycle_state or "OPEN"
                 states.append(
@@ -221,7 +222,6 @@ def _open_position_states(
                         position_level=level,
                         trade_mode=mode,
                         lifecycle_state=lifecycle_state,
-                        entry_count=entry_count,
                     )
                 )
     for bucket in open_buckets:
@@ -229,15 +229,6 @@ def _open_position_states(
         if level is not None and all(state.position_level != level for state in states):
             states.append(OpenPositionState(symbol="", side="UNKNOWN", position_level=level, trade_mode=TradeMode.TREND))
     return tuple(states)
-
-
-def _entry_count_from_encoded_parts(parts: list[str]) -> int:
-    if not parts or not parts[-1].startswith("entries="):
-        return 1
-    try:
-        return max(1, int(parts[-1].split("=", 1)[1]))
-    except ValueError:
-        return 1
 
 
 def _core_rules(frame: MultiTimeframeFrame, config: RealtimeStrategyConfig) -> list[str]:

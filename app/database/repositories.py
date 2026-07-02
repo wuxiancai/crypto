@@ -265,7 +265,9 @@ def strategy_backtest_config_payload(config: object) -> dict[str, str]:
         "weekly_max_same_direction_positions": str(getattr(config, "weekly_max_same_direction_positions", "2")),
         "daily_max_same_direction_positions": str(getattr(config, "daily_max_same_direction_positions", "1")),
         "h4_max_same_direction_positions": str(getattr(config, "h4_max_same_direction_positions", "2")),
-        "merge_same_direction_positions": _bool_payload(getattr(config, "merge_same_direction_positions", False)),
+        "allow_same_direction_add_positions": _bool_payload(
+            getattr(config, "allow_same_direction_add_positions", True)
+        ),
     }
 
 
@@ -417,7 +419,7 @@ def _strategy_backtest_summary(
         weekly_max_same_direction_positions=str(payload.get("weekly_max_same_direction_positions") or "2"),
         daily_max_same_direction_positions=str(payload.get("daily_max_same_direction_positions") or "1"),
         h4_max_same_direction_positions=str(payload.get("h4_max_same_direction_positions") or "2"),
-        merge_same_direction_positions=str(payload.get("merge_same_direction_positions") or "false"),
+        allow_same_direction_add_positions=str(payload.get("allow_same_direction_add_positions") or "true"),
         bucket_metrics=_summary_bucket_metrics(trades or []),
     )
 

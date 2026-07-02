@@ -40,13 +40,13 @@
 
 ## 本轮修复
 
-- 2026-07-02 同向追加仓合并实验：
-  - 用户提出“同向追加仓位不应作为独立开仓，而应与第一仓合并，持仓成本和止盈止损随之变化”，并要求测试是否收益更大。已在 `PaperTradingEngine` 增加实验开关 `merge_same_direction_positions`：开启时，同一 symbol / strategy_kernel / position_level / side 的新增仓会与既有仓合并，`entry_price`、`stop_loss`、`initial_stop_loss`、`take_profit` 按数量加权，`entry_fee` 累加。
-  - 为避免合并后绕过同向上限，合并持仓新增 `entry_count`；策略侧 `_same_direction_count()` 按 `entry_count` 统计仓位层数，而不是按持仓对象数统计。Paper 持久化和策略上下文编码也会保留该字段。
-  - 2 年 BTCUSDT A/B 回测结论：合并追加仓没有让收益更大。旧语义 `merge_same_direction_positions=False`：`total_trades=410`、`net_pnl=206.05`、`final_equity=1206.05`、`max_drawdown=68.28 / 5.61%`；开启合并：`total_trades=240`、`net_pnl=129.23`、`final_equity=1129.23`、`max_drawdown=68.83 / 6.04%`。
-  - 分层结果：不合并为 `DAILY=6.38`、`H4=111.19`、`WEEKLY=88.48`；合并后为 `DAILY=5.51`、`H4=68.23`、`WEEKLY=55.50`。合并会减少交易记录数量，但降低 H4 和周线收益，当前默认保持 `merge_same_direction_positions=False`。
-  - 策略政策版本升级为 `INDEPENDENT_TIMELINES_V4`，回测配置 payload 记录 `merge_same_direction_positions`，普通回测页可手动切换“同向追加合并”做后续实验。
-  - 验证：`.venv/bin/python -m pytest -q` 为 `250 passed`；默认 2 年回测确认 `merge_same_direction_positions=False` 且 `net_pnl=206.05`。
+- 2026-07-02 禁止追加仓位实验：
+  - 用户确认合并追加仓不能增加收益，要求删除合并实验，并新增“不允许追加仓位”作为回测参数开关。已删除 `merge_same_direction_positions`、合并持仓加权成本逻辑和 `entry_count` 状态；同向追加恢复为独立仓位语义。
+  - 策略新增 `allow_same_direction_add_positions`，默认 `true`。当设为 `false` 时，同一交易对、同一时间线、同一方向已有持仓后，周线 / 日线 / 4H 都不再允许追加仓位；普通回测页新增“允许追加仓位”开关，URL query 和归档 payload 均记录该值。
+  - 策略政策版本升级为 `INDEPENDENT_TIMELINES_V5`，避免复用合并实验或旧追加策略下的归档结果。
+  - 2 年 BTCUSDT A/B 回测结论：禁止追加仓位没有让收益增加。默认允许追加：`total_trades=410`、`net_pnl=206.05`、`final_equity=1206.05`、`max_drawdown=68.28 / 5.61%`；禁止追加：`total_trades=236`、`net_pnl=72.01`、`final_equity=1072.01`、`max_drawdown=58.02 / 5.39%`。
+  - 分层结果：允许追加为 `DAILY=6.38`、`H4=111.19`、`WEEKLY=88.48`；禁止追加为 `DAILY=5.01`、`H4=41.06`、`WEEKLY=25.93`。禁止追加略降回撤，但大幅降低 H4 和周线趋势收益，当前默认保持允许追加。
+  - 验证：`.venv/bin/python -m pytest -q` 为 `252 passed`；2 年 A/B 回测使用同一份本地缓存 K 线，仅切换 `allow_same_direction_add_positions`。
 
 - 2026-07-02 周线 / 日线 / 4H 独立开仓和止盈止损策略修复：
   - 用户指出周线、日线、4H 都必须作为独立时间线开仓、止盈止损；截图中的日线空头趋势明显，但旧回测日线仍亏损。复盘交易明细确认：日线仍用周线方向把信号分类为 `REBOUND`，4H 仍用日线方向分类/过滤，实际没有做到三条时间线完全独立；同时日线默认允许同方向 2 仓，会在震荡区产生同向成对止损。

@@ -89,8 +89,8 @@ def test_strategy_backtest_page_shows_parameter_form_and_results():
     assert 'name="weekly_leverage"' in html
     assert 'name="daily_leverage"' in html
     assert 'name="h4_leverage"' in html
-    assert "同向追加合并" in html
-    assert 'name="merge_same_direction_positions"' in html
+    assert "允许追加仓位" in html
+    assert 'name="allow_same_direction_add_positions"' in html
     assert "账户权益 USDT" in html
     assert "1030.25" in html
     assert "总交易次数" in html

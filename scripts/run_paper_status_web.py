@@ -377,7 +377,7 @@ def _backtest_config_from_query(query: dict[str, list[str]]) -> StrategyBacktest
             minimum=1,
             maximum=10,
         ),
-        merge_same_direction_positions=_query_bool(query, "merge_same_direction_positions", False),
+        allow_same_direction_add_positions=_query_bool(query, "allow_same_direction_add_positions", True),
     )
 
 

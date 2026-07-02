@@ -38,7 +38,6 @@ class PaperConfig:
     max_drawdown_pct: Decimal | None = None
     kill_switch: KillSwitchState | None = None
     kill_switch_state: KillSwitchState | None = None
-    merge_same_direction_positions: bool = False
 
 
 @dataclass(frozen=True)
@@ -64,7 +63,6 @@ class PaperPosition:
     trade_mode: str | None = None
     market_regime: str | None = None
     lifecycle_state: str | None = None
-    entry_count: int = 1
 
     def __post_init__(self) -> None:
         if self.initial_stop_loss is None:
@@ -181,14 +179,6 @@ class PaperTradingEngine:
         if position is None:
             self._rejected_signals += 1
             return None
-        merge_target = self._find_same_direction_position(kline.symbol, signal)
-        if merge_target is not None and self._config.merge_same_direction_positions:
-            merged = _merge_positions(merge_target, position)
-            if not self._liquidation_guard_allows(merged) or not self._stop_order_guard_allows(merged):
-                self._rejected_signals += 1
-                return None
-            self._replace_position(merge_target, merged)
-            return merged
         self._positions.append(position)
         return position
 
@@ -318,7 +308,6 @@ class PaperTradingEngine:
             trade_mode=getattr(signal, "trade_mode", None),
             market_regime=getattr(signal, "market_regime", None),
             lifecycle_state=getattr(signal, "lifecycle_state", "OPEN") or "OPEN",
-            entry_count=1,
         )
         if not self._liquidation_guard_allows(position):
             return None
@@ -388,21 +377,6 @@ class PaperTradingEngine:
             if signal_level and position.position_level != signal_level:
                 continue
             return position
-        return None
-
-    def _find_same_direction_position(self, symbol: str, signal: SignalLike) -> PaperPosition | None:
-        signal_level = getattr(signal, "position_level", None)
-        if not signal_level:
-            return None
-        signal_side = _side_from_action(signal.action)
-        signal_kernel = getattr(signal, "strategy_kernel", None)
-        for position in self._positions:
-            if position.symbol != symbol:
-                continue
-            if signal_kernel and position.strategy_kernel != signal_kernel:
-                continue
-            if position.position_level == signal_level and position.side == signal_side:
-                return position
         return None
 
     def _kill_switch_blocks_new_entries(self) -> bool:
@@ -644,53 +618,6 @@ def _apply_exit_slippage(price: Decimal, side: str, slippage_pct: Decimal) -> De
     if side == "LONG":
         return price * (Decimal("1") - slippage_pct)
     return price * (Decimal("1") + slippage_pct)
-
-
-def _merge_positions(existing: PaperPosition, addition: PaperPosition) -> PaperPosition:
-    quantity = existing.quantity + addition.quantity
-    if quantity <= 0:
-        return existing
-    return replace(
-        existing,
-        entry_price=_weighted_average(existing.entry_price, existing.quantity, addition.entry_price, addition.quantity),
-        stop_loss=_weighted_average(existing.stop_loss, existing.quantity, addition.stop_loss, addition.quantity),
-        take_profit=_weighted_average(existing.take_profit, existing.quantity, addition.take_profit, addition.quantity),
-        quantity=quantity,
-        entry_fee=existing.entry_fee + addition.entry_fee,
-        initial_stop_loss=_weighted_average(
-            existing.initial_stop_loss or existing.stop_loss,
-            existing.quantity,
-            addition.initial_stop_loss or addition.stop_loss,
-            addition.quantity,
-        ),
-        trailing_atr=_merge_optional_average(existing.trailing_atr, addition.trailing_atr, existing.quantity, addition.quantity),
-        trailing_last_close=addition.trailing_last_close or existing.trailing_last_close,
-        lifecycle_state=existing.lifecycle_state or addition.lifecycle_state,
-        entry_count=existing.entry_count + addition.entry_count,
-    )
-
-
-def _weighted_average(
-    first_value: Decimal,
-    first_quantity: Decimal,
-    second_value: Decimal,
-    second_quantity: Decimal,
-) -> Decimal:
-    quantity = first_quantity + second_quantity
-    return ((first_value * first_quantity) + (second_value * second_quantity)) / quantity
-
-
-def _merge_optional_average(
-    first_value: Decimal | None,
-    second_value: Decimal | None,
-    first_quantity: Decimal,
-    second_quantity: Decimal,
-) -> Decimal | None:
-    if first_value is None:
-        return second_value
-    if second_value is None:
-        return first_value
-    return _weighted_average(first_value, first_quantity, second_value, second_quantity)
 
 
 def _default_stop_loss(entry_price: Decimal, side: str, config: PaperConfig) -> Decimal:

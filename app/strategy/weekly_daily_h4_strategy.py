@@ -47,6 +47,7 @@ class WeeklyDailyH4Config:
     weekly_max_same_direction_positions: int | None = 2
     daily_max_same_direction_positions: int | None = 1
     h4_max_same_direction_positions: int | None = 2
+    allow_same_direction_add_positions: bool = True
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,6 @@ class OpenPositionState:
     position_level: PositionLevel
     trade_mode: TradeMode
     lifecycle_state: LifecycleState | str = LifecycleState.OPEN
-    entry_count: int = 1
 
 
 @dataclass(frozen=True)
@@ -216,7 +216,7 @@ def _weekly_entry(
         if _has_opposite_level(strategy_input, PositionLevel.WEEKLY, "SHORT"):
             return None
         if _same_direction_limit_reached(strategy_input, PositionLevel.WEEKLY, "SHORT", config):
-            return None
+            return _wait(["same direction additions disabled for WEEKLY"], weekly_regime, control_state)
         return _entry_signal(
             side="SHORT",
             level=PositionLevel.WEEKLY,
@@ -232,7 +232,7 @@ def _weekly_entry(
         if _has_opposite_level(strategy_input, PositionLevel.WEEKLY, "LONG"):
             return None
         if _same_direction_limit_reached(strategy_input, PositionLevel.WEEKLY, "LONG", config):
-            return None
+            return _wait(["same direction additions disabled for WEEKLY"], weekly_regime, control_state)
         return _entry_signal(
             side="LONG",
             level=PositionLevel.WEEKLY,
@@ -303,7 +303,7 @@ def _h4_entry(
         if _has_opposite_level(strategy_input, PositionLevel.H4, "LONG"):
             return None
         if _same_direction_limit_reached(strategy_input, PositionLevel.H4, "LONG", config):
-            return None
+            return _wait(["same direction additions disabled for H4"], weekly_regime, control_state)
         mode = TradeMode.TREND
         if _h4_breakout(strategy_input.h4):
             mode = TradeMode.BREAKOUT
@@ -325,7 +325,7 @@ def _h4_entry(
         if _has_opposite_level(strategy_input, PositionLevel.H4, "SHORT"):
             return None
         if _same_direction_limit_reached(strategy_input, PositionLevel.H4, "SHORT", config):
-            return None
+            return _wait(["same direction additions disabled for H4"], weekly_regime, control_state)
         mode = TradeMode.TREND
         if _h4_breakdown(strategy_input.h4):
             mode = TradeMode.BREAKOUT
@@ -548,11 +548,7 @@ def _has_opposite_level(strategy_input: WeeklyDailyH4Input, level: PositionLevel
 
 
 def _same_direction_count(strategy_input: WeeklyDailyH4Input, level: PositionLevel, side: str) -> int:
-    return sum(
-        max(1, position.entry_count)
-        for position in strategy_input.open_positions
-        if position.position_level == level and position.side == side
-    )
+    return sum(1 for position in strategy_input.open_positions if position.position_level == level and position.side == side)
 
 
 def _same_direction_limit_reached(
@@ -566,7 +562,9 @@ def _same_direction_limit_reached(
         PositionLevel.DAILY: config.daily_max_same_direction_positions,
         PositionLevel.H4: config.h4_max_same_direction_positions,
     }[level]
-    limit = level_limit if level_limit is not None else config.max_same_direction_positions_per_level
+    limit = 1 if not config.allow_same_direction_add_positions else (
+        level_limit if level_limit is not None else config.max_same_direction_positions_per_level
+    )
     return _same_direction_count(strategy_input, level, side) >= limit
 
 
